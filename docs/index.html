@@ -707,19 +707,26 @@
     sb = supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
 
     const { data: { session } } = await sb.auth.getSession();
-    if (!session) {
-      location.href = 'login.html';
-      return;
-    }
+    if (!session) { location.href = 'login.html'; return; }
 
     const email = session.user.email;
-    const name  = email.split('@')[0];
+
+    // 승인 여부 확인
+    const { data: profile } = await sb
+      .from('profiles')
+      .select('approved, role')
+      .eq('id', session.user.id)
+      .single();
+
+    if (!profile?.approved) { location.href = 'pending.html'; return; }
+
+    const name = email.split('@')[0];
     document.getElementById('userEmail').textContent   = email;
     document.getElementById('userName').textContent    = name;
     document.getElementById('userInitial').textContent = name[0].toUpperCase();
 
-    // Show admin link if applicable
-    if (cfg.adminEmails.includes(email)) {
+    // 관리자 링크 표시
+    if (profile.role === 'admin' || cfg.adminEmails.includes(email)) {
       document.getElementById('adminLink').style.display = 'flex';
     }
   })();

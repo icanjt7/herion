@@ -727,11 +727,17 @@
 
     const email = session.user.email;
 
-    // Non-admin users go back to chat
-    if (cfg.adminEmails.length > 0 && !cfg.adminEmails.includes(email)) {
-      location.href = 'index.html';
-      return;
-    }
+    // 승인 여부 및 관리자 권한 확인
+    const { data: profile } = await sb
+      .from('profiles')
+      .select('approved, role')
+      .eq('id', session.user.id)
+      .single();
+
+    if (!profile?.approved) { location.href = 'pending.html'; return; }
+
+    const isAdmin = profile.role === 'admin' || cfg.adminEmails.includes(email);
+    if (!isAdmin) { location.href = 'index.html'; return; }
 
     const name = email.split('@')[0];
     document.getElementById('adminEmail').textContent   = email;
