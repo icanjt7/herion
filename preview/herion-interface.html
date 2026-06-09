@@ -6,7 +6,7 @@
   <title>Herion — 국가유산 AI 업무 보조</title>
   <style>
     :root {
-      color-scheme: light;
+      font-family: Inter, "Segoe UI", "Noto Sans KR", Arial, sans-serif;
       --bg: #f6f7f9;
       --panel: #ffffff;
       --panel-2: #eef2f6;
@@ -16,143 +16,171 @@
       --accent: #19715f;
       --accent-2: #2457a6;
       --warn: #a65f12;
-      --shadow: 0 16px 34px rgba(21, 32, 46, .08);
-      font-family: Inter, "Segoe UI", Roboto, "Noto Sans KR", Arial, sans-serif;
+      --sidebar: #18202b;
     }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      min-height: 100vh;
-      background: var(--bg);
-      color: var(--text);
-    }
+    body { background: var(--bg); color: var(--text); min-height: 100vh; }
 
     .app {
       display: grid;
-      grid-template-columns: 280px minmax(0, 1fr);
+      grid-template-columns: 260px minmax(0, 1fr);
       min-height: 100vh;
     }
 
+    /* Sidebar */
     aside {
-      background: #18202b;
+      background: var(--sidebar);
       color: #eef3f8;
       display: flex;
       flex-direction: column;
-      padding: 18px;
-      gap: 16px;
+      padding: 16px 12px;
+      gap: 3px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
     }
 
     .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
-      min-height: 38px;
+      gap: 9px;
+      padding: 4px 6px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.1);
+      margin-bottom: 6px;
       font-weight: 760;
-      font-size: 18px;
+      font-size: 17px;
     }
 
     .mark {
-      width: 34px;
-      height: 34px;
+      width: 32px; height: 32px;
       border-radius: 8px;
       background: linear-gradient(135deg, #2bb58f, #2864bb);
       display: grid;
       place-items: center;
       font-weight: 800;
+      font-size: 14px;
     }
 
     .new-chat {
-      border: 1px solid rgba(255,255,255,.18);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 36px;
+      border: 1px solid rgba(255,255,255,.2);
       background: rgba(255,255,255,.08);
       color: #fff;
-      height: 38px;
       border-radius: 8px;
-      font-weight: 650;
-      cursor: default;
+      padding: 0 12px;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 4px;
     }
 
-    .nav-title {
-      color: #aab5c3;
-      font-size: 12px;
-      margin-top: 8px;
+    .nav-section {
+      font-size: 10px;
       text-transform: uppercase;
-    }
-
-    .chat-list {
-      display: grid;
-      gap: 6px;
+      color: #6b7e94;
+      padding: 10px 8px 4px;
+      letter-spacing: .06em;
     }
 
     .chat-item {
-      padding: 10px 11px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 10px;
       border-radius: 7px;
-      color: #dce5ef;
-      font-size: 14px;
+      font-size: 13px;
+      color: #c4cdd8;
+      cursor: pointer;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
-    .chat-item.active {
-      background: rgba(255,255,255,.12);
+    .chat-item:hover, .chat-item.active {
+      background: rgba(255,255,255,.1);
+      color: #fff;
     }
 
-    .user {
-      margin-top: auto;
-      border-top: 1px solid rgba(255,255,255,.12);
-      padding-top: 14px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      color: #d8e0e8;
-      font-size: 13px;
-      min-width: 0;
-    }
-
-    .avatar {
-      width: 32px;
-      height: 32px;
+    .chat-item .dot {
+      width: 6px; height: 6px;
       border-radius: 50%;
-      background: #2bb58f;
-      display: grid;
-      place-items: center;
-      color: #09241d;
-      font-weight: 800;
+      background: var(--accent);
       flex: 0 0 auto;
     }
 
-    main {
-      display: grid;
-      grid-template-rows: 62px 1fr auto;
-      min-width: 0;
+    .sidebar-footer {
+      margin-top: auto;
+      border-top: 1px solid rgba(255,255,255,.1);
+      padding-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
 
+    .footer-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 8px;
+      border-radius: 7px;
+      font-size: 13px;
+      color: #9facbb;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .footer-link:hover { background: rgba(255,255,255,.08); color: #fff; }
+
+    .user-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 8px;
+      color: #c4cdd8;
+      font-size: 12.5px;
+    }
+
+    .avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-weight: 800;
+      font-size: 12px;
+      flex: 0 0 auto;
+    }
+
+    /* Main */
+    main {
+      display: grid;
+      grid-template-rows: 56px 1fr auto;
+      min-width: 0;
+      min-height: 100vh;
+    }
+
+    /* Header */
     header {
-      background: rgba(255,255,255,.86);
-      backdrop-filter: blur(12px);
+      background: rgba(255,255,255,.9);
+      backdrop-filter: blur(10px);
       border-bottom: 1px solid var(--line);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 24px;
-      gap: 16px;
+      padding: 0 22px;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
 
-    .title {
-      min-width: 0;
-    }
-
-    .title strong {
-      display: block;
-      font-size: 16px;
-    }
-
-    .title span {
-      color: var(--muted);
-      font-size: 13px;
-    }
+    .header-title { font-size: 15px; font-weight: 650; }
+    .header-sub   { font-size: 12px; color: var(--muted); }
 
     .toolbar {
       display: flex;
@@ -160,263 +188,505 @@
       gap: 8px;
     }
 
-    .select, .tool {
-      height: 34px;
+    .model-select {
+      height: 32px;
       border: 1px solid var(--line);
       background: #fff;
-      border-radius: 8px;
+      border-radius: 7px;
+      padding: 0 10px;
+      font-size: 12.5px;
       color: var(--text);
-      padding: 0 11px;
-      font-size: 13px;
     }
 
-    .workspace {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 320px;
-      gap: 20px;
-      padding: 22px 24px;
-      min-height: 0;
-    }
-
-    .conversation {
-      min-width: 0;
-      display: grid;
-      align-content: start;
-      gap: 14px;
-      max-width: 940px;
-      width: 100%;
-      margin: 0 auto;
-    }
-
-    .message {
-      display: grid;
-      grid-template-columns: 36px minmax(0, 1fr);
-      gap: 12px;
-      align-items: start;
-    }
-
-    .bubble {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 14px 15px;
-      line-height: 1.55;
-      box-shadow: 0 1px 0 rgba(21, 32, 46, .03);
-    }
-
-    .bubble.user-bubble {
-      background: #edf6f3;
-      border-color: #c7e1d9;
-    }
-
-    .chip-row {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 12px;
-    }
-
-    .chip {
+    .icon-btn {
+      width: 32px; height: 32px;
       border: 1px solid var(--line);
       background: #fff;
-      border-radius: 999px;
-      padding: 7px 10px;
-      font-size: 12px;
-      color: #344156;
-    }
-
-    .side-panel {
+      border-radius: 7px;
       display: grid;
-      align-content: start;
-      gap: 14px;
-    }
-
-    .panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      box-shadow: var(--shadow);
-      padding: 16px;
-    }
-
-    .panel h2 {
-      margin: 0 0 10px;
+      place-items: center;
+      cursor: pointer;
       font-size: 14px;
+      color: var(--muted);
     }
 
-    .stat {
+    /* Conversation area */
+    .workspace {
+      overflow-y: auto;
+      padding: 28px 0;
+    }
+
+    .conv-inner {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: grid;
+      gap: 28px;
+    }
+
+    /* Message */
+    .msg { display: grid; gap: 8px; }
+
+    .msg-header {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .msg-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 12px;
+    }
+
+    .msg.user .msg-avatar  { background: var(--accent); color: #fff; }
+    .msg.ai   .msg-avatar  { background: #dfe8f4; color: var(--accent-2); }
+
+    .msg-body {
+      margin-left: 37px;
+      font-size: 14.5px;
+      line-height: 1.7;
+    }
+
+    /* Markdown-like styles inside msg-body */
+    .msg-body p { margin-bottom: .6em; }
+    .msg-body p:last-child { margin-bottom: 0; }
+
+    .msg-body h3 {
+      font-size: 15px;
+      font-weight: 700;
+      margin: 1em 0 .4em;
+    }
+
+    .msg-body ul, .msg-body ol {
+      padding-left: 1.4em;
+      margin-bottom: .7em;
+    }
+
+    .msg-body li { margin-bottom: .3em; }
+
+    .msg-body strong { font-weight: 700; }
+
+    .msg-body code {
+      background: #eef2f6;
+      border: 1px solid #dde3ec;
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: 13px;
+      font-family: "Fira Code", "Consolas", monospace;
+    }
+
+    .code-block {
+      background: #1c2430;
+      color: #e2e8f0;
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 10px 0;
+      font-size: 13px;
+      font-family: "Fira Code", "Consolas", monospace;
+    }
+
+    .code-block-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
-      padding: 9px 0;
-      border-top: 1px solid #edf0f4;
-      font-size: 13px;
-    }
-
-    .stat:first-of-type { border-top: 0; }
-
-    .pill {
-      border-radius: 999px;
-      padding: 4px 8px;
+      padding: 8px 14px;
+      background: rgba(255,255,255,.07);
       font-size: 12px;
+      color: #94a3b8;
+    }
+
+    .code-block pre {
+      padding: 14px;
+      overflow-x: auto;
+      line-height: 1.6;
+    }
+
+    .copy-btn {
+      border: 1px solid rgba(255,255,255,.2);
+      background: transparent;
+      color: #94a3b8;
+      border-radius: 5px;
+      padding: 2px 8px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .msg-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .action-pill {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 999px;
+      padding: 5px 11px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .action-pill:hover { background: var(--panel-2); color: var(--text); }
+
+    /* File attach preview */
+    .file-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--line);
       background: var(--panel-2);
-      color: #344156;
+      border-radius: 7px;
+      padding: 6px 10px;
+      font-size: 12.5px;
+      margin-bottom: 8px;
     }
 
-    .pill.good {
-      background: #dff4ec;
-      color: var(--accent);
+    /* Thinking indicator */
+    .thinking {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--muted);
+      font-style: italic;
     }
 
-    .pill.warn {
-      background: #fff0dc;
-      color: var(--warn);
+    .dot-anim span {
+      display: inline-block;
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--muted);
+      animation: bounce 1.2s infinite ease-in-out;
     }
 
+    .dot-anim span:nth-child(2) { animation-delay: .2s; }
+    .dot-anim span:nth-child(3) { animation-delay: .4s; }
+
+    @keyframes bounce {
+      0%, 80%, 100% { transform: scale(0.7); opacity: .5; }
+      40%            { transform: scale(1);   opacity: 1; }
+    }
+
+    /* Divider */
+    .day-divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .day-divider::before, .day-divider::after {
+      content: '';
+      flex: 1;
+      border-top: 1px solid var(--line);
+    }
+
+    /* Composer */
     .composer {
       border-top: 1px solid var(--line);
-      background: rgba(246,247,249,.9);
-      padding: 16px 24px 20px;
+      background: var(--bg);
+      padding: 14px 24px 18px;
+    }
+
+    .composer-inner {
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    .attach-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .attach-pill {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
     }
 
     .input-shell {
-      max-width: 940px;
-      margin: 0 auto;
       background: #fff;
       border: 1px solid var(--line);
-      border-radius: 8px;
-      box-shadow: var(--shadow);
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(21,32,46,.06);
       display: grid;
-      grid-template-columns: 40px minmax(0, 1fr) 42px;
-      align-items: center;
-      min-height: 54px;
-      padding: 0 8px;
+      grid-template-columns: auto 1fr auto;
+      align-items: end;
+      padding: 8px 10px;
+      gap: 6px;
     }
 
-    .icon-button {
-      width: 34px;
-      height: 34px;
-      border: 0;
+    .attach-btn {
+      width: 34px; height: 34px;
+      border: 1px solid var(--line);
       background: transparent;
-      border-radius: 8px;
+      border-radius: 7px;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      font-size: 16px;
       color: var(--muted);
-      font-size: 18px;
+      align-self: flex-end;
     }
 
-    .placeholder {
-      color: #7a8796;
-      font-size: 14px;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
+    textarea {
+      border: 0;
+      outline: 0;
+      resize: none;
+      font-size: 14.5px;
+      color: var(--text);
+      font-family: inherit;
+      line-height: 1.5;
+      min-height: 34px;
+      max-height: 200px;
+      padding: 6px 4px;
+      background: transparent;
     }
 
-    .send {
-      width: 34px;
-      height: 34px;
+    textarea::placeholder { color: #9aa5b4; }
+
+    .send-btn {
+      width: 34px; height: 34px;
       border: 0;
       border-radius: 8px;
       background: var(--accent);
       color: #fff;
       font-size: 16px;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      align-self: flex-end;
     }
 
-    @media (max-width: 940px) {
+    .composer-hint {
+      text-align: center;
+      font-size: 11.5px;
+      color: #aab5c3;
+      margin-top: 10px;
+    }
+
+    @media (max-width: 860px) {
       .app { grid-template-columns: 1fr; }
       aside { display: none; }
-      .workspace { grid-template-columns: 1fr; padding: 16px; }
-      .side-panel { display: none; }
       header { padding: 0 16px; }
-      .composer { padding: 14px 16px 16px; }
-      .select { max-width: 132px; }
+      .composer { padding: 12px 16px 16px; }
+      .conv-inner { padding: 0 16px; }
     }
   </style>
 </head>
 <body>
-  <div class="app">
-    <aside>
-      <div class="brand">
-        <div class="mark">H</div>
-        <div>Herion</div>
-      </div>
-      <button class="new-chat">새 대화</button>
+<div class="app">
 
-      <div class="nav-title">최근 대화</div>
-      <div class="chat-list">
-        <div class="chat-item active">현장 안내문 초안 작성</div>
-        <div class="chat-item">국가유산 설명문 영문 번역</div>
-        <div class="chat-item">유산 가치 평가 보고서 요약</div>
-        <div class="chat-item">체험 프로그램 Q&A 정리</div>
-      </div>
+  <!-- Sidebar -->
+  <aside>
+    <div class="brand">
+      <div class="mark">H</div>
+      <span>Herion</span>
+    </div>
 
-      <div class="user">
+    <button class="new-chat">＋&nbsp; 새 대화</button>
+
+    <div class="nav-section">오늘</div>
+    <div class="chat-item active"><span class="dot"></span>현장 안내문 초안 작성</div>
+
+    <div class="nav-section">이번 주</div>
+    <div class="chat-item">국가유산 설명문 영문 번역</div>
+    <div class="chat-item">유산 가치 평가 보고서 요약</div>
+    <div class="chat-item">체험 프로그램 Q&amp;A 정리</div>
+    <div class="chat-item">등재 신청서 검토 의견</div>
+    <div class="chat-item">보존 현황 보고서 요약</div>
+
+    <div class="nav-section">지난 달</div>
+    <div class="chat-item">유네스코 서신 초안</div>
+    <div class="chat-item">국내외 사례 비교 분석</div>
+
+    <div class="sidebar-footer">
+      <a href="admin.html" class="footer-link">📊 관리자 대시보드</a>
+      <a href="login.html" class="footer-link">⚙️ 계정 설정</a>
+      <div class="user-row">
         <div class="avatar">K</div>
         <div>
-          <div>kh 사용자</div>
-          <div style="color:#9facbb;">user@kh.or.kr</div>
+          <div style="font-weight:600;">kh 사용자</div>
+          <div style="color:#8a96a3;font-size:11px;">user@kh.or.kr</div>
         </div>
       </div>
-    </aside>
+    </div>
+  </aside>
 
-    <main>
-      <header>
-        <div class="title">
-          <strong>현장 안내문 초안 작성</strong>
-          <span>국가유산 담당자 전용 AI 업무 보조</span>
-        </div>
-        <div class="toolbar">
-          <button class="tool">파일</button>
-          <button class="tool">공유</button>
-          <button class="select">GPT 모델</button>
-        </div>
-      </header>
+  <!-- Main -->
+  <main>
+    <header>
+      <div>
+        <div class="header-title">현장 안내문 초안 작성</div>
+        <div class="header-sub">국가유산 담당자 전용 AI 업무 보조</div>
+      </div>
+      <div class="toolbar">
+        <select class="model-select">
+          <option>GPT-4o</option>
+          <option>GPT-4o mini</option>
+          <option>GPT-4 Turbo</option>
+        </select>
+        <button class="icon-btn" title="공유">⎘</button>
+        <button class="icon-btn" title="새 대화">✕</button>
+      </div>
+    </header>
 
-      <section class="workspace">
-        <div class="conversation">
-          <div class="message">
-            <div class="avatar">K</div>
-            <div class="bubble user-bubble">아래 국가유산 설명 자료를 일반 관람객도 이해할 수 있는 현장 안내문으로 정리해줘. 역사적 맥락은 간략히 넣고, 관람 시 유의사항은 항목으로 구분해줘.</div>
+    <section class="workspace">
+      <div class="conv-inner">
+
+        <div class="day-divider">오늘</div>
+
+        <!-- User message with file -->
+        <div class="msg user">
+          <div class="msg-header">
+            <div class="msg-avatar">K</div>
+            <span>kh 사용자</span>
+            <span style="color:var(--muted);font-size:12px;">오전 10:14</span>
           </div>
+          <div class="msg-body">
+            <div class="file-chip">📄 덕수궁_석조전_학술자료_2024.pdf <span style="color:var(--muted);">218 KB</span></div>
+            <p>위 자료를 바탕으로 덕수궁 석조전 현장 안내문 초안을 작성해줘. 일반 관람객 대상이라 어렵지 않게 써줘. 관람 시 주의사항도 항목으로 넣어줘.</p>
+          </div>
+        </div>
 
-          <div class="message">
-            <div class="avatar" style="background:#dfe8f4;color:#2457a6;">H</div>
-            <div class="bubble">
-              요청하신 자료를 관람객 안내문 형태로 작성했습니다. 유산의 역사적 배경, 주요 특징, 관람 시 주의사항을 구분하여 정리했으며, 표현은 전문 용어를 최소화하고 누구나 읽기 쉽도록 조정했습니다.
-              <div class="chip-row">
-                <span class="chip">어린이용으로 다시 쓰기</span>
-                <span class="chip">영문 병기 추가</span>
-                <span class="chip">주의사항만 추출</span>
+        <!-- AI response -->
+        <div class="msg ai">
+          <div class="msg-header">
+            <div class="msg-avatar">H</div>
+            <span>Herion</span>
+            <span style="color:var(--muted);font-size:12px;">오전 10:14</span>
+          </div>
+          <div class="msg-body">
+            <p>첨부하신 학술자료를 바탕으로 덕수궁 석조전 현장 안내문 초안을 작성했습니다.</p>
+
+            <h3>🏛️ 덕수궁 석조전 안내</h3>
+            <p>석조전은 1910년에 완공된 우리나라 최초의 서양식 석조 건물입니다. 대한제국 황실의 공식 접견 공간으로 사용되었으며, 르네상스 양식의 웅장한 외관이 특징입니다.</p>
+            <p><strong>관람 포인트</strong></p>
+            <ul>
+              <li>1층: 황실 의례 공간 — 접견실과 대기실이 원형 복원되어 있습니다.</li>
+              <li>2층: 황제 집무 공간 — 고종 황제의 집무실과 침실을 재현했습니다.</li>
+              <li>외부 정원: 분수대와 잔디마당에서 건물 전경을 감상할 수 있습니다.</li>
+            </ul>
+
+            <p><strong>관람 시 주의사항</strong></p>
+            <ul>
+              <li>건물 내부 사진 촬영은 허용되나 플래시 사용은 삼가주세요.</li>
+              <li>음식물 반입 및 취식은 금지되어 있습니다.</li>
+              <li>전시물에 손을 대거나 기대는 행위를 자제해 주세요.</li>
+              <li>유모차·휠체어는 1층 입구 왼편 경사로를 이용해 주세요.</li>
+            </ul>
+
+            <div class="code-block">
+              <div class="code-block-header">
+                <span>markdown — 홈페이지 게시용</span>
+                <button class="copy-btn">복사</button>
               </div>
+              <pre>## 덕수궁 석조전
+
+1910년 완공, 대한제국 황실 접견 공간.
+르네상스 양식의 국내 최초 서양식 석조 건물.
+
+**관람 시간** 09:00 – 21:00 (월요일 휴관)
+**관람료** 대인 1,000원 / 소인 무료</pre>
+            </div>
+
+            <div class="msg-actions">
+              <button class="action-pill">어린이용으로 다시 쓰기</button>
+              <button class="action-pill">영문 병기 추가</button>
+              <button class="action-pill">주의사항만 추출</button>
+              <button class="action-pill">더 간결하게</button>
             </div>
           </div>
         </div>
 
-        <div class="side-panel">
-          <div class="panel">
-            <h2>사용자 상태</h2>
-            <div class="stat"><span>로그인 도메인</span><span class="pill good">@kh.or.kr</span></div>
-            <div class="stat"><span>역할</span><span class="pill">담당자</span></div>
-            <div class="stat"><span>월 사용량</span><span class="pill">18%</span></div>
+        <!-- User follow-up -->
+        <div class="msg user">
+          <div class="msg-header">
+            <div class="msg-avatar">K</div>
+            <span>kh 사용자</span>
+            <span style="color:var(--muted);font-size:12px;">오전 10:21</span>
           </div>
-
-          <div class="panel">
-            <h2>관리자 현황</h2>
-            <div class="stat"><span>승인 대기</span><span class="pill warn">3명</span></div>
-            <div class="stat"><span>활성 사용자</span><span class="pill">42명</span></div>
-            <div class="stat"><span>허용 도메인</span><span class="pill good">kh.or.kr</span></div>
+          <div class="msg-body">
+            <p>좋아, 이 내용을 영어로도 번역해줘. 문화재 분야 표준 용어로 맞춰서.</p>
           </div>
         </div>
-      </section>
 
-      <footer class="composer">
+        <!-- AI thinking + response -->
+        <div class="msg ai">
+          <div class="msg-header">
+            <div class="msg-avatar">H</div>
+            <span>Herion</span>
+            <span style="color:var(--muted);font-size:12px;">오전 10:21</span>
+          </div>
+          <div class="msg-body">
+            <p>국가유산 분야 공식 표기 기준(문화재청 영문 용어집 준용)으로 번역했습니다.</p>
+
+            <h3>🏛️ Seokjojeon Hall, Deoksugung Palace</h3>
+            <p>Completed in 1910, Seokjojeon is Korea's first Western-style stone building, designed in the Renaissance Revival style. It served as the official reception hall of the Korean Empire.</p>
+
+            <p><strong>Highlights</strong></p>
+            <ul>
+              <li><strong>Ground Floor:</strong> Restored imperial reception rooms and waiting areas.</li>
+              <li><strong>First Floor:</strong> Reconstructed study and bedchamber of Emperor Gojong.</li>
+              <li><strong>Exterior Garden:</strong> Panoramic views of the façade from the fountain plaza.</li>
+            </ul>
+
+            <p><strong>Visitor Guidelines</strong></p>
+            <ul>
+              <li>Photography is permitted; flash photography is prohibited.</li>
+              <li>Food and beverages are not allowed inside the building.</li>
+              <li>Please refrain from touching or leaning on exhibits.</li>
+              <li>Stroller and wheelchair access via the ramp at the left of the main entrance.</li>
+            </ul>
+
+            <div class="msg-actions">
+              <button class="action-pill">한영 대조표로 정리</button>
+              <button class="action-pill">오디오 가이드 스크립트로 변환</button>
+              <button class="action-pill">Word 파일로 내보내기</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Composer -->
+    <footer class="composer">
+      <div class="composer-inner">
+        <div class="attach-row">
+          <button class="attach-pill">📄 파일 첨부</button>
+          <button class="attach-pill">🌐 번역 모드</button>
+          <button class="attach-pill">✏️ 문서 편집</button>
+        </div>
         <div class="input-shell">
-          <button class="icon-button">＋</button>
-          <div class="placeholder">국가유산 관련 업무를 Herion에게 요청하세요...</div>
-          <button class="send">↑</button>
+          <button class="attach-btn">＋</button>
+          <textarea rows="1" placeholder="Herion에게 국가유산 관련 업무를 요청하세요..."></textarea>
+          <button class="send-btn">↑</button>
         </div>
-      </footer>
-    </main>
-  </div>
+        <div class="composer-hint">
+          Herion은 실수할 수 있습니다. 중요한 내용은 반드시 직접 검토해 주세요.
+          &nbsp;·&nbsp; <a href="admin.html" style="color:inherit;">관리자</a>
+        </div>
+      </div>
+    </footer>
+  </main>
+
+</div>
 </body>
 </html>
