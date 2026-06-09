@@ -856,7 +856,8 @@ async function sendMessage() {
         const data = line.slice(6).trim();
         if (data === '[DONE]') continue;
         try {
-          const delta = JSON.parse(data).choices?.[0]?.delta?.content;
+          const chunk = JSON.parse(data).choices?.[0];
+          const delta = chunk?.delta?.content ?? chunk?.message?.content;
           if (delta) { full += delta; bodyEl.innerHTML = renderMd(full); workspace.scrollTop = workspace.scrollHeight; }
         } catch (_) {}
       }
