@@ -500,21 +500,9 @@
       <span>Herion</span>
     </div>
 
-    <button class="new-chat">＋&nbsp; 새 대화</button>
+    <button class="new-chat" id="newChatBtn">＋&nbsp; 새 대화</button>
 
-    <div class="nav-section">오늘</div>
-    <div class="chat-item active"><span class="dot"></span>현장 안내문 초안 작성</div>
-
-    <div class="nav-section">이번 주</div>
-    <div class="chat-item">국가유산 설명문 영문 번역</div>
-    <div class="chat-item">유산 가치 평가 보고서 요약</div>
-    <div class="chat-item">체험 프로그램 Q&amp;A 정리</div>
-    <div class="chat-item">등재 신청서 검토 의견</div>
-    <div class="chat-item">보존 현황 보고서 요약</div>
-
-    <div class="nav-section">지난 달</div>
-    <div class="chat-item">유네스코 서신 초안</div>
-    <div class="chat-item">국내외 사례 비교 분석</div>
+    <div id="convList" style="flex:1;overflow-y:auto;"></div>
 
     <div class="sidebar-footer">
       <a href="admin.html" class="footer-link" id="adminLink" style="display:none;">📊 관리자 대시보드</a>
@@ -533,35 +521,18 @@
   <main>
     <header>
       <div>
-        <div class="header-title">현장 안내문 초안 작성</div>
+        <div class="header-title" id="chatTitle">새 대화</div>
         <div class="header-sub">국가유산진흥원 전용 AI 업무 보조</div>
       </div>
       <div class="toolbar">
         <select class="model-select" id="modelSelect">
           <option value="motif-12.7b-reasoning">Motif 12.7B Reasoning</option>
         </select>
-        <button class="icon-btn" title="공유">⎘</button>
-        <button class="icon-btn" title="새 대화">✕</button>
       </div>
     </header>
 
-    <section class="workspace">
-      <div class="conv-inner">
-
-        <div class="day-divider">오늘</div>
-
-        <!-- User message with file -->
-        <div class="msg user">
-          <div class="msg-header">
-            <div class="msg-avatar">K</div>
-            <span>kh 사용자</span>
-            <span style="color:var(--muted);font-size:12px;">오전 10:14</span>
-          </div>
-          <div class="msg-body">
-            <div class="file-chip">📄 덕수궁_석조전_학술자료_2024.pdf <span style="color:var(--muted);">218 KB</span></div>
-            <p>위 자료를 바탕으로 덕수궁 석조전 현장 안내문 초안을 작성해줘. 일반 관람객 대상이라 어렵지 않게 써줘. 관람 시 주의사항도 항목으로 넣어줘.</p>
-          </div>
-        </div>
+    <section class="workspace" id="workspace">
+      <div class="conv-inner" id="convInner">
 
         <!-- AI response -->
         <div class="msg ai">
@@ -571,111 +542,15 @@
             <span style="color:var(--muted);font-size:12px;">오전 10:14</span>
           </div>
           <div class="msg-body">
-            <p>첨부하신 학술자료를 바탕으로 덕수궁 석조전 현장 안내문 초안을 작성했습니다.</p>
-
-            <h3>🏛️ 덕수궁 석조전 안내</h3>
-            <p>석조전은 1910년에 완공된 우리나라 최초의 서양식 석조 건물입니다. 대한제국 황실의 공식 접견 공간으로 사용되었으며, 르네상스 양식의 웅장한 외관이 특징입니다.</p>
-            <p><strong>관람 포인트</strong></p>
-            <ul>
-              <li>1층: 황실 의례 공간 — 접견실과 대기실이 원형 복원되어 있습니다.</li>
-              <li>2층: 황제 집무 공간 — 고종 황제의 집무실과 침실을 재현했습니다.</li>
-              <li>외부 정원: 분수대와 잔디마당에서 건물 전경을 감상할 수 있습니다.</li>
-            </ul>
-
-            <p><strong>관람 시 주의사항</strong></p>
-            <ul>
-              <li>건물 내부 사진 촬영은 허용되나 플래시 사용은 삼가주세요.</li>
-              <li>음식물 반입 및 취식은 금지되어 있습니다.</li>
-              <li>전시물에 손을 대거나 기대는 행위를 자제해 주세요.</li>
-              <li>유모차·휠체어는 1층 입구 왼편 경사로를 이용해 주세요.</li>
-            </ul>
-
-            <div class="code-block">
-              <div class="code-block-header">
-                <span>markdown — 홈페이지 게시용</span>
-                <button class="copy-btn">복사</button>
-              </div>
-              <pre>## 덕수궁 석조전
-
-1910년 완공, 대한제국 황실 접견 공간.
-르네상스 양식의 국내 최초 서양식 석조 건물.
-
-**관람 시간** 09:00 – 21:00 (월요일 휴관)
-**관람료** 대인 1,000원 / 소인 무료</pre>
-            </div>
-
-            <div class="msg-actions">
-              <button class="action-pill">어린이용으로 다시 쓰기</button>
-              <button class="action-pill">영문 병기 추가</button>
-              <button class="action-pill">주의사항만 추출</button>
-              <button class="action-pill">더 간결하게</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- User follow-up -->
-        <div class="msg user">
-          <div class="msg-header">
-            <div class="msg-avatar">K</div>
-            <span>kh 사용자</span>
-            <span style="color:var(--muted);font-size:12px;">오전 10:21</span>
-          </div>
-          <div class="msg-body">
-            <p>좋아, 이 내용을 영어로도 번역해줘. 문화재 분야 표준 용어로 맞춰서.</p>
-          </div>
-        </div>
-
-        <!-- AI thinking + response -->
-        <div class="msg ai">
-          <div class="msg-header">
-            <div class="msg-avatar">H</div>
-            <span>Herion</span>
-            <span style="color:var(--muted);font-size:12px;">오전 10:21</span>
-          </div>
-          <div class="msg-body">
-            <p>국가유산 분야 공식 표기 기준(문화재청 영문 용어집 준용)으로 번역했습니다.</p>
-
-            <h3>🏛️ Seokjojeon Hall, Deoksugung Palace</h3>
-            <p>Completed in 1910, Seokjojeon is Korea's first Western-style stone building, designed in the Renaissance Revival style. It served as the official reception hall of the Korean Empire.</p>
-
-            <p><strong>Highlights</strong></p>
-            <ul>
-              <li><strong>Ground Floor:</strong> Restored imperial reception rooms and waiting areas.</li>
-              <li><strong>First Floor:</strong> Reconstructed study and bedchamber of Emperor Gojong.</li>
-              <li><strong>Exterior Garden:</strong> Panoramic views of the façade from the fountain plaza.</li>
-            </ul>
-
-            <p><strong>Visitor Guidelines</strong></p>
-            <ul>
-              <li>Photography is permitted; flash photography is prohibited.</li>
-              <li>Food and beverages are not allowed inside the building.</li>
-              <li>Please refrain from touching or leaning on exhibits.</li>
-              <li>Stroller and wheelchair access via the ramp at the left of the main entrance.</li>
-            </ul>
-
-            <div class="msg-actions">
-              <button class="action-pill">한영 대조표로 정리</button>
-              <button class="action-pill">오디오 가이드 스크립트로 변환</button>
-              <button class="action-pill">Word 파일로 내보내기</button>
-            </div>
-          </div>
-        </div>
-
       </div>
     </section>
 
     <!-- Composer -->
     <footer class="composer">
       <div class="composer-inner">
-        <div class="attach-row">
-          <button class="attach-pill">📄 파일 첨부</button>
-          <button class="attach-pill">🌐 번역 모드</button>
-          <button class="attach-pill">✏️ 문서 편집</button>
-        </div>
         <div class="input-shell">
-          <button class="attach-btn">＋</button>
-          <textarea rows="1" placeholder="Herion에게 국가유산 관련 업무를 요청하세요..."></textarea>
-          <button class="send-btn">↑</button>
+          <textarea rows="1" id="msgInput" placeholder="Herion에게 국가유산진흥원 업무를 요청하세요..."></textarea>
+          <button class="send-btn" id="sendBtn">↑</button>
         </div>
         <div class="composer-hint">
           Herion은 실수할 수 있습니다. 중요한 내용은 반드시 직접 검토해 주세요.
@@ -690,65 +565,44 @@
 
 <script src="config.js"></script>
 <script>
-  // ─── 세션 확인 ───────────────────────────────────────────────
-  const cfg  = window.HERION_CONFIG;
-  const user = JSON.parse(sessionStorage.getItem('herion_user') || 'null');
-
-  if (!user) {
-    location.href = 'login.html';
-  } else {
-    document.getElementById('userEmail').textContent   = user.email;
-    document.getElementById('userName').textContent    = user.name;
-    document.getElementById('userInitial').textContent = user.name[0].toUpperCase();
-
-    if (user.role === 'admin') {
-      document.getElementById('adminLink').style.display = 'flex';
-    }
-  }
-
-  function logout() {
-    sessionStorage.removeItem('herion_user');
-    location.href = 'login.html';
-  }
-</script>
-
-<script>
-// ─── Motif 채팅 ──────────────────────────────────────────────
-const SYSTEM_PROMPT = `당신은 국가유산진흥원 업무 전문 AI 보조 'Herion'입니다.
-국가유산진흥원 임직원들이 안내문·설명문 작성, 번역(한↔영), 보고서 요약, Q&A 자료 제작 등의 업무를 수행할 수 있도록 전문적이고 정확하게 도와주세요.
-공식 문서 작성 시 국가유산 분야 표준 용어를 사용하고, 기본적으로 한국어로 답변하세요.`;
-
-let chatHistory = [];
-let isStreaming = false;
-let convStarted = false;
-
-const textarea   = document.querySelector('textarea');
-const sendBtn    = document.querySelector('.send-btn');
-const newChatBtn = document.querySelector('.new-chat');
-const convInner  = document.querySelector('.conv-inner');
-const workspace  = document.querySelector('.workspace');
-
-function resetChat() {
-  chatHistory = [];
-  convStarted = false;
-  convInner.innerHTML = '<div class="day-divider">오늘</div>';
+// ─── 세션 확인 ───────────────────────────────────────────────
+const cfg  = window.HERION_CONFIG;
+const user = JSON.parse(sessionStorage.getItem('herion_user') || 'null');
+if (!user) { location.href = 'login.html'; }
+else {
+  document.getElementById('userEmail').textContent   = user.email;
+  document.getElementById('userName').textContent    = user.name;
+  document.getElementById('userInitial').textContent = user.name[0].toUpperCase();
+  if (user.role === 'admin') document.getElementById('adminLink').style.display = 'flex';
 }
+function logout() { sessionStorage.removeItem('herion_user'); location.href = 'login.html'; }
 
-newChatBtn.addEventListener('click', resetChat);
+// ─── 대화 저장소 ─────────────────────────────────────────────
+const CONVS_KEY = 'herion_convs_v1';
+const CURR_KEY  = 'herion_curr_v1';
 
-textarea.addEventListener('input', () => {
-  textarea.style.height = 'auto';
-  textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
-});
+const getConvs  = () => JSON.parse(localStorage.getItem(CONVS_KEY) || '[]');
+const setConvs  = v  => localStorage.setItem(CONVS_KEY, JSON.stringify(v));
+const getCurrId = () => localStorage.getItem(CURR_KEY);
+const setCurrId = id => id ? localStorage.setItem(CURR_KEY, id) : localStorage.removeItem(CURR_KEY);
 
-textarea.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-});
+// ─── DOM 참조 ────────────────────────────────────────────────
+const convInner  = document.getElementById('convInner');
+const workspace  = document.getElementById('workspace');
+const convList   = document.getElementById('convList');
+const textarea   = document.getElementById('msgInput');
+const sendBtn    = document.getElementById('sendBtn');
+const newChatBtn = document.getElementById('newChatBtn');
+const chatTitle  = document.getElementById('chatTitle');
 
-sendBtn.addEventListener('click', sendMessage);
+// ─── 상태 ────────────────────────────────────────────────────
+let currentConvId = null;
+let chatHistory   = [];
+let isStreaming   = false;
 
+// ─── 유틸 ────────────────────────────────────────────────────
 function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function renderMd(text) {
@@ -764,12 +618,96 @@ function renderMd(text) {
     .replace(/^(?!<[hup\/]|<div)(.+)$/gm, '<p>$1</p>');
 }
 
-function appendMsg(role, text) {
-  const isAI = role === 'assistant';
-  const now  = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-  const u    = JSON.parse(sessionStorage.getItem('herion_user') || '{}');
-  const avatar = isAI ? 'H' : (u.name?.[0]?.toUpperCase() || 'U');
-  const name   = isAI ? 'Herion' : (u.name || '사용자');
+// ─── 사이드바 렌더링 ─────────────────────────────────────────
+function renderSidebar() {
+  const convs = getConvs().sort((a, b) => b.updatedAt - a.updatedAt);
+  const now        = Date.now();
+  const todayStart = new Date().setHours(0, 0, 0, 0);
+  const weekStart  = todayStart - 6 * 86400000;
+
+  const groups = [
+    { label: '오늘',    items: convs.filter(c => c.updatedAt >= todayStart) },
+    { label: '이번 주', items: convs.filter(c => c.updatedAt >= weekStart && c.updatedAt < todayStart) },
+    { label: '이전',    items: convs.filter(c => c.updatedAt < weekStart) },
+  ];
+
+  convList.innerHTML = groups
+    .filter(g => g.items.length)
+    .map(g => `
+      <div class="nav-section">${g.label}</div>
+      ${g.items.map(c => `
+        <div class="chat-item ${c.id === currentConvId ? 'active' : ''}"
+             onclick="loadConversation('${c.id}')"
+             title="${escHtml(c.title)}">
+          <span class="dot"></span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;">${escHtml(c.title)}</span>
+          <span onclick="deleteConversation(event,'${c.id}')"
+                style="opacity:0;padding:0 4px;font-size:11px;color:#6b7e94;"
+                class="del-btn">✕</span>
+        </div>`).join('')}
+    `).join('');
+}
+
+// 삭제 버튼 호버 표시
+document.addEventListener('mouseover', e => {
+  const item = e.target.closest('.chat-item');
+  if (item) item.querySelector('.del-btn')?.style.setProperty('opacity','1');
+});
+document.addEventListener('mouseout', e => {
+  const item = e.target.closest('.chat-item');
+  if (item) item.querySelector('.del-btn')?.style.setProperty('opacity','0');
+});
+
+function deleteConversation(e, id) {
+  e.stopPropagation();
+  const convs = getConvs().filter(c => c.id !== id);
+  setConvs(convs);
+  if (currentConvId === id) showWelcome();
+  else renderSidebar();
+}
+
+// ─── 환영 화면 ───────────────────────────────────────────────
+function showWelcome() {
+  currentConvId = null;
+  chatHistory   = [];
+  setCurrId(null);
+  chatTitle.textContent = '새 대화';
+  convInner.innerHTML = `
+    <div style="text-align:center;padding:80px 0 40px;color:var(--muted);">
+      <div style="width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,#2bb58f,#2864bb);
+                  display:grid;place-items:center;margin:0 auto 20px;color:#fff;font-size:22px;font-weight:800;">H</div>
+      <div style="font-size:19px;font-weight:700;color:var(--text);margin-bottom:8px;">Herion에 오신 것을 환영합니다</div>
+      <div style="font-size:14px;line-height:1.7;">국가유산진흥원 업무를 AI로 더 빠르게<br>안내문 작성, 번역, 보고서 요약을 시작해 보세요.</div>
+    </div>`;
+  renderSidebar();
+}
+
+// ─── 대화 불러오기 ───────────────────────────────────────────
+function loadConversation(id) {
+  const conv = getConvs().find(c => c.id === id);
+  if (!conv) return;
+
+  currentConvId = id;
+  chatHistory   = [...conv.messages];
+  setCurrId(id);
+  chatTitle.textContent = conv.title;
+
+  convInner.innerHTML = '';
+  conv.messages.forEach(m => {
+    const bodyEl = appendMsgEl(m.role);
+    bodyEl.innerHTML = m.role === 'user' ? `<p>${escHtml(m.content)}</p>` : renderMd(m.content);
+  });
+
+  workspace.scrollTop = workspace.scrollHeight;
+  renderSidebar();
+}
+
+// ─── 메시지 DOM 추가 ─────────────────────────────────────────
+function appendMsgEl(role) {
+  const isAI  = role === 'assistant';
+  const now   = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  const avatar = isAI ? 'H' : (user?.name?.[0]?.toUpperCase() || 'U');
+  const name   = isAI ? 'Herion' : (user?.name || '사용자');
 
   const div = document.createElement('div');
   div.className = `msg ${isAI ? 'ai' : 'user'}`;
@@ -779,7 +717,7 @@ function appendMsg(role, text) {
       <span>${escHtml(name)}</span>
       <span style="color:var(--muted);font-size:12px;">${now}</span>
     </div>
-    <div class="msg-body">${isAI ? '' : `<p>${escHtml(text)}</p>`}</div>`;
+    <div class="msg-body"></div>`;
   convInner.appendChild(div);
   workspace.scrollTop = workspace.scrollHeight;
   return div.querySelector('.msg-body');
@@ -800,19 +738,47 @@ function appendThinking() {
   return div;
 }
 
+// ─── 입력 이벤트 ─────────────────────────────────────────────
+newChatBtn.addEventListener('click', showWelcome);
+
+textarea.addEventListener('input', () => {
+  textarea.style.height = 'auto';
+  textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+});
+
+textarea.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+sendBtn.addEventListener('click', sendMessage);
+
+// ─── 메시지 전송 ─────────────────────────────────────────────
+const SYSTEM_PROMPT = `당신은 국가유산진흥원 업무 전문 AI 보조 'Herion'입니다.
+국가유산진흥원 임직원들이 안내문·설명문 작성, 번역(한↔영), 보고서 요약, Q&A 자료 제작 등의 업무를 수행할 수 있도록 전문적이고 정확하게 도와주세요.
+공식 문서 작성 시 국가유산 분야 표준 용어를 사용하고, 기본적으로 한국어로 답변하세요.`;
+
 async function sendMessage() {
   if (isStreaming) return;
   const text = textarea.value.trim();
   if (!text) return;
 
   if (!cfg?.motifApiKey || cfg.motifApiKey === 'YOUR_MOTIF_API_KEY') {
-    alert('config.js에 Motif API 키(motifApiKey)를 입력해주세요.');
+    alert('config.js에 Motif API 키를 입력해주세요.');
     return;
   }
 
-  if (!convStarted) {
-    convInner.innerHTML = '<div class="day-divider">오늘</div>';
-    convStarted = true;
+  // 새 대화 생성
+  if (!currentConvId) {
+    const id   = Date.now().toString();
+    const title = text.length > 28 ? text.slice(0, 28) + '…' : text;
+    const convs = getConvs();
+    convs.unshift({ id, title, messages: [], updatedAt: Date.now() });
+    setConvs(convs);
+    currentConvId = id;
+    setCurrId(id);
+    chatTitle.textContent = title;
+    convInner.innerHTML = '';
+    renderSidebar();
   }
 
   textarea.value = '';
@@ -821,10 +787,11 @@ async function sendMessage() {
   sendBtn.disabled = true;
 
   chatHistory.push({ role: 'user', content: text });
-  appendMsg('user', text);
-  const thinkEl = appendThinking();
+  const userBodyEl = appendMsgEl('user');
+  userBodyEl.innerHTML = `<p>${escHtml(text)}</p>`;
 
-  const model = document.getElementById('modelSelect')?.value || 'motif-12.7b-reasoning';
+  const thinkEl = appendThinking();
+  const model   = document.getElementById('modelSelect')?.value || 'motif-12.7b-reasoning';
 
   try {
     const resp = await fetch(`${cfg.motifBaseUrl}/chat/completions`, {
@@ -840,7 +807,7 @@ async function sendMessage() {
     if (!resp.ok) throw new Error(`API 오류 ${resp.status}: ${await resp.text()}`);
 
     thinkEl.remove();
-    const bodyEl = appendMsg('assistant', '');
+    const bodyEl  = appendMsgEl('assistant');
     const reader  = resp.body.getReader();
     const decoder = new TextDecoder();
     let full = '', buf = '';
@@ -861,7 +828,6 @@ async function sendMessage() {
           const delta = chunk?.delta?.content ?? chunk?.message?.content;
           if (delta) {
             full += delta;
-            // 스트리밍 중엔 plain text로 표시 (마크다운 깜빡임 방지)
             bodyEl.textContent = full;
             workspace.scrollTop = workspace.scrollHeight;
           }
@@ -869,13 +835,22 @@ async function sendMessage() {
       }
     }
 
-    // 완료 후 마크다운 한 번에 렌더링
     bodyEl.innerHTML = renderMd(full);
     chatHistory.push({ role: 'assistant', content: full });
 
+    // localStorage에 저장
+    const convs = getConvs();
+    const idx   = convs.findIndex(c => c.id === currentConvId);
+    if (idx >= 0) {
+      convs[idx].messages  = [...chatHistory];
+      convs[idx].updatedAt = Date.now();
+      setConvs(convs);
+    }
+    renderSidebar();
+
   } catch (err) {
     thinkEl.remove();
-    const bodyEl = appendMsg('assistant', '');
+    const bodyEl = appendMsgEl('assistant');
     bodyEl.innerHTML = `<p style="color:var(--danger);">오류: ${escHtml(err.message)}</p>`;
   } finally {
     isStreaming = false;
@@ -883,6 +858,17 @@ async function sendMessage() {
     textarea.focus();
   }
 }
+
+// ─── 초기화 ──────────────────────────────────────────────────
+(function init() {
+  const lastId = getCurrId();
+  const convs  = getConvs();
+  if (lastId && convs.find(c => c.id === lastId)) {
+    loadConversation(lastId);
+  } else {
+    showWelcome();
+  }
+})();
 </script>
 </body>
 </html>
