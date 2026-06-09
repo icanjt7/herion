@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Herion Interface Preview</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --panel-2: #eef2f6;
+      --line: #d9dee7;
+      --text: #1c2430;
+      --muted: #657386;
+      --accent: #19715f;
+      --accent-2: #2457a6;
+      --warn: #a65f12;
+      --shadow: 0 16px 34px rgba(21, 32, 46, .08);
+      font-family: Inter, "Segoe UI", Roboto, "Noto Sans KR", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    aside {
+      background: #18202b;
+      color: #eef3f8;
+      display: flex;
+      flex-direction: column;
+      padding: 18px;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 38px;
+      font-weight: 760;
+      font-size: 18px;
+    }
+
+    .mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #2bb58f, #2864bb);
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+    }
+
+    .new-chat {
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.08);
+      color: #fff;
+      height: 38px;
+      border-radius: 8px;
+      font-weight: 650;
+      cursor: default;
+    }
+
+    .nav-title {
+      color: #aab5c3;
+      font-size: 12px;
+      margin-top: 8px;
+      text-transform: uppercase;
+    }
+
+    .chat-list {
+      display: grid;
+      gap: 6px;
+    }
+
+    .chat-item {
+      padding: 10px 11px;
+      border-radius: 7px;
+      color: #dce5ef;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .chat-item.active {
+      background: rgba(255,255,255,.12);
+    }
+
+    .user {
+      margin-top: auto;
+      border-top: 1px solid rgba(255,255,255,.12);
+      padding-top: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #d8e0e8;
+      font-size: 13px;
+      min-width: 0;
+    }
+
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #2bb58f;
+      display: grid;
+      place-items: center;
+      color: #09241d;
+      font-weight: 800;
+      flex: 0 0 auto;
+    }
+
+    main {
+      display: grid;
+      grid-template-rows: 62px 1fr auto;
+      min-width: 0;
+    }
+
+    header {
+      background: rgba(255,255,255,.86);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      gap: 16px;
+    }
+
+    .title {
+      min-width: 0;
+    }
+
+    .title strong {
+      display: block;
+      font-size: 16px;
+    }
+
+    .title span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .select, .tool {
+      height: 34px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 8px;
+      color: var(--text);
+      padding: 0 11px;
+      font-size: 13px;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 20px;
+      padding: 22px 24px;
+      min-height: 0;
+    }
+
+    .conversation {
+      min-width: 0;
+      display: grid;
+      align-content: start;
+      gap: 14px;
+      max-width: 940px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .message {
+      display: grid;
+      grid-template-columns: 36px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .bubble {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px 15px;
+      line-height: 1.55;
+      box-shadow: 0 1px 0 rgba(21, 32, 46, .03);
+    }
+
+    .bubble.user-bubble {
+      background: #edf6f3;
+      border-color: #c7e1d9;
+    }
+
+    .chip-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .chip {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 999px;
+      padding: 7px 10px;
+      font-size: 12px;
+      color: #344156;
+    }
+
+    .side-panel {
+      display: grid;
+      align-content: start;
+      gap: 14px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+
+    .panel h2 {
+      margin: 0 0 10px;
+      font-size: 14px;
+    }
+
+    .stat {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 9px 0;
+      border-top: 1px solid #edf0f4;
+      font-size: 13px;
+    }
+
+    .stat:first-of-type { border-top: 0; }
+
+    .pill {
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 12px;
+      background: var(--panel-2);
+      color: #344156;
+    }
+
+    .pill.good {
+      background: #dff4ec;
+      color: var(--accent);
+    }
+
+    .pill.warn {
+      background: #fff0dc;
+      color: var(--warn);
+    }
+
+    .composer {
+      border-top: 1px solid var(--line);
+      background: rgba(246,247,249,.9);
+      padding: 16px 24px 20px;
+    }
+
+    .input-shell {
+      max-width: 940px;
+      margin: 0 auto;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      display: grid;
+      grid-template-columns: 40px minmax(0, 1fr) 42px;
+      align-items: center;
+      min-height: 54px;
+      padding: 0 8px;
+    }
+
+    .icon-button {
+      width: 34px;
+      height: 34px;
+      border: 0;
+      background: transparent;
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    .placeholder {
+      color: #7a8796;
+      font-size: 14px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .send {
+      width: 34px;
+      height: 34px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 16px;
+    }
+
+    @media (max-width: 940px) {
+      .app { grid-template-columns: 1fr; }
+      aside { display: none; }
+      .workspace { grid-template-columns: 1fr; padding: 16px; }
+      .side-panel { display: none; }
+      header { padding: 0 16px; }
+      .composer { padding: 14px 16px 16px; }
+      .select { max-width: 132px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <div class="brand">
+        <div class="mark">H</div>
+        <div>Herion</div>
+      </div>
+      <button class="new-chat">새 대화</button>
+
+      <div class="nav-title">최근 대화</div>
+      <div class="chat-list">
+        <div class="chat-item active">진료기록 요약 초안</div>
+        <div class="chat-item">내부 공지 문구 정리</div>
+        <div class="chat-item">회의록 핵심 항목 추출</div>
+        <div class="chat-item">교육자료 Q&A 생성</div>
+      </div>
+
+      <div class="user">
+        <div class="avatar">K</div>
+        <div>
+          <div>kh 사용자</div>
+          <div style="color:#9facbb;">user@kh.or.kr</div>
+        </div>
+      </div>
+    </aside>
+
+    <main>
+      <header>
+        <div class="title">
+          <strong>진료기록 요약 초안</strong>
+          <span>기관 계정 전용 AI 업무 보조</span>
+        </div>
+        <div class="toolbar">
+          <button class="tool">파일</button>
+          <button class="tool">공유</button>
+          <button class="select">GPT 모델</button>
+        </div>
+      </header>
+
+      <section class="workspace">
+        <div class="conversation">
+          <div class="message">
+            <div class="avatar">K</div>
+            <div class="bubble user-bubble">아래 내용을 환자 설명용으로 쉽게 정리해줘. 전문용어는 풀어서 쓰고, 주의사항은 목록으로 나눠줘.</div>
+          </div>
+
+          <div class="message">
+            <div class="avatar" style="background:#dfe8f4;color:#2457a6;">H</div>
+            <div class="bubble">
+              요청하신 문서를 환자 안내문 형태로 정리했습니다. 진단명, 현재 상태, 다음 진료 전 확인할 사항을 분리했고, 표현은 내부 검토를 거친 뒤 전달하는 흐름에 맞췄습니다.
+              <div class="chip-row">
+                <span class="chip">요약 다시 작성</span>
+                <span class="chip">더 쉽게 설명</span>
+                <span class="chip">주의사항만 추출</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="side-panel">
+          <div class="panel">
+            <h2>사용자 상태</h2>
+            <div class="stat"><span>로그인 도메인</span><span class="pill good">@kh.or.kr</span></div>
+            <div class="stat"><span>역할</span><span class="pill">user</span></div>
+            <div class="stat"><span>월 사용량</span><span class="pill">18%</span></div>
+          </div>
+
+          <div class="panel">
+            <h2>관리자 확인</h2>
+            <div class="stat"><span>승인 대기</span><span class="pill warn">3명</span></div>
+            <div class="stat"><span>활성 사용자</span><span class="pill">42명</span></div>
+            <div class="stat"><span>허용 도메인</span><span class="pill good">kh.or.kr</span></div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="composer">
+        <div class="input-shell">
+          <button class="icon-button">＋</button>
+          <div class="placeholder">Herion에게 메시지 입력...</div>
+          <button class="send">↑</button>
+        </div>
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

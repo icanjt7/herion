@@ -1,0 +1,30 @@
+services:
+  herion:
+    image: ghcr.io/open-webui/open-webui:${OPEN_WEBUI_TAG:-main}
+    container_name: herion-open-webui
+    restart: unless-stopped
+    ports:
+      - "${HERION_PORT:-3000}:8080"
+    environment:
+      WEBUI_NAME: "${WEBUI_NAME:-Herion}"
+      WEBUI_URL: "${WEBUI_URL:-http://localhost:3000}"
+      WEBUI_SECRET_KEY: "${WEBUI_SECRET_KEY:-change-this-for-poc-only}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      DEFAULT_USER_ROLE: "${DEFAULT_USER_ROLE:-pending}"
+      ENABLE_SIGNUP: "${ENABLE_SIGNUP:-true}"
+      ENABLE_LOGIN_FORM: "${ENABLE_LOGIN_FORM:-true}"
+      ENABLE_OAUTH_SIGNUP: "${ENABLE_OAUTH_SIGNUP:-false}"
+      ENABLE_OAUTH_PERSISTENT_CONFIG: "${ENABLE_OAUTH_PERSISTENT_CONFIG:-false}"
+      OAUTH_ALLOWED_DOMAINS: "${OAUTH_ALLOWED_DOMAINS:-kh.or.kr}"
+      MICROSOFT_CLIENT_ID: "${MICROSOFT_CLIENT_ID:-}"
+      MICROSOFT_CLIENT_SECRET: "${MICROSOFT_CLIENT_SECRET:-}"
+      MICROSOFT_CLIENT_TENANT_ID: "${MICROSOFT_CLIENT_TENANT_ID:-}"
+      MICROSOFT_REDIRECT_URI: "${MICROSOFT_REDIRECT_URI:-http://localhost:3000/oauth/microsoft/callback}"
+      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-}"
+      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET:-}"
+      GOOGLE_REDIRECT_URI: "${GOOGLE_REDIRECT_URI:-http://localhost:3000/oauth/google/callback}"
+    volumes:
+      - herion-open-webui-data:/app/backend/data
+
+volumes:
+  herion-open-webui-data:
