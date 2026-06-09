@@ -858,11 +858,18 @@ async function sendMessage() {
         try {
           const chunk = JSON.parse(data).choices?.[0];
           const delta = chunk?.delta?.content ?? chunk?.message?.content;
-          if (delta) { full += delta; bodyEl.innerHTML = renderMd(full); workspace.scrollTop = workspace.scrollHeight; }
+          if (delta) {
+            full += delta;
+            // 스트리밍 중엔 plain text로 표시 (마크다운 깜빡임 방지)
+            bodyEl.textContent = full;
+            workspace.scrollTop = workspace.scrollHeight;
+          }
         } catch (_) {}
       }
     }
 
+    // 완료 후 마크다운 한 번에 렌더링
+    bodyEl.innerHTML = renderMd(full);
     chatHistory.push({ role: 'assistant', content: full });
 
   } catch (err) {
