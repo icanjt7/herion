@@ -517,13 +517,13 @@
     <div class="chat-item">국내외 사례 비교 분석</div>
 
     <div class="sidebar-footer">
-      <a href="admin.html" class="footer-link">📊 관리자 대시보드</a>
-      <a href="login.html" class="footer-link">⚙️ 계정 설정</a>
+      <a href="admin.html" class="footer-link" id="adminLink" style="display:none;">📊 관리자 대시보드</a>
+      <a href="#" class="footer-link" onclick="logout(); return false;">🚪 로그아웃</a>
       <div class="user-row">
-        <div class="avatar">K</div>
+        <div class="avatar" id="userInitial">?</div>
         <div>
-          <div style="font-weight:600;">kh 사용자</div>
-          <div style="color:#8a96a3;font-size:11px;">user@kh.or.kr</div>
+          <div style="font-weight:600;" id="userName">로딩 중...</div>
+          <div style="color:#8a96a3;font-size:11px;" id="userEmail"></div>
         </div>
       </div>
     </div>
@@ -688,5 +688,46 @@
   </main>
 
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script>
+  const cfg = window.HERION_CONFIG;
+  let sb;
+
+  (async () => {
+    if (!cfg || cfg.supabaseUrl.includes('XXXXXXXXXX')) {
+      // Config not set — show demo mode
+      document.getElementById('userName').textContent = '데모 모드';
+      document.getElementById('userEmail').textContent = '(Supabase 미설정)';
+      document.getElementById('userInitial').textContent = 'D';
+      return;
+    }
+
+    sb = supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      location.href = 'login.html';
+      return;
+    }
+
+    const email = session.user.email;
+    const name  = email.split('@')[0];
+    document.getElementById('userEmail').textContent   = email;
+    document.getElementById('userName').textContent    = name;
+    document.getElementById('userInitial').textContent = name[0].toUpperCase();
+
+    // Show admin link if applicable
+    if (cfg.adminEmails.includes(email)) {
+      document.getElementById('adminLink').style.display = 'flex';
+    }
+  })();
+
+  async function logout() {
+    if (sb) await sb.auth.signOut();
+    location.href = 'login.html';
+  }
+</script>
 </body>
 </html>
