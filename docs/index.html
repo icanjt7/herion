@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Herion — 국가유산 AI 업무 보조</title>
+  <title>Herion — 국가유산진흥원 AI 업무 보조</title>
   <style>
     :root {
       font-family: Inter, "Segoe UI", "Noto Sans KR", Arial, sans-serif;
@@ -534,7 +534,7 @@
     <header>
       <div>
         <div class="header-title">현장 안내문 초안 작성</div>
-        <div class="header-sub">국가유산 담당자 전용 AI 업무 보조</div>
+        <div class="header-sub">국가유산진흥원 전용 AI 업무 보조</div>
       </div>
       <div class="toolbar">
         <select class="model-select" id="modelSelect">
@@ -679,6 +679,7 @@
         </div>
         <div class="composer-hint">
           Herion은 실수할 수 있습니다. 중요한 내용은 반드시 직접 검토해 주세요.
+          &nbsp;·&nbsp; 문의: AI미디어센터 AI데이터팀
           &nbsp;·&nbsp; <a href="admin.html" style="color:inherit;">관리자</a>
         </div>
       </div>
@@ -713,9 +714,9 @@
 
 <script>
 // ─── Motif 채팅 ──────────────────────────────────────────────
-const SYSTEM_PROMPT = `당신은 한국 국가유산 업무 전문 AI 보조 'Herion'입니다.
-국가유산청 담당자들이 안내문·설명문 작성, 번역(한↔영), 보고서 요약, Q&A 자료 제작 등의 업무를 수행할 수 있도록 전문적이고 정확하게 도와주세요.
-공식 문서 작성 시 국가유산청 표준 용어를 사용하고, 기본적으로 한국어로 답변하세요.`;
+const SYSTEM_PROMPT = `당신은 국가유산진흥원 업무 전문 AI 보조 'Herion'입니다.
+국가유산진흥원 임직원들이 안내문·설명문 작성, 번역(한↔영), 보고서 요약, Q&A 자료 제작 등의 업무를 수행할 수 있도록 전문적이고 정확하게 도와주세요.
+공식 문서 작성 시 국가유산 분야 표준 용어를 사용하고, 기본적으로 한국어로 답변하세요.`;
 
 let chatHistory = [];
 let isStreaming = false;
