@@ -518,7 +518,7 @@
 
     <div class="sidebar-footer">
       <a href="admin.html" class="footer-link" id="adminLink" style="display:none;">📊 관리자 대시보드</a>
-      <a href="#" class="footer-link" onclick="logout(); return false;">🚪 로그아웃</a>
+      <button class="footer-link" onclick="logout()" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;">🚪 로그아웃</button>
       <div class="user-row">
         <div class="avatar" id="userInitial">?</div>
         <div>
@@ -537,10 +537,8 @@
         <div class="header-sub">국가유산 담당자 전용 AI 업무 보조</div>
       </div>
       <div class="toolbar">
-        <select class="model-select">
-          <option>GPT-4o</option>
-          <option>GPT-4o mini</option>
-          <option>GPT-4 Turbo</option>
+        <select class="model-select" id="modelSelect">
+          <option value="motif-12.7b-reasoning">Motif 12.7B Reasoning</option>
         </select>
         <button class="icon-btn" title="공유">⎘</button>
         <button class="icon-btn" title="새 대화">✕</button>
@@ -689,52 +687,193 @@
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
 <script>
-  const cfg = window.HERION_CONFIG;
-  let sb;
+  // ─── 세션 확인 ───────────────────────────────────────────────
+  const cfg  = window.HERION_CONFIG;
+  const user = JSON.parse(sessionStorage.getItem('herion_user') || 'null');
 
-  (async () => {
-    if (!cfg || cfg.supabaseUrl.includes('XXXXXXXXXX')) {
-      // Config not set — show demo mode
-      document.getElementById('userName').textContent = '데모 모드';
-      document.getElementById('userEmail').textContent = '(Supabase 미설정)';
-      document.getElementById('userInitial').textContent = 'D';
-      return;
-    }
+  if (!user) {
+    location.href = 'login.html';
+  } else {
+    document.getElementById('userEmail').textContent   = user.email;
+    document.getElementById('userName').textContent    = user.name;
+    document.getElementById('userInitial').textContent = user.name[0].toUpperCase();
 
-    sb = supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
-
-    const { data: { session } } = await sb.auth.getSession();
-    if (!session) { location.href = 'login.html'; return; }
-
-    const email = session.user.email;
-
-    // 승인 여부 확인
-    const { data: profile } = await sb
-      .from('profiles')
-      .select('approved, role')
-      .eq('id', session.user.id)
-      .single();
-
-    if (!profile?.approved) { location.href = 'pending.html'; return; }
-
-    const name = email.split('@')[0];
-    document.getElementById('userEmail').textContent   = email;
-    document.getElementById('userName').textContent    = name;
-    document.getElementById('userInitial').textContent = name[0].toUpperCase();
-
-    // 관리자 링크 표시
-    if (profile.role === 'admin' || cfg.adminEmails.includes(email)) {
+    if (user.role === 'admin') {
       document.getElementById('adminLink').style.display = 'flex';
     }
-  })();
+  }
 
-  async function logout() {
-    if (sb) await sb.auth.signOut();
+  function logout() {
+    sessionStorage.removeItem('herion_user');
     location.href = 'login.html';
   }
+</script>
+
+<script>
+// ─── Motif 채팅 ──────────────────────────────────────────────
+const SYSTEM_PROMPT = `당신은 한국 국가유산 업무 전문 AI 보조 'Herion'입니다.
+국가유산청 담당자들이 안내문·설명문 작성, 번역(한↔영), 보고서 요약, Q&A 자료 제작 등의 업무를 수행할 수 있도록 전문적이고 정확하게 도와주세요.
+공식 문서 작성 시 국가유산청 표준 용어를 사용하고, 기본적으로 한국어로 답변하세요.`;
+
+let chatHistory = [];
+let isStreaming = false;
+let convStarted = false;
+
+const textarea   = document.querySelector('textarea');
+const sendBtn    = document.querySelector('.send-btn');
+const newChatBtn = document.querySelector('.new-chat');
+const convInner  = document.querySelector('.conv-inner');
+const workspace  = document.querySelector('.workspace');
+
+function resetChat() {
+  chatHistory = [];
+  convStarted = false;
+  convInner.innerHTML = '<div class="day-divider">오늘</div>';
+}
+
+newChatBtn.addEventListener('click', resetChat);
+
+textarea.addEventListener('input', () => {
+  textarea.style.height = 'auto';
+  textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+});
+
+textarea.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+sendBtn.addEventListener('click', sendMessage);
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderMd(text) {
+  return text
+    .replace(/```([\s\S]*?)```/g, (_, c) => `<div class="code-block"><pre>${escHtml(c.trim())}</pre></div>`)
+    .replace(/`([^`]+)`/g, (_, c) => `<code>${escHtml(c)}</code>`)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm,  '<h3>$1</h3>')
+    .replace(/^- (.+)$/gm,   '<li>$1</li>')
+    .replace(/(<li>[\s\S]+?<\/li>)/g, '<ul>$1</ul>')
+    .replace(/\n{2,}/g, '</p><p>')
+    .replace(/^(?!<[hup\/]|<div)(.+)$/gm, '<p>$1</p>');
+}
+
+function appendMsg(role, text) {
+  const isAI = role === 'assistant';
+  const now  = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  const u    = JSON.parse(sessionStorage.getItem('herion_user') || '{}');
+  const avatar = isAI ? 'H' : (u.name?.[0]?.toUpperCase() || 'U');
+  const name   = isAI ? 'Herion' : (u.name || '사용자');
+
+  const div = document.createElement('div');
+  div.className = `msg ${isAI ? 'ai' : 'user'}`;
+  div.innerHTML = `
+    <div class="msg-header">
+      <div class="msg-avatar">${escHtml(avatar)}</div>
+      <span>${escHtml(name)}</span>
+      <span style="color:var(--muted);font-size:12px;">${now}</span>
+    </div>
+    <div class="msg-body">${isAI ? '' : `<p>${escHtml(text)}</p>`}</div>`;
+  convInner.appendChild(div);
+  workspace.scrollTop = workspace.scrollHeight;
+  return div.querySelector('.msg-body');
+}
+
+function appendThinking() {
+  const div = document.createElement('div');
+  div.className = 'msg ai';
+  div.innerHTML = `
+    <div class="msg-header"><div class="msg-avatar">H</div><span>Herion</span></div>
+    <div class="msg-body">
+      <div class="thinking">
+        <div class="dot-anim"><span></span><span></span><span></span></div>생각 중...
+      </div>
+    </div>`;
+  convInner.appendChild(div);
+  workspace.scrollTop = workspace.scrollHeight;
+  return div;
+}
+
+async function sendMessage() {
+  if (isStreaming) return;
+  const text = textarea.value.trim();
+  if (!text) return;
+
+  if (!cfg?.motifApiKey || cfg.motifApiKey === 'YOUR_MOTIF_API_KEY') {
+    alert('config.js에 Motif API 키(motifApiKey)를 입력해주세요.');
+    return;
+  }
+
+  if (!convStarted) {
+    convInner.innerHTML = '<div class="day-divider">오늘</div>';
+    convStarted = true;
+  }
+
+  textarea.value = '';
+  textarea.style.height = 'auto';
+  isStreaming = true;
+  sendBtn.disabled = true;
+
+  chatHistory.push({ role: 'user', content: text });
+  appendMsg('user', text);
+  const thinkEl = appendThinking();
+
+  const model = document.getElementById('modelSelect')?.value || 'motif-12.7b-reasoning';
+
+  try {
+    const resp = await fetch(`${cfg.motifBaseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.motifApiKey}` },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...chatHistory],
+        stream: true
+      })
+    });
+
+    if (!resp.ok) throw new Error(`API 오류 ${resp.status}: ${await resp.text()}`);
+
+    thinkEl.remove();
+    const bodyEl = appendMsg('assistant', '');
+    const reader  = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let full = '', buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') continue;
+        try {
+          const delta = JSON.parse(data).choices?.[0]?.delta?.content;
+          if (delta) { full += delta; bodyEl.innerHTML = renderMd(full); workspace.scrollTop = workspace.scrollHeight; }
+        } catch (_) {}
+      }
+    }
+
+    chatHistory.push({ role: 'assistant', content: full });
+
+  } catch (err) {
+    thinkEl.remove();
+    const bodyEl = appendMsg('assistant', '');
+    bodyEl.innerHTML = `<p style="color:var(--danger);">오류: ${escHtml(err.message)}</p>`;
+  } finally {
+    isStreaming = false;
+    sendBtn.disabled = false;
+    textarea.focus();
+  }
+}
 </script>
 </body>
 </html>

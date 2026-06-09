@@ -136,56 +136,14 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Success state */
-    .success-box {
-      display: none;
-      text-align: center;
-      padding: 8px 0;
-    }
-
-    .success-icon {
-      width: 56px; height: 56px;
-      border-radius: 50%;
-      background: #e6f4f1;
-      display: grid;
-      place-items: center;
-      margin: 0 auto 16px;
-      font-size: 26px;
-    }
-
-    .success-box h2 { font-size: 17px; margin-bottom: 8px; }
-    .success-box p  { font-size: 13.5px; color: var(--muted); line-height: 1.6; }
-
-    .email-highlight {
-      font-weight: 650;
-      color: var(--text);
-    }
-
-    .resend-row {
-      margin-top: 20px;
-      font-size: 12.5px;
-      color: var(--muted);
-      text-align: center;
-    }
-
-    .resend-btn {
-      background: none;
-      border: none;
-      color: var(--accent);
-      font-size: 12.5px;
-      cursor: pointer;
-      padding: 0;
-      font-weight: 600;
-    }
-
     .notice {
       margin-top: 20px;
-      background: #fef8ec;
-      border: 1px solid #f5dfa0;
+      background: #f0f7f5;
+      border: 1px solid #c7e1d9;
       border-radius: 8px;
       padding: 13px 14px;
       font-size: 12.5px;
-      color: #7a5500;
+      color: #1a5449;
       line-height: 1.6;
     }
 
@@ -196,7 +154,6 @@
       color: var(--muted);
     }
 
-    /* Config warning */
     .config-warn {
       background: #fff3cd;
       border: 1px solid #ffc107;
@@ -220,44 +177,26 @@
     </div>
     <hr />
 
-    <!-- Config not set warning -->
     <div class="config-warn" id="configWarn">
       ⚠️ Supabase 설정이 아직 입력되지 않았습니다. <code>config.js</code>에 프로젝트 URL과 키를 입력해 주세요.
     </div>
 
-    <!-- Login form -->
-    <div id="loginForm">
-      <label for="email">기관 이메일 주소</label>
-      <input type="email" id="email" placeholder="이름@kh.or.kr" autocomplete="email" />
-      <div class="hint">
-        접속 허용 도메인&nbsp;<span class="domain-badge">@kh.or.kr</span>
-      </div>
-      <div class="err-msg" id="errMsg"></div>
-
-      <button class="btn-primary" id="loginBtn" onclick="sendMagicLink()">
-        <span class="spinner" id="spinner"></span>
-        <span id="btnText">로그인 링크 받기</span>
-      </button>
-
-      <div class="notice">
-        이 서비스는 <strong>한국문화재재단 임직원 전용</strong>입니다.<br>
-        기관 이메일로 로그인 링크를 발송합니다. 가입 후 관리자 승인이 완료되면 이용하실 수 있습니다.
-      </div>
+    <label for="email">기관 이메일 주소</label>
+    <input type="email" id="email" placeholder="이름@kh.or.kr" autocomplete="email" />
+    <div class="hint">
+      접속 허용 도메인&nbsp;<span class="domain-badge">@kh.or.kr</span>
     </div>
+    <div class="err-msg" id="errMsg"></div>
 
-    <!-- Success state -->
-    <div class="success-box" id="successBox">
-      <div class="success-icon">✉️</div>
-      <h2>이메일을 확인해 주세요</h2>
-      <p>
-        <span class="email-highlight" id="sentEmail"></span>으로<br>
-        로그인 링크를 발송했습니다.<br>
-        링크는 <strong>10분간</strong> 유효합니다.
-      </p>
-      <div class="resend-row">
-        링크를 받지 못하셨나요?
-        <button class="resend-btn" onclick="resetForm()">다시 시도</button>
-      </div>
+    <button class="btn-primary" id="loginBtn" onclick="checkEmail()">
+      <span class="spinner" id="spinner"></span>
+      <span id="btnText">입장하기</span>
+    </button>
+
+    <div class="notice">
+      이 서비스는 <strong>한국문화재재단 임직원 전용</strong>입니다.<br>
+      등록된 기관 이메일 입력 후 바로 이용할 수 있습니다.<br>
+      미등록 이메일은 관리자에게 문의하세요.
     </div>
 
     <div class="footer">문의: 디지털혁신팀 &nbsp;·&nbsp; <a href="admin.html" style="color:inherit;text-decoration:none;">관리자</a></div>
@@ -269,18 +208,14 @@
     const cfg = window.HERION_CONFIG;
     let sb;
 
-    // Warn if config is placeholder
     if (!cfg || cfg.supabaseUrl.includes('XXXXXXXXXX')) {
       document.getElementById('configWarn').style.display = 'block';
     } else {
       sb = supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
-      // If already logged in, go straight to app
-      sb.auth.getSession().then(({ data: { session } }) => {
-        if (session) location.href = 'index.html';
-      });
+      if (sessionStorage.getItem('herion_user')) location.href = 'index.html';
     }
 
-    async function sendMagicLink() {
+    async function checkEmail() {
       const emailEl = document.getElementById('email');
       const errEl   = document.getElementById('errMsg');
       const btn     = document.getElementById('loginBtn');
@@ -288,11 +223,9 @@
       const btnText = document.getElementById('btnText');
       const email   = emailEl.value.trim().toLowerCase();
 
-      // Reset
       emailEl.classList.remove('error');
       errEl.style.display = 'none';
 
-      // Domain check
       if (!email) {
         showErr(emailEl, errEl, '이메일을 입력해 주세요.');
         return;
@@ -301,35 +234,32 @@
         showErr(emailEl, errEl, `@${cfg.allowedDomain} 주소만 사용할 수 있습니다.`);
         return;
       }
-
       if (!sb) {
         showErr(emailEl, errEl, 'Supabase 설정이 완료되지 않았습니다.');
         return;
       }
 
-      // Loading
       btn.disabled = true;
       spinner.style.display = 'block';
-      btnText.textContent = '발송 중...';
+      btnText.textContent = '확인 중...';
 
-      const { error } = await sb.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: cfg.redirectTo }
-      });
+      const { data, error } = await sb
+        .from('employees')
+        .select('email, name, role')
+        .eq('email', email)
+        .single();
 
       spinner.style.display = 'none';
       btn.disabled = false;
-      btnText.textContent = '로그인 링크 받기';
+      btnText.textContent = '입장하기';
 
-      if (error) {
-        showErr(emailEl, errEl, '발송 실패: ' + error.message);
+      if (error || !data) {
+        showErr(emailEl, errEl, '등록되지 않은 이메일입니다. 관리자에게 문의하세요.');
         return;
       }
 
-      // Show success
-      document.getElementById('sentEmail').textContent = email;
-      document.getElementById('loginForm').style.display = 'none';
-      document.getElementById('successBox').style.display = 'block';
+      sessionStorage.setItem('herion_user', JSON.stringify(data));
+      location.href = 'index.html';
     }
 
     function showErr(inputEl, errEl, msg) {
@@ -339,16 +269,8 @@
       inputEl.focus();
     }
 
-    function resetForm() {
-      document.getElementById('loginForm').style.display = 'block';
-      document.getElementById('successBox').style.display = 'none';
-      document.getElementById('email').value = '';
-      document.getElementById('email').focus();
-    }
-
-    // Allow Enter key
-    document.getElementById('email')?.addEventListener('keydown', e => {
-      if (e.key === 'Enter') sendMagicLink();
+    document.getElementById('email').addEventListener('keydown', e => {
+      if (e.key === 'Enter') checkEmail();
     });
   </script>
 </body>
