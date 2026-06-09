@@ -426,10 +426,31 @@
       border-radius: 12px;
       box-shadow: 0 2px 12px rgba(21,32,46,.06);
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: auto 1fr auto;
       align-items: end;
       padding: 8px 10px;
       gap: 6px;
+    }
+
+    .file-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      border-radius: 7px;
+      padding: 5px 10px;
+      font-size: 12.5px;
+    }
+
+    .file-chip button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 0;
+      line-height: 1;
     }
 
     .attach-btn {
@@ -532,28 +553,22 @@
     </header>
 
     <section class="workspace" id="workspace">
-      <div class="conv-inner" id="convInner">
-
-        <!-- AI response -->
-        <div class="msg ai">
-          <div class="msg-header">
-            <div class="msg-avatar">H</div>
-            <span>Herion</span>
-            <span style="color:var(--muted);font-size:12px;">오전 10:14</span>
-          </div>
-          <div class="msg-body">
-      </div>
+      <div class="conv-inner" id="convInner"></div>
     </section>
 
     <!-- Composer -->
     <footer class="composer">
       <div class="composer-inner">
+        <div id="filePreview" style="display:none;margin-bottom:8px;gap:6px;flex-wrap:wrap;"></div>
         <div class="input-shell">
+          <button class="attach-btn" id="fileBtn" title="파일 첨부 (PDF·DOCX·PPTX·HWPX·TXT)">📎</button>
+          <input type="file" id="fileInput" style="display:none"
+                 accept=".pdf,.docx,.doc,.pptx,.ppt,.hwpx,.txt,.csv,.md" multiple>
           <textarea rows="1" id="msgInput" placeholder="Herion에게 국가유산진흥원 업무를 요청하세요..."></textarea>
           <button class="send-btn" id="sendBtn">↑</button>
         </div>
         <div class="composer-hint">
-          Herion은 실수할 수 있습니다. 중요한 내용은 반드시 직접 검토해 주세요.
+          PDF·DOCX·PPTX·HWPX 파일을 첨부해 분석을 요청할 수 있습니다.
           &nbsp;·&nbsp; 문의: AI미디어센터 AI데이터팀
           &nbsp;·&nbsp; <a href="admin.html" style="color:inherit;">관리자</a>
         </div>
@@ -563,6 +578,10 @@
 
 </div>
 
+<!-- 파일 파싱 라이브러리 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="config.js"></script>
 <script>
 // ─── 세션 확인 ───────────────────────────────────────────────
@@ -786,9 +805,15 @@ async function sendMessage() {
   isStreaming = true;
   sendBtn.disabled = true;
 
-  chatHistory.push({ role: 'user', content: text });
+  // 첨부 파일 텍스트 포함
+  const fileText    = attachedFiles.map(f => `\n\n[첨부파일: ${f.name}]\n${f.content}`).join('');
+  const fullContent = fileText ? `${text}${fileText}` : text;
+
+  chatHistory.push({ role: 'user', content: fullContent });
   const userBodyEl = appendMsgEl('user');
-  userBodyEl.innerHTML = `<p>${escHtml(text)}</p>`;
+  userBodyEl.innerHTML = `<p>${escHtml(text)}</p>` +
+    attachedFiles.map(f => `<div class="file-chip">📄 ${escHtml(f.name)}</div>`).join('');
+  clearAttachments();
 
   const thinkEl = appendThinking();
   const model   = document.getElementById('modelSelect')?.value || 'motif-12.7b-reasoning';
@@ -857,6 +882,114 @@ async function sendMessage() {
     sendBtn.disabled = false;
     textarea.focus();
   }
+}
+
+// ─── 파일 첨부 ───────────────────────────────────────────────
+let attachedFiles = [];  // [{name, content}]
+
+const fileBtn     = document.getElementById('fileBtn');
+const fileInput   = document.getElementById('fileInput');
+const filePreview = document.getElementById('filePreview');
+
+fileBtn.addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', async () => {
+  for (const file of fileInput.files) {
+    try {
+      const content = await extractText(file);
+      attachedFiles.push({ name: file.name, content });
+      renderFileChips();
+    } catch (e) {
+      alert(`${file.name}: ${e.message}`);
+    }
+  }
+  fileInput.value = '';
+});
+
+function renderFileChips() {
+  if (!attachedFiles.length) { filePreview.style.display = 'none'; return; }
+  filePreview.style.display = 'flex';
+  filePreview.innerHTML = attachedFiles.map((f, i) => `
+    <div class="file-chip">
+      📄 ${escHtml(f.name)}
+      <button onclick="removeFile(${i})" title="제거">✕</button>
+    </div>`).join('');
+}
+
+function removeFile(i) {
+  attachedFiles.splice(i, 1);
+  renderFileChips();
+}
+
+function clearAttachments() {
+  attachedFiles = [];
+  renderFileChips();
+}
+
+async function extractText(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  const MAX = 12000;
+
+  if (['txt', 'md', 'csv'].includes(ext)) {
+    const t = await file.text();
+    return t.slice(0, MAX);
+  }
+
+  if (ext === 'pdf') {
+    if (typeof pdfjsLib === 'undefined') throw new Error('PDF 라이브러리 로딩 중입니다. 잠시 후 다시 시도해주세요.');
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    let text = '';
+    for (let i = 1; i <= pdf.numPages && text.length < MAX; i++) {
+      const page    = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(s => s.str).join(' ') + '\n';
+    }
+    return text.slice(0, MAX);
+  }
+
+  if (['docx', 'doc'].includes(ext)) {
+    if (typeof mammoth === 'undefined') throw new Error('DOCX 라이브러리 로딩 중입니다.');
+    const buf    = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer: buf });
+    return result.value.slice(0, MAX);
+  }
+
+  if (['pptx', 'ppt'].includes(ext)) {
+    if (typeof JSZip === 'undefined') throw new Error('ZIP 라이브러리 로딩 중입니다.');
+    const buf  = await file.arrayBuffer();
+    const zip  = await JSZip.loadAsync(buf);
+    let text = '';
+    const slides = Object.keys(zip.files)
+      .filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n))
+      .sort();
+    for (const name of slides) {
+      const xml = await zip.files[name].async('string');
+      text += xml.replace(/<a:t>([^<]*)<\/a:t>/g, '$1 ').replace(/<[^>]+>/g, '') + '\n';
+      if (text.length > MAX) break;
+    }
+    return text.slice(0, MAX) || '(텍스트를 추출하지 못했습니다)';
+  }
+
+  if (ext === 'hwpx') {
+    if (typeof JSZip === 'undefined') throw new Error('ZIP 라이브러리 로딩 중입니다.');
+    const buf = await file.arrayBuffer();
+    const zip = await JSZip.loadAsync(buf);
+    let text = '';
+    const sections = Object.keys(zip.files)
+      .filter(n => /Contents\/section\d+\.xml/i.test(n))
+      .sort();
+    for (const name of sections) {
+      const xml = await zip.files[name].async('string');
+      text += xml.replace(/<hh:t[^>]*>([^<]*)<\/hh:t>/g, '$1 ').replace(/<[^>]+>/g, '') + '\n';
+      if (text.length > MAX) break;
+    }
+    return text.slice(0, MAX) || '(텍스트를 추출하지 못했습니다)';
+  }
+
+  throw new Error(`지원하지 않는 형식입니다 (.${ext}). PDF·DOCX·PPTX·HWPX·TXT를 사용해주세요.`);
 }
 
 // ─── 초기화 ──────────────────────────────────────────────────

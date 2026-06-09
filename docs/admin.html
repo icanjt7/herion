@@ -459,253 +459,68 @@
     </div>
 
     <!-- Stat cards -->
-    <div class="stat-grid">
-      <div class="stat-card">
-        <div class="label">전체 사용자</div>
-        <div class="value">47</div>
-        <div class="delta up">↑ 5명 이번 달 신규</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">오늘 활성 사용자</div>
-        <div class="value">18</div>
-        <div class="delta up">↑ 전주 대비 +12%</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">이번 달 요청 수</div>
-        <div class="value">2,841</div>
-        <div class="delta">전월 대비 +34%</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">승인 대기</div>
-        <div class="value" style="color:#a65f12;">3</div>
-        <div class="delta warn">승인이 필요한 계정</div>
-      </div>
+    <div class="stat-grid" id="statGrid">
+      <div class="stat-card"><div class="label">전체 직원</div><div class="value" id="statTotal">—</div></div>
+      <div class="stat-card"><div class="label">관리자</div><div class="value" id="statAdmin">—</div></div>
+      <div class="stat-card"><div class="label">일반 직원</div><div class="value" id="statUser">—</div></div>
+      <div class="stat-card"><div class="label">최근 등록</div><div class="value" id="statRecent" style="font-size:16px;margin-top:8px;">—</div></div>
     </div>
 
-    <!-- Chart + Category -->
-    <div class="cols">
-      <div class="panel">
-        <div class="panel-header">
-          <h2>일별 사용 현황</h2>
-          <select class="select">
-            <option>최근 14일</option>
-            <option>최근 30일</option>
+    <!-- 직원 등록 폼 -->
+    <div class="panel" style="margin-bottom:24px;">
+      <div class="panel-header"><h2>직원 등록</h2></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:end;">
+        <div>
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">이름</label>
+          <input id="newName" type="text" placeholder="홍길동"
+            style="width:100%;height:38px;border:1px solid var(--line);border-radius:7px;padding:0 12px;font-size:13.5px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">이메일</label>
+          <input id="newEmail" type="email" placeholder="hong@kh.or.kr"
+            style="width:100%;height:38px;border:1px solid var(--line);border-radius:7px;padding:0 12px;font-size:13.5px;outline:none;">
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">권한</label>
+          <select id="newRole"
+            style="height:38px;border:1px solid var(--line);border-radius:7px;padding:0 10px;font-size:13.5px;">
+            <option value="user">일반</option>
+            <option value="admin">관리자</option>
           </select>
         </div>
-        <div class="bar-chart">
-          <div class="bar-col"><div class="bar accent" style="height:38%"></div><div class="bar-label">6/27</div></div>
-          <div class="bar-col"><div class="bar accent" style="height:52%"></div><div class="bar-label">28</div></div>
-          <div class="bar-col"><div class="bar accent" style="height:45%"></div><div class="bar-label">29</div></div>
-          <div class="bar-col"><div class="bar accent" style="height:61%"></div><div class="bar-label">30</div></div>
-          <div class="bar-col"><div class="bar accent" style="height:72%"></div><div class="bar-label">7/1</div></div>
-          <div class="bar-col"><div class="bar accent" style="height:55%"></div><div class="bar-label">2</div></div>
-          <div class="bar-col"><div class="bar accent" style="height:20%"></div><div class="bar-label">3</div></div>
-          <div class="bar-col"><div class="bar accent" style="height:18%"></div><div class="bar-label">4</div></div>
-          <div class="bar-col"><div class="bar accent" style="height:66%"></div><div class="bar-label">5</div></div>
-          <div class="bar-col"><div class="bar accent" style="height:79%"></div><div class="bar-label">6</div></div>
-          <div class="bar-col"><div class="bar accent" style="height:85%"></div><div class="bar-label">7</div></div>
-          <div class="bar-col"><div class="bar accent" style="height:74%"></div><div class="bar-label">8</div></div>
-          <div class="bar-col"><div class="bar today"  style="height:92%"></div><div class="bar-label">오늘</div></div>
-        </div>
-        <div class="legend">
-          <span class="l-req">요청 수</span>
-          <span style="color:var(--accent-2);">■ 오늘</span>
-        </div>
+        <button onclick="addEmployee()"
+          style="height:38px;background:var(--accent);color:#fff;border:none;border-radius:7px;padding:0 18px;font-size:13.5px;font-weight:650;cursor:pointer;">
+          추가
+        </button>
       </div>
-
-      <div class="panel">
-        <div class="panel-header"><h2>업무 유형별 사용</h2></div>
-
-        <div class="cat-row">
-          <span class="cat-name">안내문 · 설명문 작성</span>
-          <div class="bar-inline"><div class="bar-fill" style="width:78%"></div></div>
-          <span class="cat-pct">78%</span>
-        </div>
-        <div class="cat-row">
-          <span class="cat-name">보고서 · 문서 요약</span>
-          <div class="bar-inline"><div class="bar-fill" style="width:58%"></div></div>
-          <span class="cat-pct">58%</span>
-        </div>
-        <div class="cat-row">
-          <span class="cat-name">번역 (한↔영)</span>
-          <div class="bar-inline"><div class="bar-fill accent-2" style="width:44%"></div></div>
-          <span class="cat-pct">44%</span>
-        </div>
-        <div class="cat-row">
-          <span class="cat-name">Q&A · 교육자료</span>
-          <div class="bar-inline"><div class="bar-fill accent-2" style="width:31%"></div></div>
-          <span class="cat-pct">31%</span>
-        </div>
-        <div class="cat-row">
-          <span class="cat-name">코드 · 데이터 분석</span>
-          <div class="bar-inline"><div class="bar-fill" style="width:12%"></div></div>
-          <span class="cat-pct">12%</span>
-        </div>
-        <div class="cat-row">
-          <span class="cat-name">기타 일반 질문</span>
-          <div class="bar-inline"><div class="bar-fill" style="width:8%"></div></div>
-          <span class="cat-pct">8%</span>
-        </div>
-      </div>
+      <div id="addMsg" style="margin-top:8px;font-size:12.5px;display:none;"></div>
     </div>
 
-    <!-- User table -->
-    <div class="panel" id="users" style="margin-bottom:24px;">
+    <!-- 직원 목록 -->
+    <div class="panel" id="users">
       <div class="panel-header">
-        <h2>사용자 관리</h2>
-        <button class="btn-outline" style="font-size:12px;">승인 대기만 보기 (3)</button>
+        <h2>직원 목록</h2>
+        <button class="btn-outline" style="font-size:12px;" onclick="loadEmployees()">새로고침</button>
       </div>
       <table>
         <thead>
           <tr>
-            <th>사용자</th>
-            <th>역할</th>
-            <th>이번 달 사용량</th>
-            <th>마지막 접속</th>
-            <th>처리</th>
+            <th>직원</th>
+            <th>권한</th>
+            <th>등록일</th>
+            <th>삭제</th>
           </tr>
         </thead>
-        <tbody>
-          <tr>
-            <td>
-              <div class="user-cell">
-                <div class="avatar-md" style="background:#2bb58f;">김</div>
-                <div><div class="user-name">김국유</div><div class="user-email">kim.ku@kh.or.kr</div></div>
-              </div>
-            </td>
-            <td><span class="role-badge role-admin">관리자</span></td>
-            <td class="progress-cell">
-              312회
-              <div class="progress-bar"><div class="progress-fill" style="width:62%"></div></div>
-            </td>
-            <td style="color:var(--muted);font-size:12px;">오늘 09:14</td>
-            <td>—</td>
-          </tr>
-          <tr>
-            <td>
-              <div class="user-cell">
-                <div class="avatar-md" style="background:#2457a6;">이</div>
-                <div><div class="user-name">이유산</div><div class="user-email">lee.ys@kh.or.kr</div></div>
-              </div>
-            </td>
-            <td><span class="role-badge role-user">담당자</span></td>
-            <td class="progress-cell">
-              187회
-              <div class="progress-bar"><div class="progress-fill" style="width:37%"></div></div>
-            </td>
-            <td style="color:var(--muted);font-size:12px;">오늘 11:52</td>
-            <td><button class="action-btn">관리</button></td>
-          </tr>
-          <tr>
-            <td>
-              <div class="user-cell">
-                <div class="avatar-md" style="background:#8e44ad;">박</div>
-                <div><div class="user-name">박헤리</div><div class="user-email">park.hr@kh.or.kr</div></div>
-              </div>
-            </td>
-            <td><span class="role-badge role-user">담당자</span></td>
-            <td class="progress-cell">
-              441회
-              <div class="progress-bar"><div class="progress-fill warn" style="width:88%"></div></div>
-            </td>
-            <td style="color:var(--muted);font-size:12px;">어제 17:30</td>
-            <td><button class="action-btn">관리</button></td>
-          </tr>
-          <tr style="background:#fffbf5;">
-            <td>
-              <div class="user-cell">
-                <div class="avatar-md" style="background:#e0e0e0;color:#666;">최</div>
-                <div><div class="user-name">최신청</div><div class="user-email">choi.sc@kh.or.kr</div></div>
-              </div>
-            </td>
-            <td><span class="role-badge role-pending">승인 대기</span></td>
-            <td class="progress-cell" style="color:var(--muted);font-size:12px;">—</td>
-            <td style="color:var(--muted);font-size:12px;">가입 2일 전</td>
-            <td>
-              <button class="action-btn approve">승인</button>
-              <button class="action-btn deny" style="margin-left:4px;">거부</button>
-            </td>
-          </tr>
-          <tr style="background:#fffbf5;">
-            <td>
-              <div class="user-cell">
-                <div class="avatar-md" style="background:#e0e0e0;color:#666;">정</div>
-                <div><div class="user-name">정대기</div><div class="user-email">jung.dk@kh.or.kr</div></div>
-              </div>
-            </td>
-            <td><span class="role-badge role-pending">승인 대기</span></td>
-            <td class="progress-cell" style="color:var(--muted);font-size:12px;">—</td>
-            <td style="color:var(--muted);font-size:12px;">가입 1일 전</td>
-            <td>
-              <button class="action-btn approve">승인</button>
-              <button class="action-btn deny" style="margin-left:4px;">거부</button>
-            </td>
-          </tr>
+        <tbody id="employeeTable">
+          <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;">로딩 중...</td></tr>
         </tbody>
       </table>
-    </div>
-
-    <!-- Activity log -->
-    <div class="panel" id="activity">
-      <div class="panel-header">
-        <h2>최근 사용 로그</h2>
-        <button class="btn-outline" style="font-size:12px;">전체 보기</button>
-      </div>
-      <div class="activity-list">
-        <div class="activity-item">
-          <div class="activity-icon">✏️</div>
-          <div class="activity-body">
-            <div class="who">이유산</div>
-            <div class="what">안내문 초안 작성 — "덕수궁 석조전 현장 안내문 v2"</div>
-          </div>
-          <div class="activity-time">10분 전</div>
-        </div>
-        <div class="activity-item">
-          <div class="activity-icon">🌐</div>
-          <div class="activity-body">
-            <div class="who">박헤리</div>
-            <div class="what">번역 요청 — 국가유산 등재 신청서 영문 초안 (5,200자)</div>
-          </div>
-          <div class="activity-time">34분 전</div>
-        </div>
-        <div class="activity-item">
-          <div class="activity-icon">📄</div>
-          <div class="activity-body">
-            <div class="who">김국유</div>
-            <div class="what">문서 요약 — 2024년 유산 보존 현황 보고서 (PDF 첨부)</div>
-          </div>
-          <div class="activity-time">1시간 전</div>
-        </div>
-        <div class="activity-item">
-          <div class="activity-icon">👥</div>
-          <div class="activity-body">
-            <div class="who">시스템</div>
-            <div class="what">신규 가입 요청 — jung.dk@kh.or.kr (승인 대기)</div>
-          </div>
-          <div class="activity-time">3시간 전</div>
-        </div>
-        <div class="activity-item">
-          <div class="activity-icon">🏛️</div>
-          <div class="activity-body">
-            <div class="who">이유산</div>
-            <div class="what">Q&A 생성 — 체험 프로그램 "전통 매듭 공예" 안내 자료</div>
-          </div>
-          <div class="activity-time">5시간 전</div>
-        </div>
-        <div class="activity-item">
-          <div class="activity-icon">✅</div>
-          <div class="activity-body">
-            <div class="who">김국유 (관리자)</div>
-            <div class="what">계정 승인 — park.hr@kh.or.kr</div>
-          </div>
-          <div class="activity-time">어제 16:20</div>
-        </div>
-      </div>
     </div>
 
   </main>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
 <script>
   const user = JSON.parse(sessionStorage.getItem('herion_user') || 'null');
@@ -724,6 +539,114 @@
     sessionStorage.removeItem('herion_user');
     location.href = 'login.html';
   }
+
+  const cfg = window.HERION_CONFIG;
+  const sb  = supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+
+  async function loadEmployees() {
+    const tbody = document.getElementById('employeeTable');
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;">로딩 중...</td></tr>';
+
+    const { data, error } = await sb.from('employees').select('*').order('created_at', { ascending: false });
+
+    if (error || !data) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--danger);padding:24px;">오류: ${error?.message}</td></tr>`;
+      return;
+    }
+
+    const total  = data.length;
+    const admins = data.filter(e => e.role === 'admin').length;
+    const users  = data.filter(e => e.role === 'user').length;
+    const recent = total > 0 ? data[0].name : '—';
+
+    document.getElementById('statTotal').textContent  = total;
+    document.getElementById('statAdmin').textContent  = admins;
+    document.getElementById('statUser').textContent   = users;
+    document.getElementById('statRecent').textContent = recent;
+
+    if (total === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;">등록된 직원이 없습니다.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.map(emp => {
+      const initial = emp.name ? emp.name[0] : '?';
+      const date    = new Date(emp.created_at).toLocaleDateString('ko-KR');
+      const badge   = emp.role === 'admin'
+        ? '<span class="role-badge role-admin">관리자</span>'
+        : '<span class="role-badge role-user">일반</span>';
+      return `<tr>
+        <td>
+          <div class="user-cell">
+            <div class="avatar-md">${initial}</div>
+            <div>
+              <div class="user-name">${emp.name}</div>
+              <div class="user-email">${emp.email}</div>
+            </div>
+          </div>
+        </td>
+        <td>${badge}</td>
+        <td style="color:var(--muted);font-size:12px;">${date}</td>
+        <td>
+          <button class="action-btn deny" onclick="deleteEmployee('${emp.id}', '${emp.name}')">삭제</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function addEmployee() {
+    const nameEl  = document.getElementById('newName');
+    const emailEl = document.getElementById('newEmail');
+    const roleEl  = document.getElementById('newRole');
+    const msgEl   = document.getElementById('addMsg');
+
+    const name  = nameEl.value.trim();
+    const email = emailEl.value.trim().toLowerCase();
+    const role  = roleEl.value;
+
+    msgEl.style.display = 'none';
+
+    if (!name || !email) {
+      msgEl.textContent = '이름과 이메일을 모두 입력해 주세요.';
+      msgEl.style.color = 'var(--danger)';
+      msgEl.style.display = 'block';
+      return;
+    }
+
+    const { error } = await sb.from('employees').insert({ name, email, role });
+
+    if (error) {
+      msgEl.textContent = error.code === '23505' ? '이미 등록된 이메일입니다.' : `오류: ${error.message}`;
+      msgEl.style.color = 'var(--danger)';
+      msgEl.style.display = 'block';
+      return;
+    }
+
+    nameEl.value  = '';
+    emailEl.value = '';
+    roleEl.value  = 'user';
+    msgEl.textContent = `${name} 님이 등록되었습니다.`;
+    msgEl.style.color = 'var(--accent)';
+    msgEl.style.display = 'block';
+    setTimeout(() => { msgEl.style.display = 'none'; }, 3000);
+
+    loadEmployees();
+  }
+
+  async function deleteEmployee(id, name) {
+    if (!confirm(`${name} 님을 삭제하시겠습니까?`)) return;
+
+    const { error } = await sb.from('employees').delete().eq('id', id);
+
+    if (error) {
+      alert(`삭제 오류: ${error.message}`);
+      return;
+    }
+
+    loadEmployees();
+  }
+
+  loadEmployees();
 </script>
 </body>
 </html>

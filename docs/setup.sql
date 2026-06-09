@@ -22,6 +22,19 @@ drop policy if exists "로그인 조회" on public.employees;
 create policy "로그인 조회" on public.employees
   for select using (true);
 
+-- 관리자 대시보드에서 직원 추가/삭제 허용
+drop policy if exists "직원 등록" on public.employees;
+create policy "직원 등록" on public.employees
+  for insert with check (true);
+
+drop policy if exists "직원 삭제" on public.employees;
+create policy "직원 삭제" on public.employees
+  for delete using (true);
+
+drop policy if exists "직원 수정" on public.employees;
+create policy "직원 수정" on public.employees
+  for update using (true);
+
 -- 직원 등록 예시 (필요 시 추가)
 -- insert into public.employees (email, name, role) values ('hong@kh.or.kr', '홍길동', 'user');
 -- insert into public.employees (email, name, role) values ('admin@kh.or.kr', '관리자', 'admin');
