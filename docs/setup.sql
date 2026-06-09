@@ -14,17 +14,19 @@ create table if not exists public.profiles (
 alter table public.profiles enable row level security;
 
 -- 3. 본인 프로필 조회 허용 (로그인된 사용자)
+drop policy if exists "본인 프로필 조회" on public.profiles;
 create policy "본인 프로필 조회"
   on public.profiles for select
   using (auth.uid() = id);
 
 -- 4. 관리자는 전체 조회 허용
---    (adminEmails 목록의 사용자가 service_role 없이 조회하려면 아래 정책 필요)
+drop policy if exists "전체 프로필 조회 (관리자)" on public.profiles;
 create policy "전체 프로필 조회 (관리자)"
   on public.profiles for select
   using (
-    (select email from public.profiles where id = auth.uid()) = any(
-      select unnest(string_to_array(current_setting('app.admin_emails', true), ','))
+    exists (
+      select 1 from public.profiles p
+      where p.id = auth.uid() and p.role = 'admin'
     )
   );
 
