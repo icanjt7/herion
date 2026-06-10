@@ -579,6 +579,7 @@
 </div>
 
 <!-- 파일 파싱 라이브러리 -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -595,6 +596,62 @@ else {
   if (user.role === 'admin') document.getElementById('adminLink').style.display = 'flex';
 }
 function logout() { sessionStorage.removeItem('herion_user'); location.href = 'login.html'; }
+
+// ─── Supabase 클라이언트 (로그 기록용) ──────────────────────
+const sb = (cfg?.supabaseUrl && !cfg.supabaseUrl.includes('XXXXXXXXXX'))
+  ? supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey)
+  : null;
+
+// ─── 국가유산 데이터 ─────────────────────────────────────────
+let heritageData = null;
+let royalData    = null;
+
+async function loadHeritageData() {
+  try {
+    const [h, r] = await Promise.allSettled([
+      fetch('data/heritage.json').then(res => res.ok ? res.json() : Promise.reject()),
+      fetch('data/royal.json').then(res => res.ok ? res.json() : Promise.reject())
+    ]);
+    if (h.status === 'fulfilled') heritageData = h.value;
+    if (r.status === 'fulfilled') royalData    = r.value;
+  } catch(_) {}
+}
+
+function searchHeritageContext(query) {
+  if (!heritageData && !royalData) return '';
+  const keywords = (query.match(/[가-힣a-zA-Z]{2,}/g) || []).filter(k => k.length >= 2);
+  if (!keywords.length) return '';
+
+  const score = (item, fields) =>
+    keywords.filter(k => fields.some(f => item[f]?.includes(k))).length;
+
+  const hMatches = heritageData
+    ? heritageData
+        .map(item => ({ item, s: score(item, ['name','content','location']) }))
+        .filter(r => r.s > 0).sort((a,b) => b.s - a.s).slice(0,3).map(r => r.item)
+    : [];
+  const rMatches = royalData
+    ? royalData
+        .map(item => ({ item, s: score(item, ['name','place','content']) }))
+        .filter(r => r.s > 0).sort((a,b) => b.s - a.s).slice(0,3).map(r => r.item)
+    : [];
+
+  if (!hMatches.length && !rMatches.length) return '';
+
+  let ctx = '\n\n[참고: 관련 국가유산 데이터]\n다음 정보를 참고하여 정확하게 답변하세요:\n';
+  hMatches.forEach(item => {
+    ctx += `\n■ ${item.name}${item.type ? ` [${item.type}]` : ''}\n`;
+    if (item.location) ctx += `위치: ${item.location}\n`;
+    if (item.content)  ctx += `${item.content.slice(0, 300)}\n`;
+  });
+  rMatches.forEach(item => {
+    ctx += `\n■ ${item.name} — ${item.place}\n`;
+    if (item.content) ctx += `${item.content.slice(0, 300)}\n`;
+  });
+  return ctx;
+}
+
+loadHeritageData();
 
 // ─── 대화 저장소 ─────────────────────────────────────────────
 const CONVS_KEY = 'herion_convs_v1';
@@ -771,13 +828,43 @@ textarea.addEventListener('keydown', e => {
 
 sendBtn.addEventListener('click', sendMessage);
 
-// ─── 메시지 전송 ─────────────────────────────────────────────
-const SYSTEM_PROMPT = `당신은 국가유산진흥원 업무 전문 AI 보조 'Herion'입니다.
+// ─── 시스템 프롬프트 ─────────────────────────────────────────
+function getSystemPrompt(heritageCtx = '') {
+  const langMode = localStorage.getItem('herion_lang_mode') || 'auto';
+  const extra    = localStorage.getItem('herion_extra_prompt') || '';
 
-반드시 모든 답변을 한국어로 작성하세요. 사용자가 다른 언어로 질문하더라도 한국어로만 답변합니다.
+  const langLine = langMode === 'ko-only'
+    ? '모든 답변을 한국어로만 작성한다. 사용자가 다른 언어로 질문하더라도 한국어로만 답변한다.'
+    : '사용자의 질문 언어에 맞춰 답변한다. 한국어 질문 → 한국어, 영어 질문 → 영어로 답변한다.';
 
-국가유산진흥원 임직원들이 안내문·설명문 작성, 번역(한↔영), 보고서 요약, Q&A 자료 제작 등의 업무를 수행할 수 있도록 전문적이고 정확하게 도와주세요.
-공식 문서 작성 시 국가유산 분야 표준 용어를 사용하세요.`;
+  let prompt = `당신은 국가유산진흥원 업무 전문 AI 보조 'Herion'입니다.
+
+[페르소나]
+너는 한국의 문화 공공기관 기획·관리 실무 전문가다. 대한민국 공공기관 공문서 작성 규정, 국가유산 분야 표준 용어, 행정 절차에 정통하다.
+
+[기관 정보 — 반드시 준수]
+- 기관명: 국가유산진흥원 (Korea Heritage Service Foundation)
+- 설립: 1980년 4월 1일
+- 소관: 국가유산청 산하 기타 공공기관
+- 역할: 국가유산의 보존·활용·진흥을 지원하는 전문 공공기관
+- 이 기관에 대해 질문받으면 위 정보를 정확히 사용하며, 모르는 세부 사항은 "확인이 필요합니다"라고 명시한다.
+
+[언어 지침]
+${langLine}
+
+[응답 방식]
+- 복잡한 분석·논리 전개: 내부적으로 영어로 추론 후, 최종 답변은 한국 공공기관 비즈니스 톤앤매너로 작성
+- 공문서·보고서: 개조식(-함, -음 체), 공공기관 표준 양식 준수
+- 국가유산 용어는 국가유산청·국가유산진흥원 공식 표기 기준을 따름
+- 불확실한 정보는 반드시 명시적으로 표시
+
+[주요 지원 업무]
+안내문·설명문 작성, 번역(한↔영), 보고서 요약, Q&A 자료 제작`;
+
+  if (extra)       prompt += `\n\n[추가 지시사항]\n${extra}`;
+  if (heritageCtx) prompt += heritageCtx;
+  return prompt;
+}
 
 async function sendMessage() {
   if (isStreaming) return;
@@ -822,12 +909,15 @@ async function sendMessage() {
   const model   = document.getElementById('modelSelect')?.value || 'motif-12.7b-reasoning';
 
   try {
+    const heritageCtx = searchHeritageContext(text);
+    const systemPrompt = getSystemPrompt(heritageCtx);
+
     const resp = await fetch(`${cfg.motifBaseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.motifApiKey}` },
       body: JSON.stringify({
         model,
-        messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...chatHistory],
+        messages: [{ role: 'system', content: systemPrompt }, ...chatHistory],
         stream: true
       })
     });
@@ -865,6 +955,16 @@ async function sendMessage() {
 
     bodyEl.innerHTML = renderMd(full);
     chatHistory.push({ role: 'assistant', content: full });
+
+    // 대화 로그 Supabase에 기록 (비동기, 오류 무시)
+    if (sb) {
+      sb.from('chat_logs').insert({
+        user_email: user.email,
+        user_name:  user.name,
+        model,
+        question:   text.slice(0, 300)
+      }).then().catch(() => {});
+    }
 
     // localStorage에 저장
     const convs = getConvs();

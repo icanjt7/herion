@@ -38,3 +38,23 @@ create policy "직원 수정" on public.employees
 -- 직원 등록 예시 (필요 시 추가)
 -- insert into public.employees (email, name, role) values ('hong@kh.or.kr', '홍길동', 'user');
 -- insert into public.employees (email, name, role) values ('admin@kh.or.kr', '관리자', 'admin');
+
+-- AI 대화 로그 테이블
+create table if not exists public.chat_logs (
+  id         uuid primary key default gen_random_uuid(),
+  user_email text not null,
+  user_name  text,
+  model      text,
+  question   text,
+  created_at timestamptz default now()
+);
+
+alter table public.chat_logs enable row level security;
+
+drop policy if exists "로그 기록" on public.chat_logs;
+create policy "로그 기록" on public.chat_logs
+  for insert with check (true);
+
+drop policy if exists "로그 조회" on public.chat_logs;
+create policy "로그 조회" on public.chat_logs
+  for select using (true);
