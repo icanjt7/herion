@@ -1239,30 +1239,28 @@ async function sendMessage() {
   const model   = document.getElementById('modelSelect')?.value || 'motif-12.7b-reasoning';
 
   try {
-    // 웹 검색
-    let searchCtx = '';
-    if (shouldSearch && hasSearchKey) {
-      searchCtx = await performWebSearch(text);
-      setThinkingLabel(thinkEl, '생각 중...');
-    }
-
+    // 웹검색·법령검색 병렬 실행
     const heritageCtx = searchHeritageContext(text);
-
-    // 법령 검색 (키워드 감지 시 자동)
-    let lawCtx = '';
-    if (needsLawSearch(text)) {
-      lawCtx = await searchLaw(text);
-      if (lawCtx) setThinkingLabel(thinkEl, '⚖️ 법령 조회 완료, 생각 중...');
-    }
+    const [searchCtx, lawCtx] = await Promise.all([
+      (shouldSearch && hasSearchKey) ? performWebSearch(text) : Promise.resolve(''),
+      needsLawSearch(text)           ? searchLaw(text)        : Promise.resolve(''),
+    ]);
+    if (searchCtx || lawCtx) setThinkingLabel(thinkEl, '생각 중...');
 
     const systemPrompt = getSystemPrompt(heritageCtx + lawCtx + searchCtx);
+
+    // 대화 기록은 최근 20턴만 전송 (토큰 절감)
+    const MAX_HIST = 20;
+    const histSlice = chatHistory.length > MAX_HIST
+      ? chatHistory.slice(chatHistory.length - MAX_HIST)
+      : chatHistory;
 
     const resp = await fetch(`${cfg.motifBaseUrl}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.motifApiKey}` },
       body: JSON.stringify({
         model,
-        messages: [{ role: 'system', content: systemPrompt }, ...chatHistory],
+        messages: [{ role: 'system', content: systemPrompt }, ...histSlice],
         stream: true
       })
     });
