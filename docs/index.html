@@ -908,9 +908,10 @@ function applySpellResult() {
   textarea.focus();
 }
 
-// ─── 대화 저장소 ─────────────────────────────────────────────
-const CONVS_KEY = 'herion_convs_v1';
-const CURR_KEY  = 'herion_curr_v1';
+// ─── 대화 저장소 (사용자별 분리) ─────────────────────────────
+const _uid      = (user?.email || 'guest').replace(/[^a-zA-Z0-9@._-]/g, '_');
+const CONVS_KEY = `herion_convs_v1_${_uid}`;
+const CURR_KEY  = `herion_curr_v1_${_uid}`;
 
 const getConvs  = () => JSON.parse(localStorage.getItem(CONVS_KEY) || '[]');
 const setConvs  = v  => localStorage.setItem(CONVS_KEY, JSON.stringify(v));
@@ -1157,8 +1158,8 @@ function getSystemPrompt(heritageCtx = '') {
   const extra    = localStorage.getItem('herion_extra_prompt') || '';
 
   const langLine = langMode === 'ko-only'
-    ? '모든 답변을 한국어로만 작성한다. 사용자가 다른 언어로 질문하더라도 한국어로만 답변한다.'
-    : '사용자의 질문 언어에 맞춰 답변한다. 한국어 질문 → 한국어, 영어 질문 → 영어로 답변한다.';
+    ? '반드시 한국어로만 답변한다. 사용자가 어떤 언어로 질문하든 한국어로만 답변한다.'
+    : '사용자 질문의 언어를 감지하여 동일한 언어로 답변한다. 한국어 질문이면 반드시 한국어로, 영어 질문이면 반드시 영어로 답변한다. 추론 과정은 내부적으로 처리하고 최종 답변만 출력한다.';
 
   let prompt = `당신은 국가유산진흥원 업무 전문 AI 보조 'Herion'입니다.
 
@@ -1178,7 +1179,7 @@ ${langLine}
 [응답 방식]
 - 답변 길이는 질문의 성격에 맞춘다. 인사·짧은 질문 → 간결하게, 업무 요청 → 충분히.
 - 불필요한 서론·부연 설명·마무리 인사 없이 핵심부터 답변한다.
-- 복잡한 분석·논리 전개: 내부적으로 영어로 추론 후, 최종 답변은 한국 공공기관 비즈니스 톤앤매너로 작성
+- 공문서·업무 답변: 한국 공공기관 비즈니스 톤앤매너 준수 (단, 위 언어 지침이 우선)
 - 공문서·보고서: 개조식(-함, -음 체), 공공기관 표준 양식 준수
 - 국가유산 용어는 국가유산청·국가유산진흥원 공식 표기 기준을 따름
 - 불확실한 정보는 반드시 명시적으로 표시
