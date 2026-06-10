@@ -12,8 +12,14 @@ create table if not exists public.employees (
   email      text unique not null,
   name       text not null,
   role       text not null default 'user',  -- 'user' | 'admin'
+  department text not null default '',      -- 부서
+  position_title text not null default '',  -- 직책
   created_at timestamptz default now()
 );
+
+-- 기존 테이블에 컬럼 추가 (이미 생성된 경우)
+alter table public.employees add column if not exists department text not null default '';
+alter table public.employees add column if not exists position_title text not null default '';
 
 alter table public.employees enable row level security;
 

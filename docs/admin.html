@@ -76,6 +76,10 @@
       color: #c4cdd8;
       cursor: pointer;
       text-decoration: none;
+      background: none;
+      border: none;
+      width: 100%;
+      text-align: left;
     }
 
     .nav-item:hover, .nav-item.active {
@@ -374,14 +378,14 @@
     <a href="index.html" class="nav-item"><span class="icon">💬</span> 채팅으로 이동</a>
 
     <div class="nav-section">관리자</div>
-    <a href="#" class="nav-item active" data-view="dashboard"
-       onclick="showView('dashboard');return false;"><span class="icon">📊</span> 대시보드</a>
-    <a href="#" class="nav-item" data-view="users"
-       onclick="showView('users');return false;"><span class="icon">👥</span> 사용자 관리</a>
-    <a href="#" class="nav-item" data-view="logs"
-       onclick="showView('logs');return false;"><span class="icon">📋</span> 사용 로그</a>
-    <a href="#" class="nav-item" data-view="settings"
-       onclick="showView('settings');return false;"><span class="icon">⚙️</span> 서비스 설정</a>
+    <button class="nav-item active" data-view="dashboard"
+       onclick="showView('dashboard')"><span class="icon">📊</span> 대시보드</button>
+    <button class="nav-item" data-view="users"
+       onclick="showView('users')"><span class="icon">👥</span> 사용자 관리</button>
+    <button class="nav-item" data-view="logs"
+       onclick="showView('logs')"><span class="icon">📋</span> 사용 로그</button>
+    <button class="nav-item" data-view="settings"
+       onclick="showView('settings')"><span class="icon">⚙️</span> 서비스 설정</button>
 
     <div class="sidebar-footer">
       <div class="avatar-sm" id="adminInitial">?</div>
@@ -462,30 +466,42 @@
 
       <div class="panel" style="margin-bottom:24px;">
         <div class="panel-header"><h2>직원 등록</h2></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:end;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:end;">
           <div>
-            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">이름</label>
+            <label for="newName" style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">이름</label>
             <input id="newName" type="text" placeholder="홍길동"
               style="width:100%;height:38px;border:1px solid var(--line);border-radius:7px;padding:0 12px;font-size:13.5px;outline:none;">
           </div>
           <div>
-            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">이메일</label>
+            <label for="newEmail" style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">이메일</label>
             <input id="newEmail" type="email" placeholder="hong@kh.or.kr"
               style="width:100%;height:38px;border:1px solid var(--line);border-radius:7px;padding:0 12px;font-size:13.5px;outline:none;">
           </div>
           <div>
-            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">권한</label>
-            <select id="newRole"
-              style="height:38px;border:1px solid var(--line);border-radius:7px;padding:0 10px;font-size:13.5px;">
-              <option value="user">일반</option>
-              <option value="admin">관리자</option>
-            </select>
+            <label for="newDept" style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">부서</label>
+            <input id="newDept" type="text" placeholder="홍보팀"
+              style="width:100%;height:38px;border:1px solid var(--line);border-radius:7px;padding:0 12px;font-size:13.5px;outline:none;">
           </div>
-          <button onclick="addEmployee()"
-            style="height:38px;background:var(--accent);color:#fff;border:none;border-radius:7px;
-                   padding:0 18px;font-size:13.5px;font-weight:650;cursor:pointer;">
-            추가
-          </button>
+          <div>
+            <label for="newPosition" style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">직책</label>
+            <input id="newPosition" type="text" placeholder="주임"
+              style="width:100%;height:38px;border:1px solid var(--line);border-radius:7px;padding:0 12px;font-size:13.5px;outline:none;">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;">
+            <label for="newRole" style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">권한</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <select id="newRole"
+                style="height:38px;border:1px solid var(--line);border-radius:7px;padding:0 10px;font-size:13.5px;">
+                <option value="user">일반</option>
+                <option value="admin">관리자</option>
+              </select>
+              <button onclick="addEmployee()"
+                style="height:38px;background:var(--accent);color:#fff;border:none;border-radius:7px;
+                       padding:0 18px;font-size:13.5px;font-weight:650;cursor:pointer;white-space:nowrap;">
+                추가
+              </button>
+            </div>
+          </div>
         </div>
         <div id="addMsg" style="margin-top:8px;font-size:12.5px;display:none;"></div>
       </div>
@@ -497,10 +513,10 @@
         </div>
         <table>
           <thead>
-            <tr><th>직원</th><th>권한</th><th>등록일</th><th>삭제</th></tr>
+            <tr><th>직원</th><th>부서 / 직책</th><th>권한</th><th>등록일</th><th>삭제</th></tr>
           </thead>
           <tbody id="employeeTable">
-            <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;">로딩 중...</td></tr>
+            <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px;">로딩 중...</td></tr>
           </tbody>
         </table>
       </div>
@@ -612,6 +628,7 @@
       <div class="panel">
         <div class="panel-header"><h2>서비스 정보</h2></div>
         <table class="settings-table">
+          <thead><tr><th>항목</th><th>값</th></tr></thead>
           <tbody>
             <tr>
               <td>허용 도메인</td>
@@ -733,11 +750,11 @@
     const { data, error } = await sb.from('employees').select('*').order('created_at', { ascending: false });
 
     if (error || !data) {
-      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--danger);padding:24px;">오류: ${escHtml(error?.message)}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:24px;">오류: ${escHtml(error?.message)}</td></tr>`;
       return;
     }
     if (!data.length) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;">등록된 직원이 없습니다.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px;">등록된 직원이 없습니다.</td></tr>';
       return;
     }
 
@@ -745,6 +762,7 @@
       const badge = emp.role === 'admin'
         ? '<span class="role-badge role-admin">관리자</span>'
         : '<span class="role-badge role-user">일반</span>';
+      const deptInfo = [emp.department, emp.position_title].filter(Boolean).join(' / ');
       return `<tr>
         <td>
           <div class="user-cell">
@@ -755,6 +773,7 @@
             </div>
           </div>
         </td>
+        <td style="color:var(--muted);font-size:12.5px;">${escHtml(deptInfo || '—')}</td>
         <td>${badge}</td>
         <td style="color:var(--muted);font-size:12px;">${new Date(emp.created_at).toLocaleDateString('ko-KR')}</td>
         <td>
@@ -765,13 +784,17 @@
   }
 
   async function addEmployee() {
-    const nameEl  = document.getElementById('newName');
-    const emailEl = document.getElementById('newEmail');
-    const roleEl  = document.getElementById('newRole');
-    const msgEl   = document.getElementById('addMsg');
-    const name    = nameEl.value.trim();
-    const email   = emailEl.value.trim().toLowerCase();
-    const role    = roleEl.value;
+    const nameEl     = document.getElementById('newName');
+    const emailEl    = document.getElementById('newEmail');
+    const deptEl     = document.getElementById('newDept');
+    const positionEl = document.getElementById('newPosition');
+    const roleEl     = document.getElementById('newRole');
+    const msgEl      = document.getElementById('addMsg');
+    const name       = nameEl.value.trim();
+    const email      = emailEl.value.trim().toLowerCase();
+    const department = deptEl.value.trim();
+    const position_title = positionEl.value.trim();
+    const role       = roleEl.value;
 
     msgEl.style.display = 'none';
     if (!name || !email) {
@@ -781,7 +804,7 @@
       return;
     }
 
-    const { error } = await sb.from('employees').insert({ name, email, role });
+    const { error } = await sb.from('employees').insert({ name, email, role, department, position_title });
     if (error) {
       msgEl.textContent = error.code === '23505' ? '이미 등록된 이메일입니다.' : `오류: ${error.message}`;
       msgEl.style.color = 'var(--danger)';
@@ -789,7 +812,7 @@
       return;
     }
 
-    nameEl.value = ''; emailEl.value = ''; roleEl.value = 'user';
+    nameEl.value = ''; emailEl.value = ''; deptEl.value = ''; positionEl.value = ''; roleEl.value = 'user';
     msgEl.textContent = `${name} 님이 등록되었습니다.`;
     msgEl.style.color = 'var(--accent)';
     msgEl.style.display = 'block';

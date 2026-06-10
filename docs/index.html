@@ -635,6 +635,10 @@
                 style="font-size:15px;width:auto;padding:0 10px;gap:4px;display:flex;align-items:center;">
           ✍️ <span class="toolbar-label">맞춤법</span>
         </button>
+        <button class="icon-btn" title="내 메모리 관리" onclick="openMemoryModal()"
+                style="font-size:15px;width:auto;padding:0 10px;gap:4px;display:flex;align-items:center;">
+          🧠 <span class="toolbar-label">메모리</span>
+        </button>
 
         <!-- 모바일 전용: 사용자 아바타 + 로그아웃 -->
         <div class="mobile-user">
@@ -699,6 +703,28 @@
     <div id="spellResult"></div>
   </div>
 </div>
+
+<!-- 메모리 관리 모달 -->
+<dialog id="memoryModal" aria-label="메모리 관리"
+     style="border:none;border-radius:14px;padding:24px;width:min(480px,92vw);max-height:80vh;
+            overflow-y:auto;display:none;flex-direction:column;gap:14px;box-shadow:0 8px 40px rgba(0,0,0,.18);">
+  <div style="display:flex;align-items:center;justify-content:space-between;">
+    <h3 style="font-size:16px;font-weight:700;margin:0;">🧠 내 메모리</h3>
+    <button onclick="closeMemoryModal()" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);">✕</button>
+  </div>
+  <p style="font-size:12.5px;color:var(--muted);margin:0;">
+    대화 중 <strong>"기억해줘: [내용]"</strong> 또는 <strong>"[내용]을 기억해줘"</strong> 라고 입력하면 자동 저장됩니다.<br>
+    저장된 내용은 모든 대화의 AI 컨텍스트에 자동 반영됩니다.
+  </p>
+  <div style="display:flex;gap:8px;">
+    <input id="memInput" type="text" placeholder="직접 추가할 선호·맥락 입력"
+      style="flex:1;height:36px;border:1px solid var(--line);border-radius:7px;padding:0 12px;font-size:13px;outline:none;"
+      onkeydown="if(event.key==='Enter')addMemoryFromModal()">
+    <button onclick="addMemoryFromModal()"
+      style="height:36px;background:var(--accent);color:#fff;border:none;border-radius:7px;padding:0 14px;font-size:13px;cursor:pointer;">추가</button>
+  </div>
+  <div id="memoryList" style="display:flex;flex-direction:column;gap:6px;"></div>
+</dialog>
 
 <!-- 파일 파싱 라이브러리 -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
@@ -831,6 +857,49 @@ async function searchLaw(query) {
 }
 
 // ─── 맞춤법 검사 모달 ────────────────────────────────────────
+// ─── 메모리 모달 ─────────────────────────────────────────────
+function openMemoryModal() {
+  renderMemoryList();
+  const modal = document.getElementById('memoryModal');
+  modal.style.display = 'flex';
+  modal.showModal?.();
+}
+function closeMemoryModal() {
+  const modal = document.getElementById('memoryModal');
+  modal.style.display = 'none';
+  modal.close?.();
+}
+function renderMemoryList() {
+  const mems = getUserMems();
+  const list = document.getElementById('memoryList');
+  if (!mems.length) {
+    list.innerHTML = '<p style="color:var(--muted);font-size:13px;text-align:center;padding:12px 0;">저장된 메모리가 없습니다.</p>';
+    return;
+  }
+  list.innerHTML = mems.map((m, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f7f8fa;border-radius:8px;font-size:13px;">
+      <span style="flex:1;">${escHtml(m)}</span>
+      <button onclick="removeMemory(${i})" title="삭제"
+        style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:15px;padding:0;">✕</button>
+    </div>`).join('');
+}
+function addMemoryFromModal() {
+  const input = document.getElementById('memInput');
+  const val = input.value.trim();
+  if (!val) return;
+  saveUserMem(val);
+  input.value = '';
+  renderMemoryList();
+}
+function removeMemory(idx) {
+  deleteUserMem(idx);
+  renderMemoryList();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeMemoryModal();
+});
+
 function openSpellCheck() {
   // 현재 입력창 텍스트가 있으면 가져옴
   const currentText = textarea.value.trim();
@@ -917,6 +986,34 @@ const getConvs  = () => JSON.parse(localStorage.getItem(CONVS_KEY) || '[]');
 const setConvs  = v  => localStorage.setItem(CONVS_KEY, JSON.stringify(v));
 const getCurrId = () => localStorage.getItem(CURR_KEY);
 const setCurrId = id => id ? localStorage.setItem(CURR_KEY, id) : localStorage.removeItem(CURR_KEY);
+
+// 구 버전(공유 키) → 신 버전(사용자별 키) 1회 마이그레이션
+;(function migrateConvs() {
+  const oldData = localStorage.getItem('herion_convs_v1');
+  if (!oldData) return;
+  const cur = localStorage.getItem(CONVS_KEY);
+  if (!cur || cur === '[]') {
+    localStorage.setItem(CONVS_KEY, oldData);
+    const oldCurr = localStorage.getItem('herion_curr_v1');
+    if (oldCurr) localStorage.setItem(CURR_KEY, oldCurr);
+  }
+  localStorage.removeItem('herion_convs_v1');
+  localStorage.removeItem('herion_curr_v1');
+})();
+
+// ─── 개인 메모리 ─────────────────────────────────────────────
+const MEM_KEY        = `herion_mem_v1_${_uid}`;
+const getUserMems    = ()    => JSON.parse(localStorage.getItem(MEM_KEY) || '[]');
+const saveUserMem    = text  => {
+  const mems = getUserMems();
+  if (!mems.includes(text)) mems.push(text);
+  localStorage.setItem(MEM_KEY, JSON.stringify(mems.slice(-30)));
+};
+const deleteUserMem  = idx  => {
+  const mems = getUserMems();
+  mems.splice(idx, 1);
+  localStorage.setItem(MEM_KEY, JSON.stringify(mems));
+};
 
 // ─── DOM 참조 ────────────────────────────────────────────────
 const convInner  = document.getElementById('convInner');
@@ -1156,10 +1253,17 @@ sendBtn.addEventListener('click', sendMessage);
 function getSystemPrompt(heritageCtx = '') {
   const langMode = localStorage.getItem('herion_lang_mode') || 'auto';
   const extra    = localStorage.getItem('herion_extra_prompt') || '';
+  const memories = getUserMems();
 
   const langLine = langMode === 'ko-only'
     ? '반드시 한국어로만 답변한다. 사용자가 어떤 언어로 질문하든 한국어로만 답변한다.'
     : '사용자 질문의 언어를 감지하여 동일한 언어로 답변한다. 한국어 질문이면 반드시 한국어로, 영어 질문이면 반드시 영어로 답변한다. 추론 과정은 내부적으로 처리하고 최종 답변만 출력한다.';
+
+  // 사용자 프로파일
+  const profileParts = [];
+  if (user?.name)           profileParts.push(`이름: ${user.name}`);
+  if (user?.department)     profileParts.push(`부서: ${user.department}`);
+  if (user?.position_title) profileParts.push(`직책: ${user.position_title}`);
 
   let prompt = `당신은 국가유산진흥원 업무 전문 AI 보조 'Herion'입니다.
 
@@ -1187,9 +1291,44 @@ ${langLine}
 [주요 지원 업무]
 안내문·설명문 작성, 번역(한↔영), 보고서 요약, Q&A 자료 제작`;
 
+  if (profileParts.length) {
+    prompt += `\n\n[현재 사용자]\n${profileParts.join(' / ')}\n위 사용자에게 맞는 전문성과 어조로 답변한다.`;
+  }
+  if (memories.length) {
+    prompt += `\n\n[사용자 개인 선호·맥락 — 반드시 반영]\n${memories.map((m, i) => `${i + 1}. ${m}`).join('\n')}`;
+  }
   if (extra)       prompt += `\n\n[추가 지시사항]\n${extra}`;
   if (heritageCtx) prompt += heritageCtx;
   return prompt;
+}
+
+// 대화가 길어지면 오래된 부분을 요약해 압축 (백그라운드)
+async function compressHistoryIfNeeded() {
+  if (chatHistory.length <= 20) return;
+  const keepCount  = 16;
+  const toSummarize = chatHistory.filter(m => m.role !== 'system').slice(0, chatHistory.length - keepCount);
+  if (!toSummarize.length) return;
+  try {
+    const resp = await fetch(`${cfg.motifBaseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.motifApiKey}` },
+      body: JSON.stringify({
+        model: document.getElementById('modelSelect')?.value || 'motif-12.7b-reasoning',
+        messages: [
+          { role: 'system', content: '아래 대화를 3문장 이내로 요약하세요. 핵심 주제, 결정 사항, 주요 정보만 포함.' },
+          { role: 'user',   content: toSummarize.map(m => `${m.role === 'user' ? '사용자' : 'AI'}: ${m.content}`).join('\n\n') }
+        ],
+        stream: false
+      })
+    });
+    const summary = (await resp.json()).choices?.[0]?.message?.content ?? '';
+    if (!summary) return;
+    const recentPart = chatHistory.slice(chatHistory.length - keepCount);
+    chatHistory = [{ role: 'system', content: `[이전 대화 요약]\n${summary}` }, ...recentPart];
+    const convs = getConvs();
+    const idx = convs.findIndex(c => c.id === currentConvId);
+    if (idx >= 0) { convs[idx].messages = [...chatHistory]; setConvs(convs); }
+  } catch (_) {}
 }
 
 async function sendMessage() {
@@ -1231,6 +1370,23 @@ async function sendMessage() {
     attachedFiles.map(f => `<div class="file-chip">📄 ${escHtml(f.name)}</div>`).join('');
   clearAttachments();
 
+  // ── "기억해줘" 명령 감지 ──────────────────────────────────
+  const memMatch = text.match(/^기억해줘[:\s]+(.+)|(.+?)[을를]?\s*기억해(?:줘|주세요|줄래|줘요)?$/);
+  if (memMatch && !fileText) {
+    const mem = ((memMatch[1] || memMatch[2]) ?? text).replace(/[.。!?]+$/, '').trim();
+    saveUserMem(mem);
+    const bodyEl = appendMsgEl('assistant');
+    bodyEl.innerHTML = `<p>✓ 기억했습니다. <span style="color:var(--muted);font-style:italic;">${escHtml(mem)}</span></p>`;
+    chatHistory.push({ role: 'assistant', content: `기억했습니다: ${mem}` });
+    isStreaming = false;
+    sendBtn.disabled = false;
+    const convs2 = getConvs();
+    const idx2 = convs2.findIndex(c => c.id === currentConvId);
+    if (idx2 >= 0) { convs2[idx2].messages = [...chatHistory]; convs2[idx2].updatedAt = Date.now(); setConvs(convs2); }
+    renderSidebar();
+    return;
+  }
+
   // 웹 검색 여부 결정: 수동 ON 또는 자동 감지
   const shouldSearch = webSearchEnabled || needsWebSearch(text);
   const hasSearchKey = cfg?.tavilyApiKey && cfg.tavilyApiKey !== 'YOUR_TAVILY_API_KEY';
@@ -1268,7 +1424,11 @@ async function sendMessage() {
     if (!resp.ok) throw new Error(`API 오류 ${resp.status}: ${await resp.text()}`);
 
     const json = await resp.json();
-    const full = json.choices?.[0]?.message?.content ?? '';
+    const msg  = json.choices?.[0]?.message;
+    // content가 배열(thinking 블록 포함)인 경우 text 블록만 추출
+    const full = Array.isArray(msg?.content)
+      ? msg.content.filter(b => b.type === 'text').map(b => b.text).join('')
+      : (msg?.content ?? '');
 
     thinkEl.remove();
     const bodyEl = appendMsgEl('assistant');
@@ -1314,6 +1474,7 @@ async function sendMessage() {
       setConvs(convs);
     }
     renderSidebar();
+    compressHistoryIfNeeded(); // 백그라운드 압축 (await 없음)
 
   } catch (err) {
     thinkEl.remove();

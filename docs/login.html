@@ -245,7 +245,7 @@
 
       const { data, error } = await sb
         .from('employees')
-        .select('email, name, role')
+        .select('email, name, role, department, position_title')
         .eq('email', email)
         .single();
 
