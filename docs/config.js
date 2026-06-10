@@ -16,5 +16,8 @@ window.HERION_CONFIG = {
   ],
 
   // ─── Tavily 웹 검색 API ─────────────────────────────────────────
-  tavilyApiKey: 'YOUR_TAVILY_API_KEY'
+  tavilyApiKey: 'YOUR_TAVILY_API_KEY',
+
+  // ─── 국가법령정보 API (open.law.go.kr 에서 발급) ───────────────
+  lawApiKey: 'YOUR_LAW_API_KEY'
 };
