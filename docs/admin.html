@@ -265,19 +265,102 @@
 
     .settings-table tbody td:first-child { color: var(--muted); width: 160px; }
 
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.45);
+      z-index: 45;
+      border: none;
+      cursor: pointer;
+    }
+
+    .menu-btn {
+      display: none;
+      width: 36px; height: 36px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 8px;
+      font-size: 20px;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+    }
+
+    /* 모바일 상단 바 */
+    .mobile-topbar {
+      display: none;
+      background: var(--sidebar);
+      color: #eef3f8;
+      padding: 12px 16px;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 30;
+    }
+
+    .mobile-topbar-brand { display: flex; align-items: center; gap: 9px; font-weight: 760; font-size: 17px; }
+
+    .mobile-topbar-right { display: flex; align-items: center; gap: 10px; }
+
+    .mobile-logout {
+      font-size: 12px;
+      color: #9facbb;
+      background: none;
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 6px;
+      padding: 4px 10px;
+      cursor: pointer;
+    }
+
     @media (max-width: 1100px) {
       .stat-grid { grid-template-columns: repeat(2, 1fr); }
     }
 
     @media (max-width: 720px) {
       .app { grid-template-columns: 1fr; }
-      aside { display: none; }
-      main { padding: 20px 16px; }
+
+      aside {
+        display: flex !important;
+        position: fixed;
+        left: -240px;
+        top: 0;
+        height: 100vh;
+        width: 220px;
+        z-index: 50;
+        transition: left .25s cubic-bezier(.4,0,.2,1);
+      }
+      aside.open { left: 0; }
+      .sidebar-overlay.open { display: block; }
+
+      .menu-btn { display: flex; }
+      .mobile-topbar { display: flex; }
+
+      main { padding: 16px; }
       .stat-grid { grid-template-columns: repeat(2, 1fr); }
+      .page-header { flex-direction: column; gap: 12px; align-items: flex-start; }
     }
   </style>
 </head>
 <body>
+<!-- 모바일 상단 바 -->
+<div class="mobile-topbar" id="mobileTopbar">
+  <div class="mobile-topbar-brand">
+    <div class="mark">H</div>
+    <span>Herion 관리자</span>
+  </div>
+  <div class="mobile-topbar-right">
+    <span id="mobileAdminName" style="font-size:12.5px;color:#c4cdd8;"></span>
+    <button class="menu-btn" onclick="toggleSidebar()" aria-label="메뉴 열기"
+            style="background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:#fff;">☰</button>
+  </div>
+</div>
+
+<button class="sidebar-overlay" id="sidebarOverlay" aria-label="메뉴 닫기"
+        onclick="closeSidebar()"></button>
+
 <div class="app">
 
   <!-- Sidebar -->
@@ -564,10 +647,22 @@
   } else if (user.role !== 'admin') {
     location.href = 'index.html';
   } else {
-    document.getElementById('adminEmail').textContent   = user.email;
-    document.getElementById('adminName').textContent    = user.name;
-    document.getElementById('adminInitial').textContent = user.name[0].toUpperCase();
+    const initial = user.name[0].toUpperCase();
+    document.getElementById('adminEmail').textContent     = user.email;
+    document.getElementById('adminName').textContent      = user.name;
+    document.getElementById('adminInitial').textContent   = initial;
+    document.getElementById('mobileAdminName').textContent = user.name;
   }
+
+  function toggleSidebar() {
+    document.querySelector('aside').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('open');
+  }
+  function closeSidebar() {
+    document.querySelector('aside').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('open');
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSidebar(); });
 
   function logout() {
     sessionStorage.removeItem('herion_user');
@@ -593,6 +688,8 @@
     else if (viewId === 'users')     loadEmployees();
     else if (viewId === 'logs')      loadLogs();
     else if (viewId === 'settings')  loadSettingsView();
+
+    if (window.innerWidth <= 720) closeSidebar();
   }
 
   // ── 대시보드 ─────────────────────────────────────────────────
