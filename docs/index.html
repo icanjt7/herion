@@ -1261,42 +1261,19 @@ async function sendMessage() {
       body: JSON.stringify({
         model,
         messages: [{ role: 'system', content: systemPrompt }, ...histSlice],
-        stream: true
+        stream: false
       })
     });
 
     if (!resp.ok) throw new Error(`API 오류 ${resp.status}: ${await resp.text()}`);
 
+    const json = await resp.json();
+    const full = json.choices?.[0]?.message?.content ?? '';
+
     thinkEl.remove();
-    const bodyEl  = appendMsgEl('assistant');
-    const reader  = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let full = '', buf = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const lines = buf.split('\n');
-      buf = lines.pop();
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const data = line.slice(6).trim();
-        if (data === '[DONE]') continue;
-        try {
-          const chunk = JSON.parse(data).choices?.[0];
-          const delta = chunk?.delta?.content ?? chunk?.message?.content;
-          if (delta) {
-            full += delta;
-            bodyEl.textContent = full;
-            workspace.scrollTop = workspace.scrollHeight;
-          }
-        } catch (_) {}
-      }
-    }
-
+    const bodyEl = appendMsgEl('assistant');
     bodyEl.innerHTML = renderMd(full);
+    workspace.scrollTop = workspace.scrollHeight;
 
     // 웹 검색을 사용한 경우 출처 배지 표시
     if (searchCtx) {
