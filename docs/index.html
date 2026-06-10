@@ -549,6 +549,9 @@
         <select class="model-select" id="modelSelect">
           <option value="motif-12.7b-reasoning">Motif 12.7B Reasoning</option>
         </select>
+        <button class="icon-btn" id="webSearchBtn" title="웹 검색 (클릭하여 켜기)" onclick="toggleWebSearch()" style="font-size:15px;width:auto;padding:0 10px;gap:5px;display:flex;align-items:center;">
+          🌐 <span id="webSearchLabel" style="font-size:12px;color:var(--muted);">웹 검색</span>
+        </button>
       </div>
     </header>
 
@@ -672,9 +675,70 @@ const newChatBtn = document.getElementById('newChatBtn');
 const chatTitle  = document.getElementById('chatTitle');
 
 // ─── 상태 ────────────────────────────────────────────────────
-let currentConvId = null;
-let chatHistory   = [];
-let isStreaming   = false;
+let currentConvId   = null;
+let chatHistory     = [];
+let isStreaming     = false;
+let webSearchEnabled = false;
+
+// ─── 웹 검색 ─────────────────────────────────────────────────
+const SEARCH_KEYWORDS = [
+  '최신','현재','오늘','지금','최근','이번 달','이번 주','뉴스','통계',
+  '언제','얼마','몇 개','어디서','검색해','찾아봐','알아봐','조회',
+  'latest','current','today','recent','news','search','find','how much'
+];
+
+function needsWebSearch(query) {
+  const q = query.toLowerCase();
+  return SEARCH_KEYWORDS.some(k => q.includes(k));
+}
+
+function toggleWebSearch() {
+  webSearchEnabled = !webSearchEnabled;
+  const btn   = document.getElementById('webSearchBtn');
+  const label = document.getElementById('webSearchLabel');
+  if (webSearchEnabled) {
+    btn.style.background   = '#e8f5f1';
+    btn.style.borderColor  = 'var(--accent)';
+    label.style.color      = 'var(--accent)';
+    label.textContent      = 'ON';
+    btn.title              = '웹 검색 켜짐 (클릭하여 끄기)';
+  } else {
+    btn.style.background   = '#fff';
+    btn.style.borderColor  = 'var(--line)';
+    label.style.color      = 'var(--muted)';
+    label.textContent      = '웹 검색';
+    btn.title              = '웹 검색 (클릭하여 켜기)';
+  }
+}
+
+async function performWebSearch(query) {
+  const key = cfg?.tavilyApiKey;
+  if (!key || key === 'YOUR_TAVILY_API_KEY') return '';
+  try {
+    const resp = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: key,
+        query,
+        search_depth: 'basic',
+        max_results: 5,
+        include_answer: true,
+        include_raw_content: false
+      })
+    });
+    if (!resp.ok) return '';
+    const data = await resp.json();
+    let ctx = '\n\n[실시간 웹 검색 결과 — 아래 정보를 참고하여 답변하세요]\n';
+    if (data.answer) ctx += `요약: ${data.answer}\n\n`;
+    (data.results || []).slice(0, 5).forEach((r, i) => {
+      ctx += `[${i + 1}] ${r.title}\n`;
+      if (r.content) ctx += `${r.content.slice(0, 300)}\n`;
+      ctx += `출처: ${r.url}\n\n`;
+    });
+    return ctx;
+  } catch (_) { return ''; }
+}
 
 // ─── 유틸 ────────────────────────────────────────────────────
 function escHtml(s) {
@@ -799,19 +863,25 @@ function appendMsgEl(role) {
   return div.querySelector('.msg-body');
 }
 
-function appendThinking() {
+function appendThinking(label = '생각 중...') {
   const div = document.createElement('div');
   div.className = 'msg ai';
   div.innerHTML = `
     <div class="msg-header"><div class="msg-avatar">H</div><span>Herion</span></div>
     <div class="msg-body">
-      <div class="thinking">
-        <div class="dot-anim"><span></span><span></span><span></span></div>생각 중...
+      <div class="thinking" id="thinkingLabel">
+        <div class="dot-anim"><span></span><span></span><span></span></div>
+        <span id="thinkingText">${label}</span>
       </div>
     </div>`;
   convInner.appendChild(div);
   workspace.scrollTop = workspace.scrollHeight;
   return div;
+}
+
+function setThinkingLabel(thinkEl, label) {
+  const el = thinkEl.querySelector('#thinkingText');
+  if (el) el.textContent = label;
 }
 
 // ─── 입력 이벤트 ─────────────────────────────────────────────
@@ -905,12 +975,23 @@ async function sendMessage() {
     attachedFiles.map(f => `<div class="file-chip">📄 ${escHtml(f.name)}</div>`).join('');
   clearAttachments();
 
-  const thinkEl = appendThinking();
+  // 웹 검색 여부 결정: 수동 ON 또는 자동 감지
+  const shouldSearch = webSearchEnabled || needsWebSearch(text);
+  const hasSearchKey = cfg?.tavilyApiKey && cfg.tavilyApiKey !== 'YOUR_TAVILY_API_KEY';
+
+  const thinkEl = appendThinking(shouldSearch && hasSearchKey ? '🌐 웹 검색 중...' : '생각 중...');
   const model   = document.getElementById('modelSelect')?.value || 'motif-12.7b-reasoning';
 
   try {
+    // 웹 검색
+    let searchCtx = '';
+    if (shouldSearch && hasSearchKey) {
+      searchCtx = await performWebSearch(text);
+      setThinkingLabel(thinkEl, '생각 중...');
+    }
+
     const heritageCtx = searchHeritageContext(text);
-    const systemPrompt = getSystemPrompt(heritageCtx);
+    const systemPrompt = getSystemPrompt(heritageCtx + searchCtx);
 
     const resp = await fetch(`${cfg.motifBaseUrl}/chat/completions`, {
       method: 'POST',
@@ -954,6 +1035,25 @@ async function sendMessage() {
     }
 
     bodyEl.innerHTML = renderMd(full);
+
+    // 웹 검색을 사용한 경우 출처 배지 표시
+    if (searchCtx) {
+      const sources = [...searchCtx.matchAll(/출처: (https?:\/\/[^\s\n]+)/g)]
+        .map(m => m[1]).slice(0, 3);
+      if (sources.length) {
+        const sourceDiv = document.createElement('div');
+        sourceDiv.style.cssText = 'margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;';
+        sourceDiv.innerHTML = sources.map(u => {
+          const domain = new URL(u).hostname.replace('www.', '');
+          return `<a href="${u}" target="_blank" rel="noopener"
+            style="font-size:11px;border:1px solid var(--line);border-radius:999px;
+                   padding:3px 9px;color:var(--muted);text-decoration:none;background:#fff;">
+            🌐 ${domain}</a>`;
+        }).join('');
+        bodyEl.appendChild(sourceDiv);
+      }
+    }
+
     chatHistory.push({ role: 'assistant', content: full });
 
     // 대화 로그 Supabase에 기록 (비동기, 오류 무시)

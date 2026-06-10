@@ -13,5 +13,8 @@ window.HERION_CONFIG = {
   motifBaseUrl: 'https://chat.motiftech.io/openapi/v1',
   motifModels: [
     { id: 'motif-12.7b-reasoning', label: 'Motif 12.7B Reasoning' }
-  ]
+  ],
+
+  // ─── Tavily 웹 검색 API ─────────────────────────────────────────
+  tavilyApiKey: 'YOUR_TAVILY_API_KEY'
 };

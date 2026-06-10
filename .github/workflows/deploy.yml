@@ -24,9 +24,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Inject Motif API key
+      - name: Inject API keys
         run: |
           sed -i "s|YOUR_MOTIF_API_KEY|${{ secrets.MOTIF_API }}|g" docs/config.js
+          sed -i "s|YOUR_TAVILY_API_KEY|${{ secrets.TAVILY_API }}|g" docs/config.js
 
       - uses: actions/configure-pages@v5
 
