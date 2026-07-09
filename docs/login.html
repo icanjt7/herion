@@ -208,9 +208,13 @@
     const cfg = window.HERION_CONFIG;
     let sb;
 
+    function findBootstrapUser(email) {
+      return (cfg?.bootstrapUsers || []).find(user => user.email?.toLowerCase() === email);
+    }
+
     if (!cfg || cfg.supabaseUrl.includes('XXXXXXXXXX')) {
       document.getElementById('configWarn').style.display = 'block';
-    } else {
+    } else if (typeof supabase !== 'undefined') {
       sb = supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
       if (sessionStorage.getItem('herion_user')) location.href = 'index.html';
     }
@@ -230,11 +234,21 @@
         showErr(emailEl, errEl, '이메일을 입력해 주세요.');
         return;
       }
+      if (!cfg) {
+        showErr(emailEl, errEl, '서비스 설정을 불러오지 못했습니다.');
+        return;
+      }
       if (!email.endsWith('@' + cfg.allowedDomain)) {
         showErr(emailEl, errEl, `@${cfg.allowedDomain} 주소만 사용할 수 있습니다.`);
         return;
       }
       if (!sb) {
+        const fallbackUser = findBootstrapUser(email);
+        if (fallbackUser) {
+          sessionStorage.setItem('herion_user', JSON.stringify(fallbackUser));
+          location.href = 'index.html';
+          return;
+        }
         showErr(emailEl, errEl, 'Supabase 설정이 완료되지 않았습니다.');
         return;
       }
@@ -243,17 +257,31 @@
       spinner.style.display = 'block';
       btnText.textContent = '확인 중...';
 
-      const { data, error } = await sb
-        .from('employees')
-        .select('email, name, role, department, position_title')
-        .eq('email', email)
-        .single();
+      let data;
+      let error;
+      try {
+        const result = await sb
+          .from('employees')
+          .select('email, name, role, department, position_title')
+          .eq('email', email)
+          .maybeSingle();
+        data = result.data;
+        error = result.error;
+      } catch (err) {
+        error = err;
+      }
 
       spinner.style.display = 'none';
       btn.disabled = false;
       btnText.textContent = '입장하기';
 
       if (error || !data) {
+        const fallbackUser = findBootstrapUser(email);
+        if (fallbackUser) {
+          sessionStorage.setItem('herion_user', JSON.stringify(fallbackUser));
+          location.href = 'index.html';
+          return;
+        }
         showErr(emailEl, errEl, '등록되지 않은 이메일입니다. 관리자에게 문의하세요.');
         return;
       }

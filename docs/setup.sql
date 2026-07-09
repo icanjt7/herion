@@ -41,6 +41,16 @@ drop policy if exists "직원 수정" on public.employees;
 create policy "직원 수정" on public.employees
   for update using (true);
 
+-- 기본 허용 사용자: t@kh.or.kr
+insert into public.employees (email, name, role, department, position_title)
+values ('t@kh.or.kr', 't', 'user', '', '')
+on conflict (email) do update
+set
+  name = excluded.name,
+  role = excluded.role,
+  department = excluded.department,
+  position_title = excluded.position_title;
+
 -- 직원 등록 예시 (필요 시 추가)
 -- insert into public.employees (email, name, role) values ('hong@kh.or.kr', '홍길동', 'user');
 -- insert into public.employees (email, name, role) values ('admin@kh.or.kr', '관리자', 'admin');
