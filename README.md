@@ -55,3 +55,15 @@ A static UI preview is available via GitHub Pages at `docs/index.html`.
 
 - Do not commit `.env`.
 - Pin `OPEN_WEBUI_TAG` to a release tag before production use.
+
+## Motif3 API Proxy
+
+The GitHub Pages client calls the `motif-api` Supabase Edge Function so the
+Motif3 API key is never embedded in the public browser bundle.
+
+1. Add repository secrets `MOTIF_300B` (the Motif3 API key) and
+   `SUPABASE_ACCESS_TOKEN` (a Supabase personal access token).
+2. The proxy deploys automatically when its files are pushed to `main`, or it
+   can be deployed with the `Deploy Motif3 API Proxy` workflow manually.
+3. The client calls model `motif3` through the proxy at
+   `https://chat-azure.motiftech.io/openapi/v1/chat/completions`.

@@ -625,7 +625,7 @@
       </div>
       <div class="toolbar">
         <select class="model-select" id="modelSelect">
-          <option value="motif-12.7b-reasoning">Motif 12.7B Reasoning</option>
+          <option value="motif3">Motif3 300B</option>
         </select>
         <button class="icon-btn" id="webSearchBtn" title="웹 검색 (클릭하여 켜기)" onclick="toggleWebSearch()"
                 style="font-size:15px;width:auto;padding:0 10px;gap:5px;display:flex;align-items:center;">
@@ -914,6 +914,23 @@ function closeSpellCheck() {
   document.getElementById('spellResult').innerHTML = '';
 }
 
+async function fetchMotifCompletion(payload) {
+  if (!cfg?.motifApiProxyUrl) throw new Error('Motif API proxy is not configured');
+  const response = await fetch(cfg.motifApiProxyUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': cfg.supabaseAnonKey,
+      'Authorization': `Bearer ${cfg.supabaseAnonKey}`
+    },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    throw new Error(`Motif API 오류 ${response.status}: ${await response.text()}`);
+  }
+  return response;
+}
+
 async function runSpellCheck() {
   const text = document.getElementById('spellInput').value.trim();
   if (!text) return;
@@ -925,7 +942,7 @@ async function runSpellCheck() {
   btn.disabled = true;
 
   // AI에게 맞춤법 검사 요청 (채팅창에 전송하지 않고 직접 호출)
-  const model = document.getElementById('modelSelect')?.value || 'motif-12.7b-reasoning';
+  const model = document.getElementById('modelSelect')?.value || 'motif3';
   const checkPrompt = `다음 텍스트의 한국어 맞춤법과 문법을 검사해 주세요.
 오류가 있으면 표 형식(원문 | 수정 | 설명)으로 정리하고, 수정된 전체 텍스트도 제시해 주세요.
 오류가 없으면 "맞춤법 오류가 없습니다."라고 답해 주세요.
@@ -934,17 +951,13 @@ async function runSpellCheck() {
 ${text}`;
 
   try {
-    const resp = await fetch(`${cfg.motifBaseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.motifApiKey}` },
-      body: JSON.stringify({
+    const resp = await fetchMotifCompletion({
         model,
         messages: [
           { role: 'system', content: '당신은 한국어 맞춤법 전문가입니다. 요청된 텍스트만 검사하고 결과를 간결하게 제시하세요.' },
           { role: 'user', content: checkPrompt }
         ],
         stream: false
-      })
     });
     const data = await resp.json();
     const result = data?.choices?.[0]?.message?.content || '결과를 가져오지 못했습니다.';
@@ -1309,17 +1322,13 @@ async function compressHistoryIfNeeded() {
   const toSummarize = chatHistory.filter(m => m.role !== 'system').slice(0, chatHistory.length - keepCount);
   if (!toSummarize.length) return;
   try {
-    const resp = await fetch(`${cfg.motifBaseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.motifApiKey}` },
-      body: JSON.stringify({
-        model: document.getElementById('modelSelect')?.value || 'motif-12.7b-reasoning',
+    const resp = await fetchMotifCompletion({
+        model: document.getElementById('modelSelect')?.value || 'motif3',
         messages: [
           { role: 'system', content: '아래 대화를 3문장 이내로 요약하세요. 핵심 주제, 결정 사항, 주요 정보만 포함.' },
           { role: 'user',   content: toSummarize.map(m => `${m.role === 'user' ? '사용자' : 'AI'}: ${m.content}`).join('\n\n') }
         ],
         stream: false
-      })
     });
     const summary = (await resp.json()).choices?.[0]?.message?.content ?? '';
     if (!summary) return;
@@ -1336,8 +1345,8 @@ async function sendMessage() {
   const text = textarea.value.trim();
   if (!text) return;
 
-  if (!cfg?.motifApiKey || cfg.motifApiKey === 'YOUR_MOTIF_API_KEY') {
-    alert('config.js에 Motif API 키를 입력해주세요.');
+  if (!cfg?.motifApiProxyUrl) {
+    alert('Motif API 프록시가 설정되지 않았습니다.');
     return;
   }
 
@@ -1392,7 +1401,7 @@ async function sendMessage() {
   const hasSearchKey = cfg?.tavilyApiKey && cfg.tavilyApiKey !== 'YOUR_TAVILY_API_KEY';
 
   const thinkEl = appendThinking(shouldSearch && hasSearchKey ? '🌐 웹 검색 중...' : '생각 중...');
-  const model   = document.getElementById('modelSelect')?.value || 'motif-12.7b-reasoning';
+  const model   = document.getElementById('modelSelect')?.value || 'motif3';
 
   try {
     // 웹검색·법령검색 병렬 실행
@@ -1411,14 +1420,10 @@ async function sendMessage() {
       ? chatHistory.slice(chatHistory.length - MAX_HIST)
       : chatHistory;
 
-    const resp = await fetch(`${cfg.motifBaseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.motifApiKey}` },
-      body: JSON.stringify({
+    const resp = await fetchMotifCompletion({
         model,
         messages: [{ role: 'system', content: systemPrompt }, ...histSlice],
         stream: false
-      })
     });
 
     if (!resp.ok) throw new Error(`API 오류 ${resp.status}: ${await resp.text()}`);

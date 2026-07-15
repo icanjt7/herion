@@ -18,10 +18,9 @@ window.HERION_CONFIG = {
   ],
 
   // ─── Motif AI API ──────────────────────────────────────────────
-  motifApiKey:  'YOUR_MOTIF_API_KEY',
-  motifBaseUrl: 'https://chat.motiftech.io/openapi/v1',
+  motifApiProxyUrl: 'https://enpovkaknaxfgzanyghn.supabase.co/functions/v1/motif-api',
   motifModels: [
-    { id: 'motif-12.7b-reasoning', label: 'Motif 12.7B Reasoning' }
+    { id: 'motif3', label: 'Motif3 300B' }
   ],
 
   // ─── Tavily 웹 검색 API ─────────────────────────────────────────
