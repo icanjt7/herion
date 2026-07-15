@@ -15,12 +15,20 @@
       --muted: #657386;
       --accent: #19715f;
       --accent-2: #2457a6;
+      --accent-soft: #e9f1ff;
       --warn: #a65f12;
+      --danger: #b3261e;
       --sidebar: #18202b;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
-    body { background: var(--bg); color: var(--text); min-height: 100vh; }
+    body {
+      background:
+        radial-gradient(circle at 65% 0%, rgba(66,133,244,.08), transparent 30%),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
 
     .app {
       display: grid;
@@ -196,6 +204,7 @@
       padding: 0 10px;
       font-size: 12.5px;
       color: var(--text);
+      font-weight: 600;
     }
 
     .icon-btn {
@@ -217,7 +226,7 @@
     }
 
     .conv-inner {
-      max-width: 760px;
+      max-width: 840px;
       margin: 0 auto;
       padding: 0 24px;
       display: grid;
@@ -226,6 +235,15 @@
 
     /* Message */
     .msg { display: grid; gap: 8px; }
+
+    .msg.ai {
+      animation: message-in .22s ease-out;
+    }
+
+    @keyframes message-in {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
 
     .msg-header {
       display: flex;
@@ -245,7 +263,11 @@
     }
 
     .msg.user .msg-avatar  { background: var(--accent); color: #fff; }
-    .msg.ai   .msg-avatar  { background: #dfe8f4; color: var(--accent-2); }
+    .msg.ai   .msg-avatar  {
+      background: linear-gradient(135deg, #e8f0fe, #e9f7f3);
+      color: var(--accent-2);
+      box-shadow: inset 0 0 0 1px rgba(36,87,166,.08);
+    }
 
     .msg-body {
       margin-left: 37px;
@@ -321,7 +343,11 @@
       display: flex;
       gap: 6px;
       margin-top: 8px;
+      opacity: .72;
+      transition: opacity .18s ease;
     }
+
+    .msg:hover .msg-actions { opacity: 1; }
 
     .action-pill {
       border: 1px solid var(--line);
@@ -334,6 +360,84 @@
     }
 
     .action-pill:hover { background: var(--panel-2); color: var(--text); }
+
+    .streaming-cursor {
+      display: inline-block;
+      width: 7px;
+      height: 17px;
+      margin-left: 3px;
+      border-radius: 2px;
+      vertical-align: -3px;
+      background: linear-gradient(180deg, #4285f4, #34a853);
+      animation: cursor-pulse .8s infinite;
+    }
+
+    @keyframes cursor-pulse { 50% { opacity: .25; } }
+
+    .welcome {
+      padding: 58px 0 34px;
+      color: var(--muted);
+    }
+
+    .welcome-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 10px;
+      border: 1px solid #d9e4f8;
+      border-radius: 999px;
+      background: rgba(255,255,255,.8);
+      color: var(--accent-2);
+      font-size: 12px;
+      font-weight: 650;
+      margin-bottom: 18px;
+    }
+
+    .welcome-title {
+      font-size: clamp(28px, 4vw, 42px);
+      line-height: 1.15;
+      font-weight: 760;
+      letter-spacing: -.035em;
+      margin-bottom: 10px;
+      background: linear-gradient(90deg, #2457a6, #19715f 62%, #b06a22);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .welcome-subtitle { font-size: 15px; line-height: 1.7; }
+
+    .suggestion-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 28px;
+      text-align: left;
+    }
+
+    .suggestion-card {
+      min-height: 112px;
+      padding: 15px 16px;
+      border: 1px solid #e0e5ec;
+      border-radius: 16px;
+      background: rgba(255,255,255,.86);
+      box-shadow: 0 4px 18px rgba(37,57,88,.04);
+      color: var(--text);
+      cursor: pointer;
+      text-align: left;
+      font-family: inherit;
+      transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+    }
+
+    .suggestion-card:hover {
+      transform: translateY(-2px);
+      border-color: #b9cae7;
+      box-shadow: 0 9px 24px rgba(37,57,88,.09);
+    }
+
+    .suggestion-icon { display: block; font-size: 18px; margin-bottom: 11px; }
+    .suggestion-title { display: block; font-size: 13.5px; font-weight: 700; margin-bottom: 4px; }
+    .suggestion-desc { display: block; color: var(--muted); font-size: 12px; line-height: 1.45; }
 
     /* File attach preview */
     .file-chip {
@@ -391,13 +495,12 @@
 
     /* Composer */
     .composer {
-      border-top: 1px solid var(--line);
-      background: var(--bg);
+      background: linear-gradient(180deg, rgba(246,247,249,0), var(--bg) 28%);
       padding: 14px 24px 18px;
     }
 
     .composer-inner {
-      max-width: 760px;
+      max-width: 840px;
       margin: 0 auto;
     }
 
@@ -423,12 +526,12 @@
     .input-shell {
       background: #fff;
       border: 1px solid var(--line);
-      border-radius: 12px;
-      box-shadow: 0 2px 12px rgba(21,32,46,.06);
+      border-radius: 24px;
+      box-shadow: 0 5px 24px rgba(21,32,46,.09);
       display: grid;
       grid-template-columns: auto 1fr auto;
       align-items: end;
-      padding: 8px 10px;
+      padding: 9px 11px;
       gap: 6px;
     }
 
@@ -485,8 +588,8 @@
     .send-btn {
       width: 34px; height: 34px;
       border: 0;
-      border-radius: 8px;
-      background: var(--accent);
+      border-radius: 50%;
+      background: linear-gradient(135deg, #2b6bdc, #19715f);
       color: #fff;
       font-size: 16px;
       cursor: pointer;
@@ -494,6 +597,13 @@
       place-items: center;
       align-self: flex-end;
     }
+
+    .send-btn.stop {
+      background: #2f3947;
+      font-size: 11px;
+    }
+
+    .send-btn:disabled { opacity: .45; cursor: not-allowed; }
 
     .composer-hint {
       text-align: center;
@@ -579,6 +689,8 @@
       .conv-inner { padding: 0 14px; }
       .composer-hint { font-size: 10.5px; }
       .send-btn, .attach-btn { width: 40px; height: 40px; }
+      .welcome { padding-top: 36px; }
+      .suggestion-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -662,10 +774,10 @@
           <input type="file" id="fileInput" style="display:none"
                  accept=".pdf,.docx,.doc,.pptx,.ppt,.hwpx,.txt,.csv,.md" multiple>
           <textarea rows="1" id="msgInput" placeholder="Herion에게 국가유산진흥원 업무를 요청하세요..."></textarea>
-          <button class="send-btn" id="sendBtn">↑</button>
+          <button class="send-btn" id="sendBtn" type="button" aria-label="메시지 보내기" title="보내기">↑</button>
         </div>
         <div class="composer-hint">
-          PDF·DOCX·PPTX·HWPX 파일을 첨부해 분석을 요청할 수 있습니다.
+          Motif3는 답변을 실시간으로 생성합니다. Shift+Enter로 줄바꿈할 수 있습니다.
           &nbsp;·&nbsp; 문의: AI미디어센터 AI데이터팀
           &nbsp;·&nbsp; <a href="admin.html" style="color:inherit;">관리자</a>
         </div>
@@ -914,7 +1026,7 @@ function closeSpellCheck() {
   document.getElementById('spellResult').innerHTML = '';
 }
 
-async function fetchMotifCompletion(payload) {
+async function fetchMotifCompletion(payload, options = {}) {
   if (!cfg?.motifApiProxyUrl) throw new Error('Motif API proxy is not configured');
   const response = await fetch(cfg.motifApiProxyUrl, {
     method: 'POST',
@@ -923,12 +1035,62 @@ async function fetchMotifCompletion(payload) {
       'apikey': cfg.supabaseAnonKey,
       'Authorization': `Bearer ${cfg.supabaseAnonKey}`
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    signal: options.signal
   });
   if (!response.ok) {
     throw new Error(`Motif API 오류 ${response.status}: ${await response.text()}`);
   }
   return response;
+}
+
+async function readMotifStream(response, onText) {
+  if (!response.body) throw new Error('스트리밍 응답 본문이 없습니다.');
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let fullText = '';
+  let usage = null;
+  let finishReason = null;
+
+  const handleLine = line => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('data:')) return false;
+    const data = trimmed.slice(5).trim();
+    if (!data || data === '[DONE]') return data === '[DONE]';
+    let event;
+    try { event = JSON.parse(data); } catch (_) { return false; }
+    if (event.usage) usage = event.usage;
+    const choice = event.choices?.[0];
+    if (choice?.finish_reason) finishReason = choice.finish_reason;
+    const content = choice?.delta?.content;
+    if (typeof content === 'string' && content) {
+      fullText += content;
+      onText(fullText);
+    }
+    return false;
+  };
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+      const lines = buffer.split(/\r?\n/);
+      buffer = lines.pop() || '';
+      let finished = false;
+      for (const line of lines) finished = handleLine(line) || finished;
+      if (done || finished) break;
+    }
+    if (buffer) handleLine(buffer);
+    return { text: fullText, usage, finishReason, stopped: false };
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      return { text: fullText, usage, finishReason, stopped: true };
+    }
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 async function runSpellCheck() {
@@ -957,7 +1119,9 @@ ${text}`;
           { role: 'system', content: '당신은 한국어 맞춤법 전문가입니다. 요청된 텍스트만 검사하고 결과를 간결하게 제시하세요.' },
           { role: 'user', content: checkPrompt }
         ],
-        stream: false
+        stream: false,
+        max_tokens: 2048,
+        temperature: 0.2
     });
     const data = await resp.json();
     const result = data?.choices?.[0]?.message?.content || '결과를 가져오지 못했습니다.';
@@ -1042,6 +1206,7 @@ let currentConvId   = null;
 let chatHistory     = [];
 let isStreaming     = false;
 let webSearchEnabled = false;
+let activeRequestController = null;
 
 // ─── 웹 검색 ─────────────────────────────────────────────────
 const SEARCH_KEYWORDS = [
@@ -1176,13 +1341,36 @@ function showWelcome() {
   setCurrId(null);
   chatTitle.textContent = '새 대화';
   convInner.innerHTML = `
-    <div style="text-align:center;padding:80px 0 40px;color:var(--muted);">
-      <div style="width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,#2bb58f,#2864bb);
-                  display:grid;place-items:center;margin:0 auto 20px;color:#fff;font-size:22px;font-weight:800;">H</div>
-      <div style="font-size:19px;font-weight:700;color:var(--text);margin-bottom:8px;">Herion에 오신 것을 환영합니다</div>
-      <div style="font-size:14px;line-height:1.7;">국가유산진흥원 업무를 AI로 더 빠르게<br>안내문 작성, 번역, 보고서 요약을 시작해 보세요.</div>
+    <div class="welcome">
+      <div class="welcome-kicker">✦ Motif3 300B 기반 업무 파트너</div>
+      <div class="welcome-title">안녕하세요, ${escHtml(user?.name || '사용자')}님</div>
+      <div class="welcome-subtitle">오늘 어떤 업무를 함께 해결할까요?<br>맥락을 이어가며 초안부터 최종본까지 도와드립니다.</div>
+      <div class="suggestion-grid">
+        <button class="suggestion-card" data-prompt="국가유산진흥원 행사 안내문 초안을 작성해 줘" onclick="useSuggestion(this)">
+          <span class="suggestion-icon">✍️</span><span class="suggestion-title">안내문 초안 작성</span>
+          <span class="suggestion-desc">목적과 대상을 반영한 공공기관 문체로 작성</span>
+        </button>
+        <button class="suggestion-card" data-prompt="첨부할 보고서를 핵심 쟁점과 후속 조치 중심으로 요약해 줘" onclick="useSuggestion(this)">
+          <span class="suggestion-icon">📑</span><span class="suggestion-title">보고서 핵심 요약</span>
+          <span class="suggestion-desc">긴 문서를 핵심 쟁점과 실행 항목으로 정리</span>
+        </button>
+        <button class="suggestion-card" data-prompt="다음 문장을 자연스러운 공공기관 영어 표현으로 번역해 줘" onclick="useSuggestion(this)">
+          <span class="suggestion-icon">🌐</span><span class="suggestion-title">한·영 번역 다듬기</span>
+          <span class="suggestion-desc">직역보다 목적과 독자에 맞는 자연스러운 번역</span>
+        </button>
+        <button class="suggestion-card" data-prompt="회의 안건을 배경, 쟁점, 결정 필요사항 순서로 정리해 줘" onclick="useSuggestion(this)">
+          <span class="suggestion-icon">💡</span><span class="suggestion-title">생각 구조화</span>
+          <span class="suggestion-desc">복잡한 내용을 보고 가능한 구조로 빠르게 전환</span>
+        </button>
+      </div>
     </div>`;
   renderSidebar();
+}
+
+function useSuggestion(button) {
+  textarea.value = button.dataset.prompt || '';
+  textarea.dispatchEvent(new Event('input'));
+  textarea.focus();
 }
 
 // ─── 대화 불러오기 ───────────────────────────────────────────
@@ -1199,6 +1387,7 @@ function loadConversation(id) {
   conv.messages.forEach(m => {
     const bodyEl = appendMsgEl(m.role);
     bodyEl.innerHTML = m.role === 'user' ? `<p>${escHtml(m.content)}</p>` : renderMd(m.content);
+    if (m.role === 'assistant') addMessageActions(bodyEl, m.content);
   });
 
   workspace.scrollTop = workspace.scrollHeight;
@@ -1227,6 +1416,61 @@ function appendMsgEl(role) {
   return div.querySelector('.msg-body');
 }
 
+function addMessageActions(bodyEl, content) {
+  if (!bodyEl || !content || bodyEl.parentElement.querySelector('.msg-actions')) return;
+  const actions = document.createElement('div');
+  actions.className = 'msg-actions';
+
+  const copyButton = document.createElement('button');
+  copyButton.className = 'action-pill';
+  copyButton.type = 'button';
+  copyButton.textContent = '복사';
+  copyButton.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      copyButton.textContent = '복사됨';
+      setTimeout(() => { copyButton.textContent = '복사'; }, 1200);
+    } catch (_) {
+      const temp = document.createElement('textarea');
+      temp.value = content;
+      document.body.appendChild(temp);
+      temp.select();
+      document.execCommand('copy');
+      temp.remove();
+      copyButton.textContent = '복사됨';
+    }
+  });
+
+  const retryButton = document.createElement('button');
+  retryButton.className = 'action-pill';
+  retryButton.type = 'button';
+  retryButton.textContent = '다시 생성';
+  retryButton.addEventListener('click', () => regenerateLastResponse(bodyEl));
+
+  actions.append(copyButton, retryButton);
+  bodyEl.parentElement.appendChild(actions);
+}
+
+function persistCurrentConversation() {
+  const convs = getConvs();
+  const idx = convs.findIndex(c => c.id === currentConvId);
+  if (idx >= 0) {
+    convs[idx].messages = [...chatHistory];
+    convs[idx].updatedAt = Date.now();
+    setConvs(convs);
+  }
+}
+
+async function regenerateLastResponse(bodyEl) {
+  if (isStreaming || chatHistory.at(-1)?.role !== 'assistant') return;
+  const lastUser = [...chatHistory].reverse().find(message => message.role === 'user');
+  if (!lastUser) return;
+  chatHistory.pop();
+  bodyEl.closest('.msg')?.remove();
+  persistCurrentConversation();
+  await sendMessage({ reuseLastUser: true });
+}
+
 function appendThinking(label = '생각 중...') {
   const div = document.createElement('div');
   div.className = 'msg ai';
@@ -1248,6 +1492,19 @@ function setThinkingLabel(thinkEl, label) {
   if (el) el.textContent = label;
 }
 
+function setGenerationState(active) {
+  isStreaming = active;
+  sendBtn.disabled = false;
+  sendBtn.classList.toggle('stop', active);
+  sendBtn.textContent = active ? '■' : '↑';
+  sendBtn.title = active ? '답변 생성 중지' : '보내기';
+  sendBtn.setAttribute('aria-label', sendBtn.title);
+}
+
+function stopGeneration() {
+  activeRequestController?.abort();
+}
+
 // ─── 입력 이벤트 ─────────────────────────────────────────────
 newChatBtn.addEventListener('click', showWelcome);
 
@@ -1260,7 +1517,7 @@ textarea.addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
 
-sendBtn.addEventListener('click', sendMessage);
+sendBtn.addEventListener('click', () => isStreaming ? stopGeneration() : sendMessage());
 
 // ─── 시스템 프롬프트 ─────────────────────────────────────────
 function getSystemPrompt(heritageCtx = '') {
@@ -1296,6 +1553,10 @@ ${langLine}
 [응답 방식]
 - 답변 길이는 질문의 성격에 맞춘다. 인사·짧은 질문 → 간결하게, 업무 요청 → 충분히.
 - 불필요한 서론·부연 설명·마무리 인사 없이 핵심부터 답변한다.
+- 사용자의 의도를 먼저 파악하고, 모호한 요청은 임의로 단정하지 말고 필요한 정보 한두 가지만 짧게 확인한다.
+- 복잡한 업무는 바로 활용할 수 있는 초안을 먼저 제시하고, 필요한 경우 선택지나 다음 행동을 덧붙인다.
+- 내부 추론, 사고 과정, 작업 메모는 노출하지 않고 검토가 끝난 최종 답변만 제시한다.
+- 이전 대화의 결정과 사용자 맥락을 자연스럽게 이어가되 이미 답한 내용을 불필요하게 반복하지 않는다.
 - 공문서·업무 답변: 한국 공공기관 비즈니스 톤앤매너 준수 (단, 위 언어 지침이 우선)
 - 공문서·보고서: 개조식(-함, -음 체), 공공기관 표준 양식 준수
 - 국가유산 용어는 국가유산청·국가유산진흥원 공식 표기 기준을 따름
@@ -1328,7 +1589,9 @@ async function compressHistoryIfNeeded() {
           { role: 'system', content: '아래 대화를 3문장 이내로 요약하세요. 핵심 주제, 결정 사항, 주요 정보만 포함.' },
           { role: 'user',   content: toSummarize.map(m => `${m.role === 'user' ? '사용자' : 'AI'}: ${m.content}`).join('\n\n') }
         ],
-        stream: false
+        stream: false,
+        max_tokens: 1024,
+        temperature: 0.2
     });
     const summary = (await resp.json()).choices?.[0]?.message?.content ?? '';
     if (!summary) return;
@@ -1340,9 +1603,13 @@ async function compressHistoryIfNeeded() {
   } catch (_) {}
 }
 
-async function sendMessage() {
+async function sendMessage(options = {}) {
   if (isStreaming) return;
-  const text = textarea.value.trim();
+  const reuseLastUser = options.reuseLastUser === true;
+  const reusedMessage = reuseLastUser
+    ? [...chatHistory].reverse().find(message => message.role === 'user')
+    : null;
+  const text = reuseLastUser ? (reusedMessage?.content || '') : textarea.value.trim();
   if (!text) return;
 
   if (!cfg?.motifApiProxyUrl) {
@@ -1351,7 +1618,7 @@ async function sendMessage() {
   }
 
   // 새 대화 생성
-  if (!currentConvId) {
+  if (!currentConvId && !reuseLastUser) {
     const id   = Date.now().toString();
     const title = text.length > 28 ? text.slice(0, 28) + '…' : text;
     const convs = getConvs();
@@ -1364,31 +1631,37 @@ async function sendMessage() {
     renderSidebar();
   }
 
-  textarea.value = '';
-  textarea.style.height = 'auto';
-  isStreaming = true;
-  sendBtn.disabled = true;
+  if (!reuseLastUser) {
+    textarea.value = '';
+    textarea.style.height = 'auto';
+  }
+  setGenerationState(true);
+  activeRequestController = new AbortController();
 
   // 첨부 파일 텍스트 포함
-  const fileText    = attachedFiles.map(f => `\n\n[첨부파일: ${f.name}]\n${f.content}`).join('');
-  const fullContent = fileText ? `${text}${fileText}` : text;
+  const fileText = reuseLastUser
+    ? ''
+    : attachedFiles.map(f => `\n\n[첨부파일: ${f.name}]\n${f.content}`).join('');
+  const fullContent = reuseLastUser ? text : (fileText ? `${text}${fileText}` : text);
 
-  chatHistory.push({ role: 'user', content: fullContent });
-  const userBodyEl = appendMsgEl('user');
-  userBodyEl.innerHTML = `<p>${escHtml(text)}</p>` +
-    attachedFiles.map(f => `<div class="file-chip">📄 ${escHtml(f.name)}</div>`).join('');
-  clearAttachments();
+  if (!reuseLastUser) {
+    chatHistory.push({ role: 'user', content: fullContent });
+    const userBodyEl = appendMsgEl('user');
+    userBodyEl.innerHTML = `<p>${escHtml(text)}</p>` +
+      attachedFiles.map(f => `<div class="file-chip">📄 ${escHtml(f.name)}</div>`).join('');
+    clearAttachments();
+  }
 
   // ── "기억해줘" 명령 감지 ──────────────────────────────────
   const memMatch = text.match(/^기억해줘[:\s]+(.+)|(.+?)[을를]?\s*기억해(?:줘|주세요|줄래|줘요)?$/);
-  if (memMatch && !fileText) {
+  if (!reuseLastUser && memMatch && !fileText) {
     const mem = ((memMatch[1] || memMatch[2]) ?? text).replace(/[.。!?]+$/, '').trim();
     saveUserMem(mem);
     const bodyEl = appendMsgEl('assistant');
     bodyEl.innerHTML = `<p>✓ 기억했습니다. <span style="color:var(--muted);font-style:italic;">${escHtml(mem)}</span></p>`;
     chatHistory.push({ role: 'assistant', content: `기억했습니다: ${mem}` });
-    isStreaming = false;
-    sendBtn.disabled = false;
+    activeRequestController = null;
+    setGenerationState(false);
     const convs2 = getConvs();
     const idx2 = convs2.findIndex(c => c.id === currentConvId);
     if (idx2 >= 0) { convs2[idx2].messages = [...chatHistory]; convs2[idx2].updatedAt = Date.now(); setConvs(convs2); }
@@ -1403,6 +1676,7 @@ async function sendMessage() {
   const thinkEl = appendThinking(shouldSearch && hasSearchKey ? '🌐 웹 검색 중...' : '생각 중...');
   const model   = document.getElementById('modelSelect')?.value || 'motif3';
 
+  let assistantBodyEl = null;
   try {
     // 웹검색·법령검색 병렬 실행
     const heritageCtx = searchHeritageContext(text);
@@ -1423,21 +1697,33 @@ async function sendMessage() {
     const resp = await fetchMotifCompletion({
         model,
         messages: [{ role: 'system', content: systemPrompt }, ...histSlice],
-        stream: false
-    });
-
-    if (!resp.ok) throw new Error(`API 오류 ${resp.status}: ${await resp.text()}`);
-
-    const json = await resp.json();
-    const msg  = json.choices?.[0]?.message;
-    // content가 배열(thinking 블록 포함)인 경우 text 블록만 추출
-    const full = Array.isArray(msg?.content)
-      ? msg.content.filter(b => b.type === 'text').map(b => b.text).join('')
-      : (msg?.content ?? '');
+        stream: true,
+        max_tokens: 4096,
+        temperature: 0.6
+    }, { signal: activeRequestController.signal });
 
     thinkEl.remove();
-    const bodyEl = appendMsgEl('assistant');
-    bodyEl.innerHTML = renderMd(full);
+    assistantBodyEl = appendMsgEl('assistant');
+    assistantBodyEl.innerHTML = '<div class="thinking">답변을 구성하고 있습니다…</div>';
+    const result = await readMotifStream(resp, fullText => {
+      assistantBodyEl.innerHTML = `${renderMd(fullText)}<span class="streaming-cursor" aria-hidden="true"></span>`;
+      workspace.scrollTop = workspace.scrollHeight;
+    });
+    const full = result.text.trim();
+    if (!full) {
+      if (result.stopped) {
+        assistantBodyEl.innerHTML = '<p style="color:var(--muted);">답변 생성을 중지했습니다.</p>';
+        return;
+      }
+      throw new Error(result.finishReason === 'length'
+        ? '생성 한도 안에 최종 답변이 만들어지지 않았습니다. 다시 생성해 주세요.'
+        : '모델이 표시할 최종 답변을 반환하지 않았습니다.');
+    }
+    assistantBodyEl.innerHTML = renderMd(full);
+    if (result.stopped) {
+      assistantBodyEl.insertAdjacentHTML('beforeend', '<div style="margin-top:8px;color:var(--muted);font-size:12px;">사용자가 생성을 중지했습니다.</div>');
+    }
+    addMessageActions(assistantBodyEl, full);
     workspace.scrollTop = workspace.scrollHeight;
 
     // 웹 검색을 사용한 경우 출처 배지 표시
@@ -1454,7 +1740,7 @@ async function sendMessage() {
                    padding:3px 9px;color:var(--muted);text-decoration:none;background:#fff;">
             🌐 ${domain}</a>`;
         }).join('');
-        bodyEl.appendChild(sourceDiv);
+        assistantBodyEl.appendChild(sourceDiv);
       }
     }
 
@@ -1471,23 +1757,21 @@ async function sendMessage() {
     }
 
     // localStorage에 저장
-    const convs = getConvs();
-    const idx   = convs.findIndex(c => c.id === currentConvId);
-    if (idx >= 0) {
-      convs[idx].messages  = [...chatHistory];
-      convs[idx].updatedAt = Date.now();
-      setConvs(convs);
-    }
+    persistCurrentConversation();
     renderSidebar();
     compressHistoryIfNeeded(); // 백그라운드 압축 (await 없음)
 
   } catch (err) {
     thinkEl.remove();
-    const bodyEl = appendMsgEl('assistant');
-    bodyEl.innerHTML = `<p style="color:var(--danger);">오류: ${escHtml(err.message)}</p>`;
+    const bodyEl = assistantBodyEl || appendMsgEl('assistant');
+    if (err?.name === 'AbortError') {
+      bodyEl.innerHTML = '<p style="color:var(--muted);">답변 생성을 중지했습니다.</p>';
+    } else {
+      bodyEl.innerHTML = `<p style="color:var(--danger);">오류: ${escHtml(err.message)}</p>`;
+    }
   } finally {
-    isStreaming = false;
-    sendBtn.disabled = false;
+    activeRequestController = null;
+    setGenerationState(false);
     textarea.focus();
   }
 }

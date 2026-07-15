@@ -43,11 +43,14 @@ Deno.serve(async (request) => {
     const payload: Record<string, unknown> = {
       model: 'motif3',
       messages: body.messages,
-      stream: false,
+      stream: body.stream === true,
+      max_tokens: body.max_tokens ?? 4096,
+      temperature: body.temperature ?? 0.6,
     };
     for (const field of optionalFields) {
       if (body[field] !== undefined) payload[field] = body[field];
     }
+    if (body.stream === true) payload.stream_options = { include_usage: true };
 
     const upstream = await fetch(upstreamUrl, {
       method: 'POST',
@@ -58,6 +61,18 @@ Deno.serve(async (request) => {
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(120_000),
     });
+
+    if (body.stream === true && upstream.ok && upstream.body) {
+      return new Response(upstream.body, {
+        status: upstream.status,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          'X-Accel-Buffering': 'no',
+        },
+      });
+    }
 
     const responseBody = await upstream.text();
     return new Response(responseBody, {
