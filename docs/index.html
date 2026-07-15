@@ -1956,6 +1956,35 @@ function clearAttachments() {
   renderFileChips();
 }
 
+function hwpxLocalName(node) {
+  return (node?.localName || node?.nodeName?.split(':').pop() || '').toLowerCase();
+}
+
+function extractHwpxPartText(xml, partName) {
+  const documentXml = new DOMParser().parseFromString(xml, 'application/xml');
+  if (documentXml.getElementsByTagName('parsererror').length) {
+    throw new Error(`HWPX XML을 해석하지 못했습니다 (${partName}).`);
+  }
+  const elements = Array.from(documentXml.getElementsByTagName('*'));
+  const paragraphs = elements.filter(node => hwpxLocalName(node) === 'p');
+  const nearestParagraph = node => {
+    let current = node.parentElement;
+    while (current && hwpxLocalName(current) !== 'p') current = current.parentElement;
+    return current;
+  };
+  const paragraphText = new Map(paragraphs.map(paragraph => [paragraph, []]));
+  elements.filter(node => hwpxLocalName(node) === 't').forEach(node => {
+    const paragraph = nearestParagraph(node);
+    if (paragraphText.has(paragraph)) paragraphText.get(paragraph).push(node.textContent || '');
+  });
+  return paragraphs.map(paragraph => paragraphText.get(paragraph)
+    .join('')
+    .replace(/\u00a0/g, ' ')
+    .trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
 async function extractText(file) {
   const ext = file.name.split('.').pop().toLowerCase();
   const MAX = 12000;
@@ -2007,16 +2036,31 @@ async function extractText(file) {
     if (typeof JSZip === 'undefined') throw new Error('ZIP 라이브러리 로딩 중입니다.');
     const buf = await file.arrayBuffer();
     const zip = await JSZip.loadAsync(buf);
+    const expandedSize = Object.values(zip.files).reduce(
+      (sum, entry) => sum + (entry?._data?.uncompressedSize || 0), 0);
+    if (expandedSize > 80 * 1024 * 1024) {
+      throw new Error('압축 해제된 HWPX 크기가 안전 제한(80MB)을 초과합니다.');
+    }
+    const mimeEntry = zip.files.mimetype;
+    if (mimeEntry) {
+      const mime = (await mimeEntry.async('string')).trim();
+      if (mime && mime !== 'application/hwp+zip') throw new Error('올바른 HWPX 파일이 아닙니다.');
+    }
     let text = '';
     const sections = Object.keys(zip.files)
-      .filter(n => /Contents\/section\d+\.xml/i.test(n))
-      .sort();
+      .filter(name => /(?:^|\/)Contents\/section\d+\.xml$/i.test(name))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    if (!sections.length) throw new Error('HWPX 본문(section XML)을 찾지 못했습니다.');
     for (const name of sections) {
+      if ((zip.files[name]?._data?.uncompressedSize || 0) > 16 * 1024 * 1024) {
+        throw new Error(`HWPX 본문 크기가 너무 큽니다 (${name}).`);
+      }
       const xml = await zip.files[name].async('string');
-      text += xml.replace(/<hh:t[^>]*>([^<]*)<\/hh:t>/g, '$1 ').replace(/<[^>]+>/g, '') + '\n';
+      text += extractHwpxPartText(xml, name) + '\n';
       if (text.length > MAX) break;
     }
-    return text.slice(0, MAX) || '(텍스트를 추출하지 못했습니다)';
+    if (!text.trim()) throw new Error('HWPX에서 읽을 수 있는 텍스트를 찾지 못했습니다. 이미지 문서라면 OCR이 필요합니다.');
+    return text.slice(0, MAX);
   }
 
   throw new Error(`지원하지 않는 형식입니다 (.${ext}). PDF·DOCX·PPTX·HWPX·TXT를 사용해주세요.`);
