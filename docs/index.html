@@ -805,6 +805,7 @@
         </div>
         <div class="composer-hint">
           파일을 끌어 놓거나 붙여넣어 첨부할 수 있습니다. Shift+Enter로 줄바꿈합니다.
+          &nbsp;·&nbsp; 주민번호·연락처 등 개인정보는 입력하지 마세요.
           &nbsp;·&nbsp; 문의: AI미디어센터 AI데이터팀
           &nbsp;·&nbsp; <a href="admin.html" style="color:inherit;">관리자</a>
         </div>
@@ -885,6 +886,41 @@ else {
   if (user.role === 'admin') document.getElementById('adminLink').style.display = 'flex';
 }
 function logout() { sessionStorage.removeItem('herion_user'); location.href = 'login.html'; }
+
+// ─── 개인정보 입력 차단 ─────────────────────────────────────
+function isValidCardNumber(candidate) {
+  const digits = candidate.replace(/\D/g, '');
+  if (digits.length < 13 || digits.length > 19 || /^(\d)\1+$/.test(digits)) return false;
+  let sum = 0;
+  let doubleDigit = false;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let digit = Number(digits[i]);
+    if (doubleDigit) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    doubleDigit = !doubleDigit;
+  }
+  return sum % 10 === 0;
+}
+
+function detectSensitiveData(value) {
+  const text = String(value || '');
+  const detected = new Set();
+  if (/\b\d{6}\s*[- ]?\s*[1-8]\d{6}\b/.test(text)) detected.add('주민·외국인등록번호');
+  if (/\b01[016789](?:[-.\s]?\d){7,8}\b/.test(text)) detected.add('휴대전화번호');
+  if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(text)) detected.add('이메일 주소');
+  if (/\b[MSROD]\d{8}\b/i.test(text)) detected.add('여권번호');
+  if (/계좌(?:\s*번호)?\s*[:：]?\s*\d(?:[-\s]?\d){8,15}/.test(text)) detected.add('계좌번호');
+  const cardCandidates = text.match(/(?:\d[ -]?){13,19}/g) || [];
+  if (cardCandidates.some(isValidCardNumber)) detected.add('카드번호');
+  return [...detected];
+}
+
+function showPrivacyBlock(types, source = '입력 내용') {
+  alert(`개인정보 보호를 위해 ${source}을(를) 사용할 수 없습니다.\n\n탐지 항목: ${types.join(', ')}\n해당 정보를 삭제하거나 일부를 *로 마스킹한 뒤 다시 시도해 주세요.`);
+}
 
 // ─── 모바일 사이드바 드로어 ──────────────────────────────────
 function toggleSidebar() {
@@ -1026,6 +1062,11 @@ function addMemoryFromModal() {
   const input = document.getElementById('memInput');
   const val = input.value.trim();
   if (!val) return;
+  const sensitiveTypes = detectSensitiveData(val);
+  if (sensitiveTypes.length) {
+    showPrivacyBlock(sensitiveTypes, '메모리 내용');
+    return;
+  }
   saveUserMem(val);
   input.value = '';
   renderMemoryList();
@@ -1639,6 +1680,15 @@ async function sendMessage(options = {}) {
   const text = reuseLastUser ? (reusedMessage?.content || '') : textarea.value.trim();
   if (!text) return;
 
+  const privacyInput = reuseLastUser
+    ? text
+    : [text, ...attachedFiles.flatMap(file => [file.name, file.content])].join('\n');
+  const sensitiveTypes = detectSensitiveData(privacyInput);
+  if (sensitiveTypes.length) {
+    showPrivacyBlock(sensitiveTypes, attachedFiles.length && !reuseLastUser ? '메시지 또는 첨부파일' : '메시지');
+    return;
+  }
+
   if (!cfg?.motifApiProxyUrl) {
     alert('Motif API 프록시가 설정되지 않았습니다.');
     return;
@@ -1829,6 +1879,11 @@ async function handleFiles(files) {
     if (attachedFiles.some(item => item.name === file.name && item.size === file.size)) continue;
     try {
       const content = await extractText(file);
+      const sensitiveTypes = detectSensitiveData(`${file.name}\n${content}`);
+      if (sensitiveTypes.length) {
+        errors.push(`${file.name}: 개인정보(${sensitiveTypes.join(', ')})가 탐지되어 첨부하지 않았습니다. 정보를 삭제하거나 마스킹해 주세요.`);
+        continue;
+      }
       attachedFiles.push({ name: file.name, content, size: file.size });
     } catch (e) {
       errors.push(`${file.name}: ${e.message}`);

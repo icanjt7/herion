@@ -27,6 +27,35 @@ function validMessages(value: unknown): value is Array<{ role: string; content: 
   );
 }
 
+function isValidCardNumber(candidate: string) {
+  const digits = candidate.replace(/\D/g, '');
+  if (digits.length < 13 || digits.length > 19 || /^(\d)\1+$/.test(digits)) return false;
+  let sum = 0;
+  let doubleDigit = false;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    let digit = Number(digits[i]);
+    if (doubleDigit) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    doubleDigit = !doubleDigit;
+  }
+  return sum % 10 === 0;
+}
+
+function detectSensitiveData(value: string) {
+  const detected = new Set<string>();
+  if (/\b\d{6}\s*[- ]?\s*[1-8]\d{6}\b/.test(value)) detected.add('주민·외국인등록번호');
+  if (/\b01[016789](?:[-.\s]?\d){7,8}\b/.test(value)) detected.add('휴대전화번호');
+  if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(value)) detected.add('이메일 주소');
+  if (/\b[MSROD]\d{8}\b/i.test(value)) detected.add('여권번호');
+  if (/계좌(?:\s*번호)?\s*[:：]?\s*\d(?:[-\s]?\d){8,15}/.test(value)) detected.add('계좌번호');
+  const cardCandidates = value.match(/(?:\d[ -]?){13,19}/g) || [];
+  if (cardCandidates.some(isValidCardNumber)) detected.add('카드번호');
+  return [...detected];
+}
+
 function shouldRetry(response: Response) {
   if ([429, 502, 503, 504].includes(response.status)) return true;
   const contentType = response.headers.get('content-type') || '';
@@ -80,6 +109,18 @@ Deno.serve(async (request) => {
     const body = await request.json();
     if (!validMessages(body?.messages)) {
       return json({ error: 'A valid text messages array is required' }, 400);
+    }
+
+    const sensitiveTypes = new Set<string>();
+    for (const message of body.messages) {
+      for (const type of detectSensitiveData(message.content)) sensitiveTypes.add(type);
+    }
+    if (sensitiveTypes.size > 0) {
+      return json({
+        error: '개인정보 보호를 위해 요청이 차단되었습니다. 개인정보를 삭제하거나 마스킹한 뒤 다시 시도해 주세요.',
+        code: 'SENSITIVE_DATA_BLOCKED',
+        detected_types: [...sensitiveTypes],
+      }, 400);
     }
 
     const payload: Record<string, unknown> = {
