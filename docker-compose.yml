@@ -27,5 +27,17 @@ services:
     volumes:
       - herion-open-webui-data:/app/backend/data
 
+  document-service:
+    profiles: ["documents"]
+    build:
+      context: ./services/document-service
+    container_name: herion-document-service
+    restart: unless-stopped
+    ports:
+      - "${HERION_DOCUMENT_PORT:-8010}:8010"
+    environment:
+      HERION_ALLOWED_ORIGINS: "${HERION_ALLOWED_ORIGINS:-https://icanjt7.github.io,http://localhost:3000}"
+      HERION_TEMPLATE_DIR: /app/templates
+
 volumes:
   herion-open-webui-data:

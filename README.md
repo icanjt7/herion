@@ -51,6 +51,20 @@ docker compose down -v   # reset all data
 
 A static UI preview is available via GitHub Pages at `docs/index.html`.
 
+## Document parsing and report generation
+
+The optional `document-service` container uses Docling for structured document
+parsing and generates DOCX, PDF, PPTX, or template-based HWPX reports.
+
+```powershell
+docker compose --profile documents up --build document-service
+```
+
+Set `documentApiUrl` in `docs/config.js` to the deployed HTTPS service URL. If
+the value is empty or the service is unavailable, Herion keeps using its local
+browser parser. HWPX generation requires an approved template containing
+`{{TITLE}}`, `{{SUBTITLE}}`, `{{AUTHOR}}`, and `{{BODY}}` markers.
+
 ## Notes
 
 - Do not commit `.env`.
@@ -79,3 +93,24 @@ Motif3 API key is never embedded in the public browser bundle.
    can be deployed with the `Deploy Motif3 API Proxy` workflow manually.
 3. The client calls model `motif3` through the proxy at
    `https://chat-azure.motiftech.io/openapi/v1/chat/completions`.
+
+The client requests up to 16,384 output tokens for normal chat and 8,192 for
+spell-check results. These values can be changed with `maxOutputTokens` and
+`spellCheckMaxOutputTokens` in `docs/config.js`; the upstream model may apply a
+lower hard limit.
+
+Herion does not truncate extracted attachment text or impose its own upload,
+expanded-HWPX, or per-message character cap. Browser memory, hosting request
+size, and upstream model context limits still apply.
+
+## Requirement Board
+
+`docs/requests.html` collects user requests with category, priority, author, and
+review status. The writing dialog can call Motif3 to turn a rough note into a
+structured requirement while preserving the user's facts.
+
+Run `supabase/migrations/20260716090000_user_requests.sql` in the Supabase SQL
+Editor (or use `docs/setup.sql` for a fresh installation) to create
+`user_requests` and its policies. Until that table is available, the board uses the existing
+`chat_logs` table as a central temporary store; the setup SQL migrates those
+temporary posts into `user_requests` without changing their IDs.

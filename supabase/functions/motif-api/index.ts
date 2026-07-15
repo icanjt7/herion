@@ -22,8 +22,7 @@ function validMessages(value: unknown): value is Array<{ role: string; content: 
   return Array.isArray(value) && value.length > 0 && value.length <= 50 && value.every((message) =>
     message && typeof message === 'object' &&
     allowedRoles.has(String((message as Record<string, unknown>).role)) &&
-    typeof (message as Record<string, unknown>).content === 'string' &&
-    String((message as Record<string, unknown>).content).length <= 100_000
+    typeof (message as Record<string, unknown>).content === 'string'
   );
 }
 
@@ -127,7 +126,7 @@ Deno.serve(async (request) => {
       model: 'motif3',
       messages: body.messages,
       stream: body.stream === true,
-      max_tokens: body.max_tokens ?? 4096,
+      max_tokens: body.max_tokens ?? 16384,
       temperature: body.temperature ?? 0.6,
     };
     for (const field of optionalFields) {
@@ -142,7 +141,7 @@ Deno.serve(async (request) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(requestPayload),
-        signal: AbortSignal.timeout(120_000),
+        signal: AbortSignal.timeout(600_000),
       });
 
     let upstream = await requestUpstream(payload);

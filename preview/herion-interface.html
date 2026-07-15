@@ -7,6 +7,7 @@
   <style>
     :root {
       font-family: Inter, "Segoe UI", "Noto Sans KR", Arial, sans-serif;
+      --app-height: 100dvh;
       --bg: #f6f7f9;
       --panel: #ffffff;
       --panel-2: #eef2f6;
@@ -19,13 +20,16 @@
       --sidebar: #18202b;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; overflow: hidden; }
 
-    body { background: var(--bg); color: var(--text); min-height: 100vh; }
+    body { background: var(--bg); color: var(--text); min-height: 100%; }
 
     .app {
       display: grid;
       grid-template-columns: 260px minmax(0, 1fr);
-      min-height: 100vh;
+      height: 100vh;
+      height: var(--app-height, 100dvh);
+      min-height: 0;
     }
 
     /* Sidebar */
@@ -39,6 +43,7 @@
       position: sticky;
       top: 0;
       height: 100vh;
+      height: var(--app-height, 100dvh);
     }
 
     .brand {
@@ -161,7 +166,10 @@
       display: grid;
       grid-template-rows: 56px 1fr auto;
       min-width: 0;
-      min-height: 100vh;
+      min-height: 0;
+      height: 100vh;
+      height: var(--app-height, 100dvh);
+      overflow: hidden;
     }
 
     /* Header */
@@ -181,6 +189,8 @@
 
     .header-title { font-size: 15px; font-weight: 650; }
     .header-sub   { font-size: 12px; color: var(--muted); }
+    .header-main  { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1; }
+    .header-main > div { min-width: 0; }
 
     .toolbar {
       display: flex;
@@ -213,7 +223,10 @@
     /* Conversation area */
     .workspace {
       overflow-y: auto;
+      min-height: 0;
       padding: 28px 0;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
     }
 
     .conv-inner {
@@ -225,7 +238,7 @@
     }
 
     /* Message */
-    .msg { display: grid; gap: 8px; }
+    .msg { display: grid; gap: 8px; min-width: 0; }
 
     .msg-header {
       display: flex;
@@ -251,6 +264,13 @@
       margin-left: 37px;
       font-size: 14.5px;
       line-height: 1.7;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .msg-body img, .msg-body video, .msg-body canvas, .msg-body svg {
+      max-width: 100%;
+      height: auto;
     }
 
     /* Markdown-like styles inside msg-body */
@@ -394,6 +414,8 @@
       border-top: 1px solid var(--line);
       background: var(--bg);
       padding: 14px 24px 18px;
+      position: relative;
+      z-index: 8;
     }
 
     .composer-inner {
@@ -466,6 +488,8 @@
       max-height: 200px;
       padding: 6px 4px;
       background: transparent;
+      min-width: 0;
+      width: 100%;
     }
 
     textarea::placeholder { color: #9aa5b4; }
@@ -490,16 +514,84 @@
       margin-top: 10px;
     }
 
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 45;
+      border: 0;
+      background: rgba(0,0,0,.45);
+    }
+
+    .menu-btn {
+      display: none;
+      width: 40px;
+      height: 40px;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      font-size: 20px;
+    }
+
     @media (max-width: 860px) {
       .app { grid-template-columns: 1fr; }
-      aside { display: none; }
-      header { padding: 0 16px; }
-      .composer { padding: 12px 16px 16px; }
-      .conv-inner { padding: 0 16px; }
+      aside {
+        position: fixed;
+        left: -280px;
+        top: 0;
+        width: 260px;
+        height: 100vh;
+        height: var(--app-height, 100dvh);
+        z-index: 50;
+        transition: left .25s cubic-bezier(.4,0,.2,1);
+      }
+      aside.open { left: 0; }
+      .sidebar-overlay.open { display: block; }
+      .menu-btn { display: flex; }
+      .model-select { display: none; }
+      header { height: 56px; padding: 0 10px; gap: 6px; overflow: hidden; }
+      .header-title, .header-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .header-main { width: 100%; gap: 7px; min-width: 0; padding-right: 170px; overflow: hidden; }
+      .toolbar {
+        position: absolute;
+        right: max(10px, env(safe-area-inset-right));
+        width: 122px;
+        gap: 4px;
+      }
+      .icon-btn { width: 38px; height: 38px; }
+      .workspace { padding: 18px 0; }
+      .composer { padding: 8px 10px max(10px, env(safe-area-inset-bottom)); }
+      .conv-inner { width: 100%; padding: 0 12px; gap: 20px; }
+      .msg-header { flex-wrap: wrap; }
+      .msg-body { margin-left: 0; font-size: 14px; line-height: 1.65; }
+      .msg-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+      .attach-row { flex-wrap: wrap; }
+      .action-pill { width: 100%; min-height: 38px; padding: 6px 9px; white-space: normal; line-height: 1.35; }
+      .attach-pill { min-height: 36px; }
+      .input-shell { padding: 6px 7px; border-radius: 18px; }
+      textarea { font-size: 16px; max-height: 120px; }
+      .send-btn, .attach-btn { width: 42px; height: 42px; }
+      .drop-hint { display: none; }
+      .file-chip { max-width: 100%; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+      .code-block { max-width: 100%; }
+    }
+
+    @media (max-width: 480px) {
+      .header-sub { display: none; }
+      .composer-hint { font-size: 10.5px; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; }
+      .attach-row { display: none; }
+    }
+
+    @media (max-width: 360px) {
+      .msg-actions { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
+<button class="sidebar-overlay" id="previewSidebarOverlay" aria-label="메뉴 닫기" onclick="closePreviewSidebar()"></button>
 <div class="app">
 
   <!-- Sidebar -->
@@ -516,16 +608,17 @@
 
     <div class="nav-section">이번 주</div>
     <div class="chat-item">국가유산 설명문 영문 번역</div>
-    <div class="chat-item">유산 가치 평가 보고서 요약</div>
+    <div class="chat-item">유산 가치 평가 보고서 분석</div>
     <div class="chat-item">체험 프로그램 Q&amp;A 정리</div>
     <div class="chat-item">등재 신청서 검토 의견</div>
-    <div class="chat-item">보존 현황 보고서 요약</div>
+    <div class="chat-item">보존 현황 보고서 상세 검토</div>
 
     <div class="nav-section">지난 달</div>
     <div class="chat-item">유네스코 서신 초안</div>
     <div class="chat-item">국내외 사례 비교 분석</div>
 
     <div class="sidebar-footer">
+      <a href="../docs/requests.html" class="footer-link">📮 요구사항 게시판</a>
       <a href="admin.html" class="footer-link">📊 관리자 대시보드</a>
       <a href="login.html" class="footer-link">⚙️ 계정 설정</a>
       <div class="user-row">
@@ -541,14 +634,18 @@
   <!-- Main -->
   <main>
     <header>
-      <div>
+      <div class="header-main">
+        <button class="menu-btn" id="previewMenuBtn" aria-label="메뉴 열기" aria-expanded="false" onclick="togglePreviewSidebar()">☰</button>
+        <div>
         <div class="header-title">현장 안내문 초안 작성</div>
         <div class="header-sub">국가유산 담당자 전용 AI 업무 보조</div>
+        </div>
       </div>
       <div class="toolbar">
         <select class="model-select">
           <option>Motif3 300B</option>
         </select>
+        <button class="icon-btn" title="업무 페르소나">🎭</button>
         <button class="icon-btn" title="공유">⎘</button>
         <button class="icon-btn" title="새 대화">✕</button>
       </div>
@@ -617,7 +714,8 @@
               <button class="action-pill">어린이용으로 다시 쓰기</button>
               <button class="action-pill">영문 병기 추가</button>
               <button class="action-pill">주의사항만 추출</button>
-              <button class="action-pill">더 간결하게</button>
+              <button class="action-pill">근거·세부내용 보강</button>
+              <button class="action-pill">보고서 파일</button>
             </div>
           </div>
         </div>
@@ -696,5 +794,29 @@
   </main>
 
 </div>
+<script>
+function syncPreviewViewport() {
+  const height = window.visualViewport?.height || window.innerHeight;
+  document.documentElement.style.setProperty('--app-height', `${Math.round(height)}px`);
+}
+syncPreviewViewport();
+window.addEventListener('resize', syncPreviewViewport, { passive: true });
+window.visualViewport?.addEventListener('resize', syncPreviewViewport, { passive: true });
+window.visualViewport?.addEventListener('scroll', syncPreviewViewport, { passive: true });
+
+function togglePreviewSidebar() {
+  const sidebar = document.querySelector('aside');
+  const open = sidebar.classList.toggle('open');
+  document.getElementById('previewSidebarOverlay').classList.toggle('open', open);
+  document.getElementById('previewMenuBtn').setAttribute('aria-expanded', String(open));
+}
+function closePreviewSidebar() {
+  document.querySelector('aside').classList.remove('open');
+  document.getElementById('previewSidebarOverlay').classList.remove('open');
+  document.getElementById('previewMenuBtn').setAttribute('aria-expanded', 'false');
+}
+document.querySelectorAll('aside .chat-item, aside .new-chat').forEach(item => item.addEventListener('click', closePreviewSidebar));
+document.addEventListener('keydown', event => { if (event.key === 'Escape') closePreviewSidebar(); });
+</script>
 </body>
 </html>

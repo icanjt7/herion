@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Herion — 요구사항 게시판</title>
+  <style>
+    :root{font-family:Inter,"Segoe UI","Noto Sans KR",Arial,sans-serif;--bg:#f4f6f8;--panel:#fff;--line:#d9dee7;--text:#1c2430;--muted:#657386;--accent:#19715f;--accent-dark:#115648;--soft:#e8f5f1;--blue:#2457a6;--danger:#b3261e;--warn:#9a5a0a}
+    *{box-sizing:border-box;margin:0;padding:0}body{min-height:100vh;color:var(--text);background:radial-gradient(circle at 80% 0%,rgba(25,113,95,.09),transparent 26%),var(--bg)}button,input,select,textarea{font:inherit}button{cursor:pointer}
+    .topbar{position:sticky;top:0;z-index:20;min-height:64px;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px max(22px,env(safe-area-inset-right)) 10px max(22px,env(safe-area-inset-left));border-bottom:1px solid rgba(217,222,231,.9);background:rgba(255,255,255,.9);backdrop-filter:blur(14px)}
+    .brand-link{display:flex;align-items:center;gap:10px;min-width:0;color:var(--text);text-decoration:none}.mark{width:36px;height:36px;display:grid;place-items:center;flex:0 0 auto;border-radius:10px;color:#fff;font-weight:800;background:linear-gradient(135deg,#2bb58f,#2864bb)}.brand-title{display:block;font-size:15px;font-weight:760}.brand-sub{display:block;color:var(--muted);font-size:11.5px}
+    .top-actions,.user-chip,.card-meta,.stats,.dialog-actions{display:flex;align-items:center}.top-actions{gap:8px}.user-chip{gap:7px;max-width:190px;padding:5px 10px 5px 6px;border:1px solid var(--line);border-radius:999px;background:#fff;font-size:12px}.avatar{width:28px;height:28px;display:grid;place-items:center;flex:0 0 auto;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;font-weight:800}
+    .ghost-btn,.primary-btn,.ai-btn{min-height:38px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:8px;padding:0 14px;font-size:13px;font-weight:680;text-decoration:none}.ghost-btn{border:1px solid var(--line);background:#fff;color:var(--text)}.primary-btn{border:1px solid var(--accent);background:var(--accent);color:#fff}.primary-btn:hover{background:var(--accent-dark)}.ai-btn{border:1px solid #b9ccef;background:#edf3ff;color:var(--blue)}.ai-btn:disabled,.primary-btn:disabled{cursor:wait;opacity:.58}
+    .page{width:min(1160px,calc(100% - 36px));margin:0 auto;padding:42px 0 56px}.hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:end;margin-bottom:28px}.eyebrow{color:var(--accent);font-size:12px;font-weight:760;letter-spacing:.04em}h1{margin-top:7px;font-size:clamp(28px,4vw,42px);line-height:1.15;letter-spacing:-.035em}.hero p{max-width:680px;margin-top:12px;color:var(--muted);font-size:14px;line-height:1.7}.stats{gap:8px}.stat{min-width:90px;padding:13px 14px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.8);text-align:center}.stat strong{display:block;font-size:21px}.stat span{color:var(--muted);font-size:11px}
+    .toolbar{display:grid;grid-template-columns:minmax(200px,1fr) 160px 150px auto;gap:8px;margin-bottom:14px}.field{width:100%;height:42px;border:1px solid var(--line);border-radius:9px;padding:0 12px;outline:none;background:#fff;color:var(--text)}.field:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(25,113,95,.1)}
+    .notice{display:none;margin-bottom:14px;padding:12px 14px;border:1px solid #edc9c6;border-radius:9px;background:#fff4f3;color:#7c2924;font-size:12.5px;line-height:1.55}.request-list{display:grid;gap:10px}.request-card{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;padding:18px 20px;border:1px solid var(--line);border-radius:13px;background:var(--panel);color:var(--text);text-align:left;transition:.16s ease}.request-card:hover{transform:translateY(-1px);border-color:#adc7c0;box-shadow:0 12px 34px rgba(21,31,45,.08)}
+    .card-meta{flex-wrap:wrap;gap:7px;margin-bottom:8px}.badge{display:inline-flex;align-items:center;min-height:24px;padding:2px 8px;border-radius:999px;background:#eef2f6;color:var(--muted);font-size:10.5px;font-weight:700}.status-접수{background:#eaf1ff;color:#285ca9}.status-검토중{background:#fff3dc;color:#8b570a}.status-반영예정{background:#eee9ff;color:#6543a5}.status-완료{background:var(--soft);color:var(--accent-dark)}.priority-긴급{background:#fff0ef;color:var(--danger)}.priority-높음{background:#fff4df;color:var(--warn)}
+    .card-title{font-size:16px;font-weight:760;line-height:1.4}.card-preview{display:-webkit-box;margin-top:7px;overflow:hidden;color:#4f5d6d;font-size:13px;line-height:1.6;-webkit-line-clamp:2;-webkit-box-orient:vertical}.card-side{min-width:135px;color:var(--muted);font-size:11.5px;line-height:1.7;text-align:right}.empty,.loading{padding:60px 20px;color:var(--muted);text-align:center;line-height:1.7}.empty{border:1px dashed #c9d0da;border-radius:14px;background:rgba(255,255,255,.5)}
+    dialog{border:0;border-radius:16px;box-shadow:0 24px 80px rgba(17,29,46,.24)}dialog::backdrop{background:rgba(18,26,37,.48);backdrop-filter:blur(2px)}#writeDialog{width:min(720px,calc(100vw - 28px));max-height:min(90vh,820px)}#detailDialog{width:min(680px,calc(100vw - 28px));max-height:min(88vh,760px)}.dialog-inner{display:grid;gap:17px;padding:24px;overflow-y:auto;max-height:inherit}.dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.dialog-head h2{font-size:20px}.dialog-head p{margin-top:5px;color:var(--muted);font-size:12px;line-height:1.5}.close-btn{width:36px;height:36px;flex:0 0 auto;border:0;border-radius:8px;background:#eef2f6;color:var(--muted)}
+    .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}label{display:grid;gap:6px;color:#465465;font-size:12px;font-weight:650}label.full{grid-column:1/-1}textarea{width:100%;min-height:230px;resize:vertical;border:1px solid var(--line);border-radius:9px;padding:12px;outline:none;color:var(--text);font-size:14px;line-height:1.65}.form-help{color:var(--muted);font-size:11px;font-weight:400;line-height:1.5}
+    .ai-panel{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid #cbd8ee;border-radius:10px;background:linear-gradient(135deg,#f3f7ff,#f6fbf9)}.ai-panel strong{display:block;color:#314e7b;font-size:12.5px}.ai-panel span{display:block;margin-top:3px;color:var(--muted);font-size:11px}.form-status{display:none;padding:10px 12px;border-radius:8px;font-size:12px;line-height:1.5}.form-status.error{display:block;background:#fff1f0;color:var(--danger)}.form-status.success{display:block;background:var(--soft);color:var(--accent-dark)}.dialog-actions{justify-content:flex-end;gap:8px}.detail-content{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.75}.detail-author{padding-top:13px;border-top:1px solid var(--line);color:var(--muted);font-size:11.5px}.admin-status{display:none;grid-template-columns:1fr auto;gap:8px;padding-top:12px;border-top:1px solid var(--line)}
+    @media(max-width:760px){.topbar{padding-inline:12px}.brand-sub,.user-chip{display:none}.page{width:min(100% - 24px,1160px);padding-top:28px}.hero{grid-template-columns:1fr;gap:18px}.toolbar{grid-template-columns:1fr 1fr}.toolbar .search{grid-column:1/-1}.request-card{grid-template-columns:1fr;gap:9px;padding:16px}.card-side{text-align:left}}
+    @media(max-width:520px){.top-actions .ghost-btn{width:40px;padding:0;font-size:0}.top-actions .ghost-btn::before{content:"←";font-size:18px}.toolbar{grid-template-columns:1fr}.toolbar .search{grid-column:auto}.toolbar .primary-btn{min-height:44px}.form-grid{grid-template-columns:1fr}label.full{grid-column:auto}.dialog-inner{padding:18px 15px max(18px,env(safe-area-inset-bottom))}.ai-panel{align-items:stretch;flex-direction:column}.ai-btn{min-height:42px}.dialog-actions .ghost-btn,.dialog-actions .primary-btn{flex:1}.admin-status{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand-link" href="index.html"><span class="mark">H</span><span><span class="brand-title">Herion 요구사항 게시판</span><span class="brand-sub">사용자 의견을 제품 개선으로 연결합니다</span></span></a>
+    <div class="top-actions"><div class="user-chip"><span class="avatar" id="userInitial">?</span><span id="userName">사용자</span></div><a class="ghost-btn" href="index.html">← 대화로 돌아가기</a></div>
+  </header>
+  <main class="page">
+    <section class="hero"><div><div class="eyebrow">HERION FEEDBACK</div><h1>필요한 기능을 알려주세요</h1><p>업무 중 불편했던 점, 새로 필요한 기능, 개선 아이디어를 구체적으로 남겨주세요. 담당자가 검토하고 진행 상태를 공유합니다.</p></div><div class="stats"><div class="stat"><strong id="totalCount">–</strong><span>전체 의견</span></div><div class="stat"><strong id="activeCount">–</strong><span>검토·반영 중</span></div></div></section>
+    <section class="toolbar"><input class="field search" id="searchInput" type="search" placeholder="제목이나 내용 검색"><select class="field" id="categoryFilter"><option value="">모든 분류</option><option>기능 개선</option><option>신규 기능</option><option>오류 신고</option><option>문서·보고서</option><option>기타</option></select><select class="field" id="statusFilter"><option value="">모든 상태</option><option>접수</option><option>검토중</option><option>반영예정</option><option>완료</option></select><button class="primary-btn" type="button" onclick="openWriteDialog()">＋ 요구사항 등록</button></section>
+    <div class="notice" id="boardNotice"></div><section class="request-list" id="requestList" aria-live="polite"><div class="loading">요구사항을 불러오는 중입니다…</div></section>
+  </main>
+  <dialog id="writeDialog">
+    <form class="dialog-inner" id="requestForm">
+      <div class="dialog-head"><div><h2>요구사항 등록</h2><p>현재 상황과 필요한 결과를 적으면 담당자가 더 정확하게 검토할 수 있습니다.</p></div><button class="close-btn" type="button" onclick="closeWriteDialog()" aria-label="닫기">✕</button></div>
+      <div class="form-grid">
+        <label>분류<select class="field" id="requestCategory" required><option>기능 개선</option><option>신규 기능</option><option>오류 신고</option><option>문서·보고서</option><option>기타</option></select></label>
+        <label>중요도<select class="field" id="requestPriority" required><option>보통</option><option>높음</option><option>긴급</option></select></label>
+        <label class="full">제목<input class="field" id="requestTitle" minlength="2" maxlength="120" required placeholder="필요한 개선사항을 한 문장으로 적어주세요"></label>
+        <label class="full">상세 내용<textarea id="requestContent" minlength="5" maxlength="10000" required placeholder="현재 상황, 문제점, 희망 결과, 참고사항을 적어주세요."></textarea><span class="form-help">주민번호·연락처·개인 이메일 등 개인정보는 입력하지 마세요.</span></label>
+      </div>
+      <div class="ai-panel"><div><strong>✦ AI 작성 도우미</strong><span>현재 메모를 명확한 요구사항 문서로 다듬고 빠진 항목을 보완합니다.</span></div><button class="ai-btn" id="aiAssistBtn" type="button" onclick="assistWriting()">AI로 다듬기</button></div>
+      <div class="form-status" id="formStatus"></div><div class="dialog-actions"><button class="ghost-btn" type="button" onclick="closeWriteDialog()">취소</button><button class="primary-btn" id="submitBtn" type="submit">등록하기</button></div>
+    </form>
+  </dialog>
+  <dialog id="detailDialog">
+    <div class="dialog-inner"><div class="dialog-head"><div><div class="card-meta" id="detailMeta"></div><h2 id="detailTitle"></h2></div><button class="close-btn" type="button" onclick="closeDetailDialog()" aria-label="닫기">✕</button></div><div class="detail-content" id="detailContent"></div><div class="detail-author" id="detailAuthor"></div><div class="admin-status" id="adminStatusPanel"><select class="field" id="adminStatusSelect"><option>접수</option><option>검토중</option><option>반영예정</option><option>완료</option></select><button class="primary-btn" type="button" onclick="updateRequestStatus()">상태 변경</button></div></div>
+  </dialog>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="config.js"></script>
+  <script>
+    const cfg = window.HERION_CONFIG;
+    const user = JSON.parse(sessionStorage.getItem('herion_user') || 'null') ||
+      (location.protocol === 'file:' ? { name: '미리보기 사용자', email: 'preview@kh.or.kr', role: 'user', department: 'AI미디어센터' } : null);
+    if (!user) location.href = 'login.html';
+
+    document.getElementById('userName').textContent = user ? user.name : '사용자';
+    document.getElementById('userInitial').textContent = (user && user.name ? user.name : 'U').slice(0, 1).toUpperCase();
+
+    const sb = location.protocol !== 'file:' && cfg && cfg.supabaseUrl && window.supabase
+      ? supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey)
+      : null;
+    let requests = [];
+    let selectedRequest = null;
+    let storageMode = 'user_requests';
+
+    function escHtml(value) {
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function formatDate(value) {
+      if (!value) return '';
+      return new Intl.DateTimeFormat('ko-KR', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+      }).format(new Date(value));
+    }
+
+    function showNotice(message) {
+      const notice = document.getElementById('boardNotice');
+      notice.textContent = message;
+      notice.style.display = message ? 'block' : 'none';
+    }
+
+    function badge(value, kind) {
+      return '<span class="badge ' + (kind || '') + '-' + escHtml(value) + '">' + escHtml(value) + '</span>';
+    }
+
+    async function loadRequests() {
+      const list = document.getElementById('requestList');
+      if (!sb) {
+        showNotice('Supabase 설정이 없어 요구사항을 불러올 수 없습니다. 관리자에게 문의해 주세요.');
+        requests = [];
+        renderRequests();
+        return;
+      }
+      list.innerHTML = '<div class="loading">요구사항을 불러오는 중입니다…</div>';
+      const result = await sb.from('user_requests').select('*').order('created_at', { ascending: false });
+      if (result.error) {
+        const needsSetup = result.error.code === '42P01' || /user_requests/i.test(result.error.message || '');
+        if (needsSetup) {
+          const fallback = await sb.from('chat_logs')
+            .select('id,user_email,user_name,question,created_at')
+            .eq('model', 'user_request')
+            .order('created_at', { ascending: false });
+          if (!fallback.error) {
+            storageMode = 'chat_logs';
+            requests = (fallback.data || []).map(function(row) {
+              let saved = {};
+              try { saved = JSON.parse(row.question || '{}'); } catch (_) {}
+              return {
+                id: row.id,
+                title: saved.title || '제목 없음',
+                category: saved.category || '기타',
+                priority: saved.priority || '보통',
+                content: saved.content || '',
+                status: saved.status || '접수',
+                user_email: row.user_email,
+                user_name: row.user_name || '',
+                department: saved.department || '',
+                created_at: row.created_at
+              };
+            });
+            showNotice('현재 임시 저장소로 안전하게 접수하고 있습니다. 전용 게시판 DB 적용 후 기존 글도 자동 이관됩니다.');
+          } else {
+            requests = [];
+            showNotice('게시판 저장소를 준비하지 못했습니다. 관리자에게 문의해 주세요.');
+          }
+        } else {
+          showNotice('게시판을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.');
+          requests = [];
+        }
+      } else {
+        storageMode = 'user_requests';
+        showNotice('');
+        requests = result.data || [];
+      }
+      renderRequests();
+    }
+
+    function filteredRequests() {
+      const query = document.getElementById('searchInput').value.trim().toLowerCase();
+      const category = document.getElementById('categoryFilter').value;
+      const status = document.getElementById('statusFilter').value;
+      return requests.filter(function(item) {
+        const text = (item.title + '\n' + item.content + '\n' + item.user_name).toLowerCase();
+        return (!query || text.includes(query)) &&
+          (!category || item.category === category) &&
+          (!status || item.status === status);
+      });
+    }
+
+    function renderRequests() {
+      document.getElementById('totalCount').textContent = requests.length.toLocaleString();
+      document.getElementById('activeCount').textContent = requests
+        .filter(function(item) { return ['검토중', '반영예정'].includes(item.status); })
+        .length.toLocaleString();
+      const items = filteredRequests();
+      const list = document.getElementById('requestList');
+      if (!items.length) {
+        list.innerHTML = '<div class="empty">등록된 요구사항이 없습니다.<br>업무 중 필요한 개선사항을 첫 번째로 남겨주세요.</div>';
+        return;
+      }
+      list.innerHTML = items.map(function(item) {
+        return '<button class="request-card" type="button" data-id="' + escHtml(item.id) + '">' +
+          '<span><span class="card-meta">' +
+          badge(item.status, 'status') + badge(item.priority, 'priority') +
+          '<span class="badge">' + escHtml(item.category) + '</span></span>' +
+          '<span class="card-title">' + escHtml(item.title) + '</span>' +
+          '<span class="card-preview">' + escHtml(item.content) + '</span></span>' +
+          '<span class="card-side">' + escHtml(item.user_name) +
+          (item.department ? '<br>' + escHtml(item.department) : '') +
+          '<br>' + escHtml(formatDate(item.created_at)) + '</span></button>';
+      }).join('');
+      list.querySelectorAll('[data-id]').forEach(function(card) {
+        card.addEventListener('click', function() { openDetailDialog(card.dataset.id); });
+      });
+    }
+
+    function openWriteDialog() {
+      setFormStatus('');
+      document.getElementById('writeDialog').showModal();
+      setTimeout(function() { document.getElementById('requestTitle').focus(); }, 0);
+    }
+
+    function closeWriteDialog() {
+      document.getElementById('writeDialog').close();
+    }
+
+    function setFormStatus(message, type) {
+      const status = document.getElementById('formStatus');
+      status.textContent = message;
+      status.className = 'form-status' + (message ? ' ' + (type || 'error') : '');
+    }
+
+    function extractAssistantText(message) {
+      if (!message) return '';
+      if (typeof message.content === 'string') return message.content;
+      if (Array.isArray(message.content)) {
+        return message.content.map(function(part) {
+          return typeof part === 'string' ? part : ((part && part.text) || '');
+        }).join('');
+      }
+      return message.final || message.answer || '';
+    }
+
+    function detectSensitiveData(value) {
+      const found = [];
+      if (/\b\d{6}\s*[- ]?\s*[1-8]\d{6}\b/.test(value)) found.push('주민·외국인등록번호');
+      if (/\b01[016789](?:[-.\s]?\d){7,8}\b/.test(value)) found.push('휴대전화번호');
+      if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(value)) found.push('이메일 주소');
+      if (/\b[MSROD]\d{8}\b/i.test(value)) found.push('여권번호');
+      return found;
+    }
+
+    async function assistWriting() {
+      const titleInput = document.getElementById('requestTitle');
+      const contentInput = document.getElementById('requestContent');
+      const title = titleInput.value.trim();
+      const content = contentInput.value.trim();
+      if (!title && !content) {
+        setFormStatus('제목이나 상세 내용을 먼저 간단히 적어주세요.');
+        return;
+      }
+      const sensitive = detectSensitiveData(title + '\n' + content);
+      if (sensitive.length) {
+        setFormStatus('개인정보(' + sensitive.join(', ') + ')를 삭제한 뒤 AI 도움을 이용해 주세요.');
+        return;
+      }
+      if (!cfg || !cfg.motifApiProxyUrl) {
+        setFormStatus('Motif API 프록시가 설정되지 않았습니다.');
+        return;
+      }
+      const button = document.getElementById('aiAssistBtn');
+      button.disabled = true;
+      button.textContent = 'AI가 정리 중…';
+      setFormStatus('');
+      const prompt = [
+        '다음 사용자 메모를 Herion 제품 요구사항 게시글로 다듬어 주세요.',
+        '사실이나 요구를 새로 만들지 말고, 모호한 부분은 확인 필요라고 표시하세요.',
+        '상세 내용은 현재 상황, 문제점, 희망 결과, 참고사항 소제목을 사용하세요.',
+        '담당자가 구현 범위와 완료 조건을 판단할 수 있을 만큼 구체적으로 작성하세요.',
+        'JSON 외의 설명 없이 다음 형식만 반환하세요.',
+        '{"title":"120자 이내 제목","content":"구조화된 상세 내용"}',
+        '',
+        '[분류] ' + document.getElementById('requestCategory').value,
+        '[중요도] ' + document.getElementById('requestPriority').value,
+        '[현재 제목] ' + title,
+        '[현재 내용]',
+        content
+      ].join('\n');
+      try {
+        const response = await fetch(cfg.motifApiProxyUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': cfg.supabaseAnonKey,
+            'Authorization': 'Bearer ' + cfg.supabaseAnonKey
+          },
+          body: JSON.stringify({
+            model: 'motif3',
+            messages: [
+              { role: 'system', content: '당신은 공공기관 내부 업무 시스템의 요구사항 분석가입니다. 최종 JSON만 반환합니다.' },
+              { role: 'user', content: prompt }
+            ],
+            stream: false,
+            max_tokens: 4096,
+            temperature: 0.25
+          })
+        });
+        if (!response.ok) throw new Error('Motif API 오류 ' + response.status + ': ' + await response.text());
+        const data = await response.json();
+        const choice = data && data.choices ? data.choices[0] : null;
+        const rawText = extractAssistantText(choice && choice.message).trim();
+        const jsonStart = rawText.indexOf('{');
+        const jsonEnd = rawText.lastIndexOf('}');
+        const improved = JSON.parse(jsonStart >= 0 && jsonEnd > jsonStart
+          ? rawText.slice(jsonStart, jsonEnd + 1)
+          : rawText);
+        if (!improved.title || !improved.content) throw new Error('AI가 올바른 제목과 내용을 반환하지 않았습니다.');
+        titleInput.value = String(improved.title).slice(0, 120);
+        contentInput.value = String(improved.content).slice(0, 10000);
+        setFormStatus('AI가 초안을 다듬었습니다. 사실관계와 표현을 확인한 뒤 등록해 주세요.', 'success');
+      } catch (error) {
+        setFormStatus('AI 작성 도움 실패: ' + error.message);
+      } finally {
+        button.disabled = false;
+        button.textContent = 'AI로 다듬기';
+      }
+    }
+
+    document.getElementById('requestForm').addEventListener('submit', async function(event) {
+      event.preventDefault();
+      const title = document.getElementById('requestTitle').value.trim();
+      const content = document.getElementById('requestContent').value.trim();
+      const sensitive = detectSensitiveData(title + '\n' + content);
+      if (sensitive.length) {
+        setFormStatus('개인정보(' + sensitive.join(', ') + ')를 삭제한 뒤 등록해 주세요.');
+        return;
+      }
+      if (!sb) {
+        setFormStatus('Supabase 설정이 없어 등록할 수 없습니다.');
+        return;
+      }
+      const button = document.getElementById('submitBtn');
+      button.disabled = true;
+      button.textContent = '등록 중…';
+      setFormStatus('');
+      const payload = {
+        title: title,
+        category: document.getElementById('requestCategory').value,
+        priority: document.getElementById('requestPriority').value,
+        content: content,
+        status: '접수',
+        user_email: user.email,
+        user_name: user.name,
+        department: user.department || ''
+      };
+      const result = storageMode === 'chat_logs'
+        ? await sb.from('chat_logs').insert({
+            user_email: user.email,
+            user_name: user.name,
+            model: 'user_request',
+            question: JSON.stringify({
+              title: payload.title,
+              category: payload.category,
+              priority: payload.priority,
+              content: payload.content,
+              status: payload.status,
+              department: payload.department
+            })
+          }).select().single()
+        : await sb.from('user_requests').insert(payload).select().single();
+      if (result.error) {
+        setFormStatus('등록 실패: ' + result.error.message);
+      } else {
+        const createdId = result.data.id;
+        document.getElementById('requestForm').reset();
+        closeWriteDialog();
+        await loadRequests();
+        openDetailDialog(createdId);
+      }
+      button.disabled = false;
+      button.textContent = '등록하기';
+    });
+
+    function openDetailDialog(id) {
+      selectedRequest = requests.find(function(item) { return item.id === id; });
+      if (!selectedRequest) return;
+      document.getElementById('detailMeta').innerHTML =
+        badge(selectedRequest.status, 'status') + badge(selectedRequest.priority, 'priority') +
+        '<span class="badge">' + escHtml(selectedRequest.category) + '</span>';
+      document.getElementById('detailTitle').textContent = selectedRequest.title;
+      document.getElementById('detailContent').textContent = selectedRequest.content;
+      document.getElementById('detailAuthor').textContent =
+        selectedRequest.user_name +
+        (selectedRequest.department ? ' · ' + selectedRequest.department : '') +
+        ' · ' + formatDate(selectedRequest.created_at);
+      document.getElementById('adminStatusPanel').style.display =
+        user && user.role === 'admin' ? 'grid' : 'none';
+      document.getElementById('adminStatusSelect').value = selectedRequest.status;
+      document.getElementById('detailDialog').showModal();
+    }
+
+    function closeDetailDialog() {
+      document.getElementById('detailDialog').close();
+    }
+
+    async function updateRequestStatus() {
+      if (!user || user.role !== 'admin' || !selectedRequest || !sb) return;
+      if (storageMode === 'chat_logs') {
+        alert('전용 게시판 DB 적용 후 상태를 변경할 수 있습니다. 등록된 글은 유지됩니다.');
+        return;
+      }
+      const requestId = selectedRequest.id;
+      const status = document.getElementById('adminStatusSelect').value;
+      const result = await sb.from('user_requests')
+        .update({ status: status, updated_at: new Date().toISOString() })
+        .eq('id', requestId);
+      if (result.error) {
+        alert('상태 변경 실패: ' + result.error.message);
+        return;
+      }
+      closeDetailDialog();
+      await loadRequests();
+      openDetailDialog(requestId);
+    }
+
+    ['searchInput', 'categoryFilter', 'statusFilter'].forEach(function(id) {
+      document.getElementById(id).addEventListener(id === 'searchInput' ? 'input' : 'change', renderRequests);
+    });
+    document.addEventListener('keydown', function(event) {
+      if (event.key !== 'Escape') return;
+      if (document.getElementById('writeDialog').open) closeWriteDialog();
+      if (document.getElementById('detailDialog').open) closeDetailDialog();
+    });
+
+    loadRequests();
+    if (location.protocol === 'file:' && new URLSearchParams(location.search).get('dialog') === 'write') {
+      setTimeout(openWriteDialog, 0);
+    }
+  </script>
+</body>
+</html>

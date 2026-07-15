@@ -22,6 +22,12 @@ window.HERION_CONFIG = {
   motifModels: [
     { id: 'motif3', label: 'Motif3 300B' }
   ],
+  // 응답 생성 한도. 실제 출력량은 연결된 모델/API의 최대 한도 안에서 결정됩니다.
+  maxOutputTokens: 16384,
+  spellCheckMaxOutputTokens: 8192,
+
+  // Docling 문서 분석·보고서 생성 서비스. 배포 전에는 빈 값으로 두면 브라우저 파서를 사용합니다.
+  documentApiUrl: '',
 
   // ─── Tavily 웹 검색 API ─────────────────────────────────────────
   tavilyApiKey: 'YOUR_TAVILY_API_KEY',
