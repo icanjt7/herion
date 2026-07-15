@@ -27,6 +27,48 @@ function validMessages(value: unknown): value is Array<{ role: string; content: 
   );
 }
 
+function shouldRetry(response: Response) {
+  if ([429, 502, 503, 504].includes(response.status)) return true;
+  const contentType = response.headers.get('content-type') || '';
+  return response.status === 403 && contentType.includes('text/html');
+}
+
+function streamFromCompletion(data: Record<string, any>) {
+  const message = data.choices?.[0]?.message;
+  const content = typeof message?.content === 'string' ? message.content : '';
+  const finishReason = data.choices?.[0]?.finish_reason || 'stop';
+  const encoder = new TextEncoder();
+  const events = [
+    {
+      id: data.id || 'chatcmpl-fallback',
+      object: 'chat.completion.chunk',
+      created: data.created || Math.floor(Date.now() / 1000),
+      model: data.model || 'motif3',
+      choices: [{ index: 0, delta: { role: 'assistant', content }, finish_reason: null }],
+      usage: null,
+    },
+    {
+      id: data.id || 'chatcmpl-fallback',
+      object: 'chat.completion.chunk',
+      created: data.created || Math.floor(Date.now() / 1000),
+      model: data.model || 'motif3',
+      choices: [{ index: 0, delta: {}, finish_reason: finishReason }],
+      usage: null,
+    },
+    { choices: [], usage: data.usage || null },
+  ];
+
+  return new ReadableStream({
+    start(controller) {
+      for (const event of events) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+      }
+      controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+      controller.close();
+    },
+  });
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -52,15 +94,42 @@ Deno.serve(async (request) => {
     }
     if (body.stream === true) payload.stream_options = { include_usage: true };
 
-    const upstream = await fetch(upstreamUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(120_000),
-    });
+    const requestUpstream = (requestPayload: Record<string, unknown>) => fetch(upstreamUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestPayload),
+        signal: AbortSignal.timeout(120_000),
+      });
+
+    let upstream = await requestUpstream(payload);
+    if (shouldRetry(upstream)) {
+      await upstream.body?.cancel();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      upstream = await requestUpstream(payload);
+    }
+
+    if (body.stream === true && shouldRetry(upstream)) {
+      await upstream.body?.cancel();
+      const fallbackPayload = { ...payload, stream: false };
+      delete fallbackPayload.stream_options;
+      const fallback = await requestUpstream(fallbackPayload);
+      if (fallback.ok) {
+        const completion = await fallback.json();
+        return new Response(streamFromCompletion(completion), {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'text/event-stream; charset=utf-8',
+            'Cache-Control': 'no-cache, no-transform',
+            'X-Accel-Buffering': 'no',
+          },
+        });
+      }
+      upstream = fallback;
+    }
 
     if (body.stream === true && upstream.ok && upstream.body) {
       return new Response(upstream.body, {
@@ -75,6 +144,12 @@ Deno.serve(async (request) => {
     }
 
     const responseBody = await upstream.text();
+    if (!upstream.ok && responseBody.trimStart().startsWith('<')) {
+      return json({
+        error: 'Motif3 연결이 일시적으로 거부되었습니다. 잠시 후 다시 시도해 주세요.',
+        upstream_status: upstream.status,
+      }, 503);
+    }
     return new Response(responseBody, {
       status: upstream.status,
       headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8' },
