@@ -524,6 +524,7 @@
     }
 
     .input-shell {
+      position: relative;
       background: #fff;
       border: 1px solid var(--line);
       border-radius: 24px;
@@ -533,7 +534,32 @@
       align-items: end;
       padding: 9px 11px;
       gap: 6px;
+      transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
     }
+
+    .input-shell.drag-active {
+      border-color: #2b6bdc;
+      background: #f4f8ff;
+      box-shadow: 0 0 0 4px rgba(43,107,220,.12), 0 8px 26px rgba(21,32,46,.1);
+    }
+
+    .drop-overlay {
+      display: none;
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      border-radius: inherit;
+      background: rgba(244,248,255,.96);
+      color: #2457a6;
+      font-size: 13.5px;
+      font-weight: 700;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .input-shell.drag-active .drop-overlay { display: flex; }
 
     .file-chip {
       display: inline-flex;
@@ -770,6 +796,7 @@
       <div class="composer-inner">
         <div id="filePreview" style="display:none;margin-bottom:8px;gap:6px;flex-wrap:wrap;"></div>
         <div class="input-shell">
+          <div class="drop-overlay" id="dropOverlay">📄 여기에 놓으면 파일이 첨부됩니다</div>
           <button class="attach-btn" id="fileBtn" title="파일 첨부 (PDF·DOCX·PPTX·HWPX·TXT)">📎</button>
           <input type="file" id="fileInput" style="display:none"
                  accept=".pdf,.docx,.doc,.pptx,.ppt,.hwpx,.txt,.csv,.md" multiple>
@@ -777,7 +804,7 @@
           <button class="send-btn" id="sendBtn" type="button" aria-label="메시지 보내기" title="보내기">↑</button>
         </div>
         <div class="composer-hint">
-          Motif3는 답변을 실시간으로 생성합니다. Shift+Enter로 줄바꿈할 수 있습니다.
+          파일을 끌어 놓거나 붙여넣어 첨부할 수 있습니다. Shift+Enter로 줄바꿈합니다.
           &nbsp;·&nbsp; 문의: AI미디어센터 AI데이터팀
           &nbsp;·&nbsp; <a href="admin.html" style="color:inherit;">관리자</a>
         </div>
@@ -1782,20 +1809,76 @@ let attachedFiles = [];  // [{name, content}]
 const fileBtn     = document.getElementById('fileBtn');
 const fileInput   = document.getElementById('fileInput');
 const filePreview = document.getElementById('filePreview');
+const inputShell  = document.querySelector('.input-shell');
+const dropZone    = document.querySelector('main');
+let dragDepth     = 0;
 
 fileBtn.addEventListener('click', () => fileInput.click());
 
-fileInput.addEventListener('change', async () => {
-  for (const file of fileInput.files) {
+async function handleFiles(files) {
+  const incoming = Array.from(files || []);
+  if (!incoming.length) return;
+  const errors = [];
+  inputShell.classList.remove('drag-active');
+
+  for (const file of incoming) {
+    if (file.size > 20 * 1024 * 1024) {
+      errors.push(`${file.name}: 파일 크기는 20MB 이하여야 합니다.`);
+      continue;
+    }
+    if (attachedFiles.some(item => item.name === file.name && item.size === file.size)) continue;
     try {
       const content = await extractText(file);
-      attachedFiles.push({ name: file.name, content });
-      renderFileChips();
+      attachedFiles.push({ name: file.name, content, size: file.size });
     } catch (e) {
-      alert(`${file.name}: ${e.message}`);
+      errors.push(`${file.name}: ${e.message}`);
     }
   }
+  renderFileChips();
+  if (errors.length) alert(errors.join('\n'));
+}
+
+fileInput.addEventListener('change', async () => {
+  await handleFiles(fileInput.files);
   fileInput.value = '';
+});
+
+function hasDraggedFiles(event) {
+  return Array.from(event.dataTransfer?.types || []).includes('Files');
+}
+
+dropZone.addEventListener('dragenter', event => {
+  if (!hasDraggedFiles(event)) return;
+  event.preventDefault();
+  dragDepth += 1;
+  inputShell.classList.add('drag-active');
+});
+
+dropZone.addEventListener('dragover', event => {
+  if (!hasDraggedFiles(event)) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'copy';
+});
+
+dropZone.addEventListener('dragleave', event => {
+  if (!hasDraggedFiles(event)) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) inputShell.classList.remove('drag-active');
+});
+
+dropZone.addEventListener('drop', async event => {
+  if (!hasDraggedFiles(event)) return;
+  event.preventDefault();
+  dragDepth = 0;
+  inputShell.classList.remove('drag-active');
+  await handleFiles(event.dataTransfer.files);
+});
+
+textarea.addEventListener('paste', async event => {
+  const files = event.clipboardData?.files;
+  if (!files?.length) return;
+  event.preventDefault();
+  await handleFiles(files);
 });
 
 function renderFileChips() {

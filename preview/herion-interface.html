@@ -421,6 +421,7 @@
     }
 
     .input-shell {
+      position: relative;
       background: #fff;
       border: 1px solid var(--line);
       border-radius: 12px;
@@ -430,6 +431,14 @@
       align-items: end;
       padding: 8px 10px;
       gap: 6px;
+    }
+
+    .drop-hint {
+      position: absolute;
+      right: 12px;
+      top: -27px;
+      color: var(--muted);
+      font-size: 11.5px;
     }
 
     .attach-btn {
@@ -673,6 +682,7 @@
           <button class="attach-pill">✏️ 문서 편집</button>
         </div>
         <div class="input-shell">
+          <span class="drop-hint">파일을 끌어 놓아 첨부</span>
           <button class="attach-btn">＋</button>
           <textarea rows="1" placeholder="Herion에게 국가유산 관련 업무를 요청하세요..."></textarea>
           <button class="send-btn">↑</button>
