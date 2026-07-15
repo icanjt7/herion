@@ -27,7 +27,6 @@ jobs:
       - name: Inject API keys
         run: |
           sed -i "s|YOUR_TAVILY_API_KEY|${{ secrets.TAVILY_API }}|g" docs/config.js
-          sed -i "s|YOUR_LAW_API_KEY|${{ secrets.LAW_API }}|g" docs/config.js
 
       - uses: actions/configure-pages@v5
 

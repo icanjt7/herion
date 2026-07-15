@@ -56,6 +56,18 @@ A static UI preview is available via GitHub Pages at `docs/index.html`.
 - Do not commit `.env`.
 - Pin `OPEN_WEBUI_TAG` to a release tag before production use.
 
+## Law API Proxy
+
+The GitHub Pages client uses the `law-api` Supabase Edge Function so the law API
+OC is not exposed in `docs/config.js` and browser CORS does not block requests.
+
+1. Add repository secrets `LAW_API` (the approved OC) and
+   `SUPABASE_KHA_PROJECT` (a Supabase personal access token).
+2. Push the proxy files to `main`, or run the `Deploy Law API Proxy` workflow
+   manually.
+3. Register the Supabase function/server domain or outbound IP in the approved
+   국가법령정보 OPEN API application if the API rejects the server request.
+
 ## Motif3 API Proxy
 
 The GitHub Pages client calls the `motif-api` Supabase Edge Function so the

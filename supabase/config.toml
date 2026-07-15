@@ -1,4 +1,7 @@
 project_id = "enpovkaknaxfgzanyghn"
 
+[functions.law-api]
+verify_jwt = false
+
 [functions.motif-api]
 verify_jwt = false

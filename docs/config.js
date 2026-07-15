@@ -27,5 +27,6 @@ window.HERION_CONFIG = {
   tavilyApiKey: 'YOUR_TAVILY_API_KEY',
 
   // ─── 국가법령정보 API (open.law.go.kr 에서 발급) ───────────────
-  lawApiKey: 'YOUR_LAW_API_KEY'
+  lawApiKey: 'YOUR_LAW_API_KEY',
+  lawApiProxyUrl: 'https://enpovkaknaxfgzanyghn.supabase.co/functions/v1/law-api'
 };
