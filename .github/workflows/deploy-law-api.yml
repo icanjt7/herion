@@ -22,13 +22,13 @@ jobs:
       - name: Validate deployment secrets
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_KHA_PROJECT }}
-          LAW_API_OC: ${{ secrets.LAW_API }}
+          LAW_API_OC: ${{ secrets.lawSearch }}
         run: test -n "$SUPABASE_ACCESS_TOKEN" && test -n "$LAW_API_OC"
 
       - name: Configure law API secret
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_KHA_PROJECT }}
-          LAW_API_OC: ${{ secrets.LAW_API }}
+          LAW_API_OC: ${{ secrets.lawSearch }}
         run: supabase secrets set LAW_API_OC="$LAW_API_OC" --project-ref enpovkaknaxfgzanyghn
 
       - name: Deploy law API function

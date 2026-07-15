@@ -61,7 +61,7 @@ A static UI preview is available via GitHub Pages at `docs/index.html`.
 The GitHub Pages client uses the `law-api` Supabase Edge Function so the law API
 OC is not exposed in `docs/config.js` and browser CORS does not block requests.
 
-1. Add repository secrets `LAW_API` (the approved OC) and
+1. Add repository secrets `lawSearch` (the approved OC) and
    `SUPABASE_KHA_PROJECT` (a Supabase personal access token).
 2. Push the proxy files to `main`, or run the `Deploy Law API Proxy` workflow
    manually.
