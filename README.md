@@ -116,3 +116,9 @@ Editor (or use `docs/setup.sql` for a fresh installation) to create
 `user_requests` and its policies. Until that table is available, the board uses the existing
 `chat_logs` table as a central temporary store; the setup SQL migrates those
 temporary posts into `user_requests` without changing their IDs.
+
+For an existing deployment, run
+`supabase/migrations/20260716150000_chat_log_answer_excerpt.sql` to store up to
+1,000 characters of each AI final answer with the existing question log. Older
+rows remain valid and show an empty answer excerpt. A fresh installation only
+needs `docs/setup.sql`, which already includes this column and its indexes.

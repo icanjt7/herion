@@ -582,7 +582,7 @@
       <div class="page-header">
         <div>
           <h1>사용 로그</h1>
-          <p>AI 대화 요청 기록</p>
+          <p>사용자 질문과 AI 최종 답변 일부를 저장한 DB 기록</p>
         </div>
         <div class="date-range">
           <select id="logLimit"
@@ -607,10 +607,10 @@
       <div class="panel">
         <table>
           <thead>
-            <tr><th>사용자</th><th>질문 내용</th><th>AI 모델</th><th>시간</th></tr>
+            <tr><th>사용자</th><th>질문 내용</th><th>AI 답변 일부</th><th>AI 모델</th><th>시간</th></tr>
           </thead>
           <tbody id="logsTable">
-            <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;">로딩 중...</td></tr>
+            <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px;">로딩 중...</td></tr>
           </tbody>
         </table>
       </div>
@@ -978,7 +978,7 @@
   // ── 사용 로그 ────────────────────────────────────────────────
   async function loadLogs() {
     const tbody = document.getElementById('logsTable');
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;">로딩 중...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px;">로딩 중...</td></tr>';
 
     const limit  = parseInt(document.getElementById('logLimit').value || '50', 10);
     const filter = document.getElementById('logFilterEmail').value.trim();
@@ -989,11 +989,11 @@
     const { data, error } = await query;
 
     if (error) {
-      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--danger);padding:24px;">오류: ${escHtml(error.message)}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:24px;">오류: ${escHtml(error.message)}</td></tr>`;
       return;
     }
     if (!data || !data.length) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;">로그가 없습니다.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px;">로그가 없습니다.</td></tr>';
       return;
     }
     tbody.innerHTML = data.map(log => logRow(log, 80)).join('');
@@ -1004,6 +1004,13 @@
     const q    = log.question
       ? escHtml(log.question.slice(0, maxQ)) + (log.question.length > maxQ ? '…' : '')
       : '—';
+    const answer = String(log.answer_excerpt || '');
+    const answerPreview = answer
+      ? escHtml(answer.slice(0, 120)) + (answer.length > 120 ? '…' : '')
+      : '이전 로그 또는 저장된 답변 없음';
+    const answerCell = answer
+      ? `<details style="max-width:360px;"><summary style="cursor:pointer;font-size:12.5px;line-height:1.55;">${answerPreview}</summary><div style="margin-top:8px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--muted);font-size:12px;line-height:1.6;">${escHtml(answer)}</div></details>`
+      : `<span style="color:var(--muted);font-size:12px;">${answerPreview}</span>`;
     return `<tr>
       <td>
         <div class="user-cell">
@@ -1015,6 +1022,7 @@
         </div>
       </td>
       <td style="font-size:13px;">${q}</td>
+      <td>${answerCell}</td>
       <td style="font-size:12px;color:var(--muted);">${escHtml(log.model || '—')}</td>
       <td style="font-size:12px;color:var(--muted);white-space:nowrap;">
         ${new Date(log.created_at).toLocaleString('ko-KR')}

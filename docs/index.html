@@ -2901,12 +2901,20 @@ async function sendMessage(options = {}) {
 
     // 대화 로그 Supabase에 기록 (비동기, 오류 무시)
     if (sb) {
-      sb.from('chat_logs').insert({
+      const logPayload = {
         user_email: user.email,
         user_name:  user.name,
         model,
-        question:   text.slice(0, 300)
-      }).then().catch(() => {});
+        question:   text.slice(0, 300),
+        answer_excerpt: finalContent.slice(0, 1000)
+      };
+      sb.from('chat_logs').insert(logPayload).then(({ error }) => {
+        // DB 마이그레이션 전에도 기존 질문 로그는 계속 남긴다.
+        if (error && /answer_excerpt/i.test(error.message || '')) {
+          const { answer_excerpt, ...legacyPayload } = logPayload;
+          return sb.from('chat_logs').insert(legacyPayload);
+        }
+      }).catch(() => {});
     }
 
     // localStorage에 저장
