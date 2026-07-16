@@ -640,6 +640,10 @@
       background: transparent;
       min-width: 0;
       width: 100%;
+      display: block;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      overflow-y: hidden;
     }
 
     textarea::placeholder { color: #9aa5b4; }
@@ -2320,13 +2324,30 @@ function extractAssistantText(message) {
 // ─── 입력 이벤트 ─────────────────────────────────────────────
 newChatBtn.addEventListener('click', showWelcome);
 
-textarea.addEventListener('input', () => {
-  textarea.style.height = 'auto';
-  textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
-});
+function resizeMessageInput() {
+  const computed = getComputedStyle(textarea);
+  const maxHeight = Number.parseFloat(computed.maxHeight) || 200;
+  const minHeight = Number.parseFloat(computed.minHeight) || 34;
+
+  // 0px에서 다시 측정해야 빈 줄을 포함한 실제 scrollHeight가 브라우저별로 정확히 반영된다.
+  textarea.style.height = '0px';
+  const contentHeight = textarea.scrollHeight;
+  textarea.style.height = `${Math.max(minHeight, Math.min(contentHeight, maxHeight))}px`;
+  textarea.style.overflowY = contentHeight > maxHeight ? 'auto' : 'hidden';
+}
+
+textarea.addEventListener('input', resizeMessageInput);
+resizeMessageInput();
 
 textarea.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  if (e.key !== 'Enter' || e.isComposing) return;
+  if (e.shiftKey) {
+    // 기본 줄바꿈 처리 직후 높이를 한 번 더 계산해 빈 줄도 바로 보이게 한다.
+    requestAnimationFrame(resizeMessageInput);
+    return;
+  }
+  e.preventDefault();
+  sendMessage();
 });
 
 sendBtn.addEventListener('click', () => isStreaming ? stopGeneration() : sendMessage());
@@ -2454,7 +2475,7 @@ async function sendMessage(options = {}) {
 
   if (!reuseLastUser) {
     textarea.value = '';
-    textarea.style.height = 'auto';
+    resizeMessageInput();
   }
   setGenerationState(true);
   activeRequestController = new AbortController();

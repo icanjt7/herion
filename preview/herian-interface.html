@@ -503,6 +503,10 @@
       background: transparent;
       min-width: 0;
       width: 100%;
+      display: block;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      overflow-y: hidden;
     }
 
     textarea::placeholder { color: #9aa5b4; }
@@ -795,11 +799,11 @@
         <div class="input-shell">
           <span class="drop-hint">파일을 끌어 놓아 첨부</span>
           <button class="attach-btn">＋</button>
-          <textarea rows="1" placeholder="Herian에게 국가유산 관련 업무를 요청하세요..."></textarea>
+          <textarea rows="1" id="previewMsgInput" placeholder="Herian에게 국가유산 관련 업무를 요청하세요..."></textarea>
           <button class="send-btn">↑</button>
         </div>
         <div class="composer-hint">
-          Heritage + an · 국가유산 실무업무를 지원하는 AI 업무 파트너입니다. 중요한 내용은 반드시 직접 검토해 주세요.
+          Shift+Enter로 줄바꿈합니다. · Heritage + an · 국가유산 실무업무를 지원하는 AI 업무 파트너입니다. 중요한 내용은 반드시 직접 검토해 주세요.
           &nbsp;·&nbsp; <a href="admin.html" style="color:inherit;">관리자</a>
         </div>
       </div>
@@ -816,6 +820,24 @@ syncPreviewViewport();
 window.addEventListener('resize', syncPreviewViewport, { passive: true });
 window.visualViewport?.addEventListener('resize', syncPreviewViewport, { passive: true });
 window.visualViewport?.addEventListener('scroll', syncPreviewViewport, { passive: true });
+
+const previewMsgInput = document.getElementById('previewMsgInput');
+function resizePreviewInput() {
+  const computed = getComputedStyle(previewMsgInput);
+  const maxHeight = Number.parseFloat(computed.maxHeight) || 200;
+  const minHeight = Number.parseFloat(computed.minHeight) || 34;
+  previewMsgInput.style.height = '0px';
+  const contentHeight = previewMsgInput.scrollHeight;
+  previewMsgInput.style.height = `${Math.max(minHeight, Math.min(contentHeight, maxHeight))}px`;
+  previewMsgInput.style.overflowY = contentHeight > maxHeight ? 'auto' : 'hidden';
+}
+previewMsgInput.addEventListener('input', resizePreviewInput);
+resizePreviewInput();
+previewMsgInput.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && event.shiftKey && !event.isComposing) {
+    requestAnimationFrame(resizePreviewInput);
+  }
+});
 
 function togglePreviewSidebar() {
   const sidebar = document.querySelector('aside');
