@@ -83,6 +83,27 @@
       margin-bottom: 4px;
     }
 
+    .conversation-search {
+      position: relative;
+      display: flex;
+      align-items: center;
+      margin: 6px 0 2px;
+    }
+    .conversation-search-icon { position:absolute;left:10px;color:#7f91a5;font-size:12px;pointer-events:none; }
+    .conversation-search input {
+      width:100%;height:34px;border:1px solid rgba(255,255,255,.14);border-radius:8px;
+      outline:none;background:rgba(255,255,255,.07);color:#fff;padding:0 32px 0 30px;
+      font:inherit;font-size:12.5px;
+    }
+    .conversation-search input::placeholder { color:#8292a4; }
+    .conversation-search input:focus { border-color:rgba(72,191,159,.75);box-shadow:0 0 0 3px rgba(43,181,143,.12); }
+    .conversation-search-clear {
+      position:absolute;right:6px;width:24px;height:24px;display:none;place-items:center;
+      border:0;border-radius:6px;background:transparent;color:#8fa0b2;cursor:pointer;
+    }
+    .conversation-search-clear.visible { display:grid; }
+    .conversation-search-summary { min-height:18px;padding:3px 8px 0;color:#7f91a5;font-size:10.5px; }
+
     .nav-section {
       font-size: 10px;
       text-transform: uppercase;
@@ -620,6 +641,15 @@
 
     <button class="new-chat">＋&nbsp; 새 대화</button>
 
+    <div class="conversation-search" role="search">
+      <span class="conversation-search-icon">⌕</span>
+      <input id="previewConversationSearch" type="search" placeholder="지난 대화 검색"
+             aria-label="지난 대화 제목 검색" autocomplete="off">
+      <button class="conversation-search-clear" id="previewConversationSearchClear" type="button"
+              aria-label="대화 검색어 지우기">✕</button>
+    </div>
+    <div class="conversation-search-summary" id="previewConversationSearchSummary">저장된 대화 8건 · Ctrl+K로 검색</div>
+
     <div class="nav-section">오늘</div>
     <div class="chat-item active"><span class="dot"></span>현장 안내문 초안 작성</div>
 
@@ -822,6 +852,48 @@ window.visualViewport?.addEventListener('resize', syncPreviewViewport, { passive
 window.visualViewport?.addEventListener('scroll', syncPreviewViewport, { passive: true });
 
 const previewMsgInput = document.getElementById('previewMsgInput');
+const previewConversationSearch = document.getElementById('previewConversationSearch');
+const previewConversationSearchClear = document.getElementById('previewConversationSearchClear');
+const previewConversationSearchSummary = document.getElementById('previewConversationSearchSummary');
+
+function filterPreviewConversations() {
+  const query = previewConversationSearch.value.trim().normalize('NFKC').toLocaleLowerCase('ko-KR');
+  const items = [...document.querySelectorAll('aside .chat-item')];
+  let visibleCount = 0;
+  items.forEach(item => {
+    const visible = !query || item.textContent.normalize('NFKC').toLocaleLowerCase('ko-KR').includes(query);
+    item.style.display = visible ? 'flex' : 'none';
+    if (visible) visibleCount++;
+  });
+  document.querySelectorAll('aside .nav-section').forEach(section => {
+    let sibling = section.nextElementSibling;
+    let hasVisibleItem = false;
+    while (sibling && !sibling.classList.contains('nav-section') && !sibling.classList.contains('sidebar-footer')) {
+      if (sibling.classList.contains('chat-item') && sibling.style.display !== 'none') hasVisibleItem = true;
+      sibling = sibling.nextElementSibling;
+    }
+    section.style.display = hasVisibleItem ? 'block' : 'none';
+  });
+  previewConversationSearchSummary.textContent = query
+    ? `검색 결과 ${visibleCount}건`
+    : `저장된 대화 ${items.length}건 · Ctrl+K로 검색`;
+  previewConversationSearchClear.classList.toggle('visible', Boolean(query));
+}
+
+previewConversationSearch.addEventListener('input', filterPreviewConversations);
+previewConversationSearchClear.addEventListener('click', () => {
+  previewConversationSearch.value = '';
+  filterPreviewConversations();
+  previewConversationSearch.focus();
+});
+document.addEventListener('keydown', event => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault();
+    previewConversationSearch.focus();
+    previewConversationSearch.select();
+  }
+});
+
 function resizePreviewInput() {
   const computed = getComputedStyle(previewMsgInput);
   const maxHeight = Number.parseFloat(computed.maxHeight) || 200;

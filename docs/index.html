@@ -94,6 +94,75 @@
       margin-bottom: 4px;
     }
 
+    .conversation-search {
+      position: relative;
+      display: flex;
+      align-items: center;
+      margin: 6px 0 2px;
+    }
+
+    .conversation-search-icon {
+      position: absolute;
+      left: 10px;
+      color: #7f91a5;
+      font-size: 12px;
+      pointer-events: none;
+    }
+
+    .conversation-search input {
+      width: 100%;
+      height: 34px;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 8px;
+      outline: none;
+      background: rgba(255,255,255,.07);
+      color: #fff;
+      padding: 0 32px 0 30px;
+      font: inherit;
+      font-size: 12.5px;
+    }
+
+    .conversation-search input::placeholder { color: #8292a4; }
+    .conversation-search input:focus {
+      border-color: rgba(72,191,159,.75);
+      box-shadow: 0 0 0 3px rgba(43,181,143,.12);
+    }
+
+    .conversation-search-clear {
+      position: absolute;
+      right: 6px;
+      width: 24px;
+      height: 24px;
+      display: none;
+      place-items: center;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: #8fa0b2;
+      cursor: pointer;
+    }
+
+    .conversation-search-clear.visible { display: grid; }
+    .conversation-search-clear:hover { background: rgba(255,255,255,.09); color: #fff; }
+
+    .conversation-search-summary {
+      min-height: 18px;
+      padding: 3px 8px 0;
+      color: #7f91a5;
+      font-size: 10.5px;
+    }
+
+    .conversation-search-empty {
+      margin: 12px 6px;
+      padding: 14px 9px;
+      border: 1px dashed rgba(255,255,255,.16);
+      border-radius: 8px;
+      color: #8fa0b2;
+      font-size: 11.5px;
+      line-height: 1.55;
+      text-align: center;
+    }
+
     .nav-section {
       font-size: 10px;
       text-transform: uppercase;
@@ -126,6 +195,43 @@
       border-radius: 50%;
       background: var(--accent);
       flex: 0 0 auto;
+    }
+
+    .chat-item.search-result {
+      align-items: flex-start;
+      white-space: normal;
+      padding-block: 9px;
+    }
+
+    .chat-item-copy { flex: 1; min-width: 0; }
+    .chat-item-title {
+      display: block;
+      overflow: hidden;
+      color: inherit;
+      font-size: 12.5px;
+      font-weight: 650;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .chat-item-snippet {
+      display: -webkit-box;
+      margin-top: 3px;
+      overflow: hidden;
+      color: #8192a5;
+      font-size: 10.5px;
+      font-weight: 400;
+      line-height: 1.4;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+    .chat-item.search-result:hover .chat-item-snippet,
+    .chat-item.search-result.active .chat-item-snippet { color: #b7c2cf; }
+
+    .msg.search-hit .msg-body {
+      border-radius: 8px;
+      outline: 2px solid rgba(218,158,26,.38);
+      background: rgba(255,244,194,.48);
+      box-shadow: 0 0 0 5px rgba(255,244,194,.2);
     }
 
     .sidebar-footer {
@@ -885,6 +991,15 @@
     </div>
 
     <button class="new-chat" id="newChatBtn">＋&nbsp; 새 대화</button>
+
+    <div class="conversation-search" role="search">
+      <span class="conversation-search-icon">⌕</span>
+      <input id="conversationSearchInput" type="search" placeholder="지난 대화 검색"
+             aria-label="지난 대화 제목과 내용 검색" autocomplete="off">
+      <button class="conversation-search-clear" id="conversationSearchClear" type="button"
+              aria-label="대화 검색어 지우기" title="검색어 지우기">✕</button>
+    </div>
+    <div class="conversation-search-summary" id="conversationSearchSummary" aria-live="polite"></div>
 
     <div id="convList" style="flex:1;overflow-y:auto;"></div>
 
@@ -1716,6 +1831,9 @@ function savePersonaFromModal() {
 const convInner  = document.getElementById('convInner');
 const workspace  = document.getElementById('workspace');
 const convList   = document.getElementById('convList');
+const conversationSearchInput = document.getElementById('conversationSearchInput');
+const conversationSearchClear = document.getElementById('conversationSearchClear');
+const conversationSearchSummary = document.getElementById('conversationSearchSummary');
 const textarea   = document.getElementById('msgInput');
 const sendBtn    = document.getElementById('sendBtn');
 const newChatBtn = document.getElementById('newChatBtn');
@@ -1727,6 +1845,29 @@ let chatHistory     = [];
 let isStreaming     = false;
 let webSearchEnabled = false;
 let activeRequestController = null;
+let conversationSearchQuery = '';
+
+conversationSearchInput.addEventListener('input', () => {
+  conversationSearchQuery = conversationSearchInput.value.trim();
+  conversationSearchClear.classList.toggle('visible', Boolean(conversationSearchQuery));
+  renderSidebar();
+});
+
+conversationSearchClear.addEventListener('click', () => {
+  conversationSearchInput.value = '';
+  conversationSearchQuery = '';
+  conversationSearchClear.classList.remove('visible');
+  renderSidebar();
+  conversationSearchInput.focus();
+});
+
+document.addEventListener('keydown', event => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault();
+    conversationSearchInput.focus();
+    conversationSearchInput.select();
+  }
+});
 
 // ─── 웹 검색 ─────────────────────────────────────────────────
 const SEARCH_KEYWORDS = [
@@ -1972,10 +2113,68 @@ async function copyRenderedResponse(bodyEl, sourceText) {
   return copied;
 }
 
-// ─── 사이드바 렌더링 ─────────────────────────────────────────
+// ─── 사이드바 렌더링 및 지난 대화 검색 ───────────────────────
+function normalizeConversationSearch(value) {
+  return String(value || '').normalize('NFKC').toLocaleLowerCase('ko-KR');
+}
+
+function conversationSearchText(conversation) {
+  return [
+    conversation.title,
+    ...(conversation.messages || []).map(message => message?.content || '')
+  ].join('\n');
+}
+
+function conversationMatchSnippet(conversation, query) {
+  const normalizedQuery = normalizeConversationSearch(query);
+  const candidates = [conversation.title, ...(conversation.messages || []).map(message => message?.content || '')];
+  const matched = candidates.find(value => normalizeConversationSearch(value).includes(normalizedQuery)) || conversation.title || '';
+  const plain = String(matched)
+    .replace(/```[\s\S]*?```/g, ' 코드 내용 ')
+    .replace(/[#>*_`|\[\]()~-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const index = normalizeConversationSearch(plain).indexOf(normalizedQuery);
+  const start = Math.max(0, index - 38);
+  const excerpt = plain.slice(start, start + 105);
+  return `${start > 0 ? '…' : ''}${excerpt}${start + 105 < plain.length ? '…' : ''}`;
+}
+
+function sidebarConversationItem(conversation, snippet = '') {
+  return `
+    <div class="chat-item ${snippet ? 'search-result' : ''} ${conversation.id === currentConvId ? 'active' : ''}"
+         onclick="loadConversation('${conversation.id}')"
+         title="${escHtml(conversation.title)}">
+      <span class="dot"></span>
+      <span class="chat-item-copy">
+        <span class="chat-item-title">${escHtml(conversation.title)}</span>
+        ${snippet ? `<span class="chat-item-snippet">${escHtml(snippet)}</span>` : ''}
+      </span>
+      <span onclick="deleteConversation(event,'${conversation.id}')"
+            style="opacity:0;padding:0 4px;font-size:11px;color:#6b7e94;"
+            class="del-btn" title="대화 삭제">✕</span>
+    </div>`;
+}
+
 function renderSidebar() {
   const convs = getConvs().sort((a, b) => b.updatedAt - a.updatedAt);
-  const now        = Date.now();
+  const normalizedQuery = normalizeConversationSearch(conversationSearchQuery);
+
+  if (normalizedQuery) {
+    const results = convs.filter(conversation =>
+      normalizeConversationSearch(conversationSearchText(conversation)).includes(normalizedQuery)
+    );
+    conversationSearchSummary.textContent = `검색 결과 ${results.length}건`;
+    convList.innerHTML = results.length
+      ? results.map(conversation => sidebarConversationItem(
+          conversation,
+          conversationMatchSnippet(conversation, conversationSearchQuery)
+        )).join('')
+      : `<div class="conversation-search-empty">‘${escHtml(conversationSearchQuery)}’와 일치하는<br>지난 대화가 없습니다.</div>`;
+    return;
+  }
+
+  conversationSearchSummary.textContent = convs.length ? `저장된 대화 ${convs.length}건 · Ctrl+K로 검색` : '';
   const todayStart = new Date().setHours(0, 0, 0, 0);
   const weekStart  = todayStart - 6 * 86400000;
 
@@ -1989,16 +2188,7 @@ function renderSidebar() {
     .filter(g => g.items.length)
     .map(g => `
       <div class="nav-section">${g.label}</div>
-      ${g.items.map(c => `
-        <div class="chat-item ${c.id === currentConvId ? 'active' : ''}"
-             onclick="loadConversation('${c.id}')"
-             title="${escHtml(c.title)}">
-          <span class="dot"></span>
-          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;">${escHtml(c.title)}</span>
-          <span onclick="deleteConversation(event,'${c.id}')"
-                style="opacity:0;padding:0 4px;font-size:11px;color:#6b7e94;"
-                class="del-btn">✕</span>
-        </div>`).join('')}
+      ${g.items.map(c => sidebarConversationItem(c)).join('')}
     `).join('');
 }
 
@@ -2073,10 +2263,17 @@ function loadConversation(id) {
   chatTitle.textContent = conv.title;
 
   convInner.innerHTML = '';
+  const normalizedQuery = normalizeConversationSearch(conversationSearchQuery);
+  let firstSearchHit = null;
   chatHistory.forEach(m => {
     const bodyEl = appendMsgEl(m.role);
     bodyEl.innerHTML = m.role === 'user' ? `<p>${escHtml(m.content)}</p>` : renderMd(m.content);
     if (m.role === 'assistant') addMessageActions(bodyEl, m.content);
+    if (normalizedQuery && normalizeConversationSearch(m.content).includes(normalizedQuery)) {
+      const messageEl = bodyEl.closest('.msg');
+      messageEl?.classList.add('search-hit');
+      if (!firstSearchHit) firstSearchHit = messageEl;
+    }
   });
 
   if (chatHistory.some((message, index) => message.content !== conv.messages[index]?.content)) {
@@ -2084,7 +2281,11 @@ function loadConversation(id) {
     setConvs(getConvs().map(item => item.id === id ? conv : item));
   }
 
-  workspace.scrollTop = workspace.scrollHeight;
+  if (firstSearchHit) {
+    requestAnimationFrame(() => firstSearchHit.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+  } else {
+    workspace.scrollTop = normalizedQuery ? 0 : workspace.scrollHeight;
+  }
   renderSidebar();
   if (window.innerWidth <= 860) closeSidebar();
 }
@@ -2322,7 +2523,12 @@ function extractAssistantText(message) {
 }
 
 // ─── 입력 이벤트 ─────────────────────────────────────────────
-newChatBtn.addEventListener('click', showWelcome);
+newChatBtn.addEventListener('click', () => {
+  conversationSearchInput.value = '';
+  conversationSearchQuery = '';
+  conversationSearchClear.classList.remove('visible');
+  showWelcome();
+});
 
 function resizeMessageInput() {
   const computed = getComputedStyle(textarea);
