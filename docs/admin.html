@@ -247,6 +247,53 @@
 
     .action-btn.deny { border-color: #f5bfbf; color: var(--danger); }
 
+    .primary-btn {
+      height: 36px;
+      border: 0;
+      border-radius: 7px;
+      padding: 0 16px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .field {
+      width: 100%;
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 0 11px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+      outline: none;
+    }
+
+    textarea.field { min-height: 92px; padding: 10px 11px; resize: vertical; }
+    .field:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(25,113,95,.1); }
+
+    .history-form-grid {
+      display: grid;
+      grid-template-columns: 160px 1fr 160px 140px;
+      gap: 12px;
+      align-items: end;
+    }
+
+    .history-form-grid label { display: grid; gap: 5px; color: var(--muted); font-size: 11.5px; }
+    .history-form-grid .full { grid-column: 1 / -1; }
+    .history-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .history-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) 170px 160px auto; gap: 9px; }
+    .table-wrap { overflow-x: auto; }
+    .history-title { font-weight: 650; }
+    .history-content { margin-top: 4px; max-width: 520px; color: var(--muted); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .history-badge { display: inline-flex; padding: 3px 8px; border-radius: 999px; background: #eef2f6; color: var(--muted); font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+    .history-badge.snapshot { background: #e6f4f1; color: var(--accent); }
+    .history-metrics { white-space: nowrap; color: var(--muted); font-size: 11.5px; line-height: 1.6; }
+    .history-notice { display: none; margin-bottom: 14px; padding: 10px 12px; border-radius: 7px; background: #fff4df; color: #7a4d0c; font-size: 12px; line-height: 1.5; }
+
     .radio-group { display: flex; flex-direction: column; gap: 14px; margin-bottom: 16px; }
 
     .radio-option {
@@ -321,6 +368,9 @@
 
     @media (max-width: 1100px) {
       .stat-grid { grid-template-columns: repeat(2, 1fr); }
+      .history-form-grid { grid-template-columns: 1fr 1fr; }
+      .history-form-grid .full { grid-column: 1 / -1; }
+      .history-toolbar { grid-template-columns: 1fr 1fr; }
     }
 
     @media (max-width: 720px) {
@@ -345,6 +395,8 @@
       main { padding: 16px; }
       .stat-grid { grid-template-columns: repeat(2, 1fr); }
       .page-header { flex-direction: column; gap: 12px; align-items: flex-start; }
+      .history-form-grid, .history-toolbar { grid-template-columns: 1fr; }
+      .history-form-grid .full { grid-column: auto; }
     }
   </style>
 </head>
@@ -385,6 +437,8 @@
        onclick="showView('users')"><span class="icon">👥</span> 사용자 관리</button>
     <button class="nav-item" data-view="logs"
        onclick="showView('logs')"><span class="icon">📋</span> 사용 로그</button>
+    <button class="nav-item" data-view="history"
+       onclick="showView('history')"><span class="icon">🗂️</span> 운영 이력</button>
     <button class="nav-item" data-view="settings"
        onclick="showView('settings')"><span class="icon">⚙️</span> 서비스 설정</button>
 
@@ -562,6 +616,73 @@
       </div>
     </div>
 
+    <!-- ── 운영 이력 ─────────────────────────────────────────── -->
+    <div class="view" id="view-history" style="display:none">
+      <div class="page-header">
+        <div>
+          <h1>관리자 운영 이력</h1>
+          <p>날짜별 대시보드 자동 집계와 관리자가 남긴 운영 기록을 함께 조회합니다.</p>
+        </div>
+        <button class="btn-outline" onclick="loadDashboardHistory()">새로고침</button>
+      </div>
+
+      <div class="history-notice" id="historyNotice"></div>
+
+      <div class="panel" style="margin-bottom:18px;">
+        <div class="panel-header"><h2 id="historyFormTitle">운영 기록 등록</h2></div>
+        <input id="historyEditId" type="hidden">
+        <div class="history-form-grid">
+          <label>기준일
+            <input class="field" id="historyDate" type="date">
+          </label>
+          <label>제목
+            <input class="field" id="historyTitle" maxlength="120" placeholder="예: 7월 서비스 운영 특이사항">
+          </label>
+          <label>분류
+            <select class="field" id="historyCategory">
+              <option>운영 메모</option><option>서비스 변경</option><option>점검</option><option>장애</option><option>기타</option>
+            </select>
+          </label>
+          <label>상태
+            <select class="field" id="historyStatus">
+              <option>참고</option><option>진행중</option><option>완료</option>
+            </select>
+          </label>
+          <label class="full">내용
+            <textarea class="field" id="historyContent" maxlength="10000" placeholder="운영 현황, 변경 사항, 장애 내용, 후속 조치 등을 기록하세요."></textarea>
+          </label>
+          <div class="history-actions full">
+            <button class="primary-btn" id="historySaveBtn" type="button" onclick="saveDashboardRecord()">기록 저장</button>
+            <button class="btn-outline" id="historyCancelBtn" type="button" onclick="resetHistoryForm()" style="display:none;">수정 취소</button>
+            <span id="historyFormMsg" style="display:none;font-size:12px;"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-bottom:18px;">
+        <div class="history-toolbar">
+          <input class="field" id="historySearch" type="search" placeholder="제목·내용·작성자 검색">
+          <select class="field" id="historyCategoryFilter">
+            <option value="">모든 분류</option><option>자동 집계</option><option>운영 메모</option><option>서비스 변경</option><option>점검</option><option>장애</option><option>기타</option>
+          </select>
+          <input class="field" id="historyDateFilter" type="month" title="월별 조회">
+          <button class="btn-outline" type="button" onclick="renderDashboardHistory()">조회</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h2>저장된 운영 이력</h2><span id="historyCount" style="font-size:12px;color:var(--muted);"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>기준일</th><th>기록</th><th>분류 / 상태</th><th>대시보드 집계</th><th>작성자</th><th>관리</th></tr></thead>
+            <tbody id="historyTable">
+              <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">로딩 중...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- ── 서비스 설정 ──────────────────────────────────────── -->
     <div class="view" id="view-settings" style="display:none">
       <div class="page-header">
@@ -709,30 +830,52 @@
     if      (viewId === 'dashboard') loadDashboard();
     else if (viewId === 'users')     loadEmployees();
     else if (viewId === 'logs')      loadLogs();
+    else if (viewId === 'history')   loadDashboardHistory();
     else if (viewId === 'settings')  loadSettingsView();
 
     if (window.innerWidth <= 720) closeSidebar();
   }
 
   // ── 대시보드 ─────────────────────────────────────────────────
+  function localDateKey(date = new Date()) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
   async function loadDashboard() {
     // 직원 통계
-    const { data: emps } = await sb.from('employees').select('role');
+    const { data: emps, error: empsError } = await sb.from('employees').select('role');
     if (emps) {
       document.getElementById('statTotal').textContent = emps.length;
       document.getElementById('statAdmin').textContent = emps.filter(e => e.role === 'admin').length;
     }
 
     // 대화 통계
-    const today = new Date().toISOString().slice(0, 10);
-    const { count: allCount } = await sb
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const tomorrowStart = new Date(todayStart);
+    tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+    const { count: allCount, error: allCountError } = await sb
       .from('chat_logs').select('id', { count: 'exact', head: true });
-    const { count: todayCount } = await sb
+    const { count: todayCount, error: todayCountError } = await sb
       .from('chat_logs').select('id', { count: 'exact', head: true })
-      .gte('created_at', today + 'T00:00:00');
+      .gte('created_at', todayStart.toISOString())
+      .lt('created_at', tomorrowStart.toISOString());
 
     document.getElementById('statAllTime').textContent = allCount ?? 0;
     document.getElementById('statToday').textContent   = todayCount ?? 0;
+
+    // 조회가 모두 성공한 경우에만 오늘 스냅샷을 갱신해 일시적 오류가 0으로 저장되지 않게 한다.
+    if (!empsError && !allCountError && !todayCountError) {
+      void upsertDailyDashboardSnapshot({
+        total_employees: emps.length,
+        admin_count: emps.filter(e => e.role === 'admin').length,
+        today_chats: todayCount ?? 0,
+        total_chats: allCount ?? 0
+      });
+    }
 
     // 최근 대화
     const { data: logs } = await sb
@@ -878,6 +1021,230 @@
       </td>
     </tr>`;
   }
+
+  // ── 관리자 운영 이력 ─────────────────────────────────────────
+  let dashboardHistoryRecords = [];
+
+  function isMissingHistoryTable(error) {
+    return error?.code === '42P01' || /admin_dashboard_records/i.test(error?.message || '');
+  }
+
+  function setHistoryNotice(message = '') {
+    const notice = document.getElementById('historyNotice');
+    notice.textContent = message;
+    notice.style.display = message ? 'block' : 'none';
+  }
+
+  function currentDashboardMetrics() {
+    const numberFrom = id => {
+      const value = Number(document.getElementById(id)?.textContent);
+      return Number.isFinite(value) ? value : 0;
+    };
+    return {
+      total_employees: numberFrom('statTotal'),
+      admin_count: numberFrom('statAdmin'),
+      today_chats: numberFrom('statToday'),
+      total_chats: numberFrom('statAllTime')
+    };
+  }
+
+  async function upsertDailyDashboardSnapshot(metrics) {
+    const recordDate = localDateKey();
+    const { data: existing, error: selectError } = await sb
+      .from('admin_dashboard_records')
+      .select('id')
+      .eq('record_type', 'snapshot')
+      .eq('record_date', recordDate)
+      .maybeSingle();
+
+    if (selectError) {
+      if (!isMissingHistoryTable(selectError)) console.warn('운영 이력 조회 실패:', selectError.message);
+      return;
+    }
+
+    const payload = {
+      record_type: 'snapshot',
+      record_date: recordDate,
+      title: `${recordDate} 운영 현황`,
+      category: '자동 집계',
+      status: '자동 저장',
+      content: '관리자 대시보드 접속 시 갱신된 일별 운영 지표입니다.',
+      ...metrics,
+      created_by_email: user.email,
+      created_by_name: user.name,
+      updated_at: new Date().toISOString()
+    };
+
+    const result = existing
+      ? await sb.from('admin_dashboard_records').update(payload).eq('id', existing.id)
+      : await sb.from('admin_dashboard_records').insert(payload);
+
+    if (result.error?.code === '23505') {
+      await sb.from('admin_dashboard_records').update(payload)
+        .eq('record_type', 'snapshot').eq('record_date', recordDate);
+    } else if (result.error) {
+      console.warn('운영 현황 자동 저장 실패:', result.error.message);
+    }
+  }
+
+  async function loadDashboardHistory() {
+    const tbody = document.getElementById('historyTable');
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">로딩 중...</td></tr>';
+    setHistoryNotice('');
+    if (!document.getElementById('historyDate').value) document.getElementById('historyDate').value = localDateKey();
+
+    const { data, error } = await sb.from('admin_dashboard_records')
+      .select('*')
+      .order('record_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    if (error) {
+      dashboardHistoryRecords = [];
+      const message = isMissingHistoryTable(error)
+        ? '운영 이력 저장소가 아직 설치되지 않았습니다. Supabase 마이그레이션을 적용하면 날짜별 기록이 저장됩니다.'
+        : `운영 이력을 불러오지 못했습니다: ${error.message}`;
+      setHistoryNotice(message);
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">표시할 운영 이력이 없습니다.</td></tr>';
+      document.getElementById('historyCount').textContent = '';
+      return;
+    }
+
+    dashboardHistoryRecords = data || [];
+    renderDashboardHistory();
+  }
+
+  function renderDashboardHistory() {
+    const tbody = document.getElementById('historyTable');
+    const query = document.getElementById('historySearch').value.trim().toLocaleLowerCase('ko-KR');
+    const category = document.getElementById('historyCategoryFilter').value;
+    const month = document.getElementById('historyDateFilter').value;
+    const records = dashboardHistoryRecords.filter(record => {
+      const text = [record.title, record.content, record.created_by_name, record.created_by_email]
+        .join('\n').toLocaleLowerCase('ko-KR');
+      return (!query || text.includes(query)) &&
+        (!category || record.category === category) &&
+        (!month || String(record.record_date || '').startsWith(month));
+    });
+
+    document.getElementById('historyCount').textContent = `${records.length}건`;
+    if (!records.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">조건에 맞는 운영 이력이 없습니다.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = records.map(record => {
+      const isSnapshot = record.record_type === 'snapshot';
+      const metrics = [
+        `직원 ${record.total_employees ?? '—'}명`,
+        `관리자 ${record.admin_count ?? '—'}명`,
+        `당일 대화 ${record.today_chats ?? '—'}건`,
+        `누적 ${record.total_chats ?? '—'}건`
+      ].join('<br>');
+      const actions = isSnapshot ? '—' : `
+        <div style="display:flex;gap:6px;">
+          <button class="action-btn" onclick="editDashboardRecord('${record.id}')">수정</button>
+          <button class="action-btn deny" onclick="deleteDashboardRecord('${record.id}')">삭제</button>
+        </div>`;
+      return `<tr>
+        <td style="white-space:nowrap;">${escHtml(record.record_date)}</td>
+        <td><div class="history-title">${escHtml(record.title)}</div><div class="history-content">${escHtml(record.content || '')}</div></td>
+        <td><span class="history-badge ${isSnapshot ? 'snapshot' : ''}">${escHtml(record.category)}</span><div style="margin-top:6px;font-size:11px;color:var(--muted);">${escHtml(record.status)}</div></td>
+        <td class="history-metrics">${metrics}</td>
+        <td><div class="user-name">${escHtml(record.created_by_name || '—')}</div><div class="user-email">${escHtml(record.created_by_email)}</div></td>
+        <td>${actions}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function saveDashboardRecord() {
+    const id = document.getElementById('historyEditId').value;
+    const recordDate = document.getElementById('historyDate').value;
+    const title = document.getElementById('historyTitle').value.trim();
+    const content = document.getElementById('historyContent').value.trim();
+    const msg = document.getElementById('historyFormMsg');
+    msg.style.display = 'none';
+
+    if (!recordDate || title.length < 2 || !content) {
+      msg.textContent = '기준일, 두 글자 이상의 제목과 내용을 입력해 주세요.';
+      msg.style.color = 'var(--danger)';
+      msg.style.display = 'inline';
+      return;
+    }
+
+    const payload = {
+      record_date: recordDate,
+      title,
+      category: document.getElementById('historyCategory').value,
+      status: document.getElementById('historyStatus').value,
+      content,
+      updated_at: new Date().toISOString()
+    };
+    if (!id) Object.assign(payload, {
+      record_type: 'note',
+      ...currentDashboardMetrics(),
+      created_by_email: user.email,
+      created_by_name: user.name
+    });
+
+    const result = id
+      ? await sb.from('admin_dashboard_records').update(payload).eq('id', id)
+      : await sb.from('admin_dashboard_records').insert(payload);
+
+    if (result.error) {
+      msg.textContent = isMissingHistoryTable(result.error)
+        ? '먼저 Supabase 운영 이력 마이그레이션을 적용해 주세요.'
+        : `저장 오류: ${result.error.message}`;
+      msg.style.color = 'var(--danger)';
+      msg.style.display = 'inline';
+      return;
+    }
+
+    resetHistoryForm();
+    await loadDashboardHistory();
+  }
+
+  function editDashboardRecord(id) {
+    const record = dashboardHistoryRecords.find(item => item.id === id && item.record_type === 'note');
+    if (!record) return;
+    document.getElementById('historyEditId').value = record.id;
+    document.getElementById('historyDate').value = record.record_date;
+    document.getElementById('historyTitle').value = record.title;
+    document.getElementById('historyCategory').value = record.category;
+    document.getElementById('historyStatus').value = record.status;
+    document.getElementById('historyContent').value = record.content || '';
+    document.getElementById('historyFormTitle').textContent = '운영 기록 수정';
+    document.getElementById('historySaveBtn').textContent = '수정 저장';
+    document.getElementById('historyCancelBtn').style.display = 'inline-block';
+    document.getElementById('historyTitle').focus();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function resetHistoryForm() {
+    document.getElementById('historyEditId').value = '';
+    document.getElementById('historyDate').value = localDateKey();
+    document.getElementById('historyTitle').value = '';
+    document.getElementById('historyCategory').value = '운영 메모';
+    document.getElementById('historyStatus').value = '참고';
+    document.getElementById('historyContent').value = '';
+    document.getElementById('historyFormTitle').textContent = '운영 기록 등록';
+    document.getElementById('historySaveBtn').textContent = '기록 저장';
+    document.getElementById('historyCancelBtn').style.display = 'none';
+    document.getElementById('historyFormMsg').style.display = 'none';
+  }
+
+  async function deleteDashboardRecord(id) {
+    const record = dashboardHistoryRecords.find(item => item.id === id && item.record_type === 'note');
+    if (!record || !confirm(`“${record.title}” 기록을 삭제하시겠습니까?`)) return;
+    const { error } = await sb.from('admin_dashboard_records').delete().eq('id', id).eq('record_type', 'note');
+    if (error) { alert(`삭제 오류: ${error.message}`); return; }
+    if (document.getElementById('historyEditId').value === id) resetHistoryForm();
+    await loadDashboardHistory();
+  }
+
+  ['historySearch', 'historyCategoryFilter', 'historyDateFilter'].forEach(id => {
+    document.getElementById(id).addEventListener(id === 'historySearch' ? 'input' : 'change', renderDashboardHistory);
+  });
 
   // ── 서비스 설정 ──────────────────────────────────────────────
   function loadSettingsView() {
