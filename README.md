@@ -1,6 +1,6 @@
 # Herian
 
-헤리안(Herian)은 Heritage와 `~에 속한 사람/것`을 뜻하는 `an`을 결합한 이름으로, 국가유산 업무를 지원하는 **‘유산 전문가’** AI입니다.
+헤리안(Herian)은 Heritage와 `~에 속한 사람/것`을 뜻하는 `an`을 결합한 이름으로, **국가유산 실무업무를 지원하는 AI 업무 파트너**입니다.
 
 K-Heritage GPT service — internal AI chat assistant for kh.or.kr users.
 
