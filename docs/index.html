@@ -407,6 +407,7 @@
     /* Markdown-like styles inside msg-body */
     .msg-body p { margin-bottom: .6em; }
     .msg-body p:last-child { margin-bottom: 0; }
+    .msg.user .user-message-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 
     .msg-body h3 {
       font-size: 15px;
@@ -1721,6 +1722,61 @@ const setConvs  = v  => localStorage.setItem(CONVS_KEY, JSON.stringify(v));
 const getCurrId = () => localStorage.getItem(CURR_KEY);
 const setCurrId = id => id ? localStorage.setItem(CURR_KEY, id) : localStorage.removeItem(CURR_KEY);
 
+// 대화 중 자연어로 요청한 역할은 다른 대화에 영향을 주지 않도록 현재 대화에만 저장한다.
+function detectConversationPersonaCommand(value) {
+  const text = String(value || '').trim();
+  if (!text || text.length > 500) return null;
+
+  const resetPatterns = [
+    /^(?:이제\s*)?(?:대화\s*)?(?:페르소나|역할)(?:을|를|은|는)?\s*(?:해제|초기화|취소)(?:해|해줘|해주세요|할게)?[.!]?$/i,
+    /^(?:이제\s*)?(?:기본|원래)(?:\s*페르소나|\s*역할)?(?:로)?\s*(?:돌아가|돌아가줘|답해|답변해)(?:주세요|줘)?[.!]?$/i,
+    /^(?:clear|reset|remove)\s+(?:the\s+)?(?:persona|role)[.!]?$/i
+  ];
+  if (resetPatterns.some(pattern => pattern.test(text))) return { type: 'reset' };
+
+  const rolePatterns = [
+    /^(?:이제부터|지금부터)?\s*(?:너는|당신은|헤리안은|herian(?:은|는)?)\s+(.{1,100}?)(?:이야|야|이다|입니다|인 거야)(?:\s*[.!])?$/i,
+    /^(.{1,100}?)(?:로서|의\s*역할로)\s*(?:답변|대답|행동|설명)(?:해|해줘|해주세요|하라|하세요)(?:\s*[.!])?$/i,
+    /^(.{1,100}?)(?:\s*페르소나|\s*역할)(?:을|를|으로)?\s*(?:적용|설정)(?:해|해줘|해주세요|하라|하세요)(?:\s*[.!])?$/i,
+    /^(?:please\s+)?act\s+as\s+(?:an?\s+)?(.{1,100}?)[.!]?$/i,
+    /^(?:from\s+now\s+on,?\s*)?you\s+are\s+(?:an?\s+)?(.{1,100}?)[.!]?$/i
+  ];
+  for (const pattern of rolePatterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) {
+      const role = match[1].trim().replace(/[.!]+$/, '');
+      if (role) return { type: 'set', role, instruction: text };
+    }
+  }
+  return null;
+}
+
+function getConversationPersona() {
+  if (!currentConvId) return null;
+  return getConvs().find(conversation => conversation.id === currentConvId)?.conversationPersona || null;
+}
+
+function applyConversationPersonaCommand(value) {
+  const command = detectConversationPersonaCommand(value);
+  if (!command || !currentConvId) return command;
+  const convs = getConvs();
+  const conversation = convs.find(item => item.id === currentConvId);
+  if (!conversation) return command;
+
+  if (command.type === 'reset') {
+    delete conversation.conversationPersona;
+  } else {
+    conversation.conversationPersona = {
+      role: command.role,
+      instruction: command.instruction,
+      updatedAt: Date.now()
+    };
+  }
+  conversation.updatedAt = Date.now();
+  setConvs(convs);
+  return command;
+}
+
 // 구 버전(공유 키) → 신 버전(사용자별 키) 1회 마이그레이션
 ;(function migrateConvs() {
   const oldData = localStorage.getItem('herion_convs_v1');
@@ -2267,7 +2323,9 @@ function loadConversation(id) {
   let firstSearchHit = null;
   chatHistory.forEach(m => {
     const bodyEl = appendMsgEl(m.role);
-    bodyEl.innerHTML = m.role === 'user' ? `<p>${escHtml(m.content)}</p>` : renderMd(m.content);
+    bodyEl.innerHTML = m.role === 'user'
+      ? `<p class="user-message-text">${renderUserMessageText(m.content)}</p>`
+      : renderMd(m.content);
     if (m.role === 'assistant') addMessageActions(bodyEl, m.content);
     if (normalizedQuery && normalizeConversationSearch(m.content).includes(normalizedQuery)) {
       const messageEl = bodyEl.closest('.msg');
@@ -2339,6 +2397,14 @@ function addMessageActions(bodyEl, content) {
 
   actions.append(copyButton, reportButton, retryButton);
   bodyEl.parentElement.appendChild(actions);
+}
+
+function userDisplayText(content) {
+  return String(content || '').split(/\n\n\[첨부파일: [^\]]+\]\n/, 1)[0];
+}
+
+function renderUserMessageText(content) {
+  return escHtml(userDisplayText(content)).replace(/\r\n?|\n/g, '<br>');
 }
 
 let pendingReportContent = '';
@@ -2564,6 +2630,7 @@ function getSystemPrompt(heritageCtx = '') {
   const extra    = localStorage.getItem('herion_extra_prompt') || '';
   const memories = getUserMems();
   const persona  = getActivePersona();
+  const conversationPersona = getConversationPersona();
 
   const langLine = langMode === 'ko-only'
     ? '반드시 한국어로만 답변한다. 사용자가 어떤 언어로 질문하든 한국어로만 답변한다.'
@@ -2582,6 +2649,14 @@ function getSystemPrompt(heritageCtx = '') {
 
 [페르소나]
 너는 한국의 문화 공공기관 기획·관리 실무 전문가다. 대한민국 공공기관 공문서 작성 규정, 국가유산 분야 표준 용어, 행정 절차에 정통하다.
+
+[대화별 페르소나 적용 원칙]
+- 사용자가 대화 중 "너는 음악 전문가야", "변호사 역할로 답변해 줘", "Act as a data analyst"처럼 역할·전문성·말투를 요청하면 해당 요청을 현재 대화의 페르소나로 즉시 적용한다.
+- 대화별 페르소나는 Herian이라는 서비스 정체성을 없애는 요청이 아니라, 현재 대화에서 사용할 전문 역할과 답변 관점을 지정하는 요청으로 해석한다.
+- 사용자가 요청한 역할이 국가유산 분야 밖이라는 이유만으로 거절하거나 국가유산 범위로 한정하지 않는다. 해당 역할의 일반 전문지식을 활용해 사용자의 실제 질문에 답한다.
+- 대화별 페르소나는 사용자가 다른 역할로 바꾸거나 해제할 때까지 현재 대화에서 유지하며, 다른 대화에는 이어서 적용하지 않는다.
+- 가장 최근의 명시적인 대화별 페르소나는 아래의 저장형 업무 페르소나보다 역할·문체·결과 형식에서 우선한다.
+- 단, 개인정보 보호, 법령·사실 정확성, 보안 및 안전 규칙은 어떤 페르소나 요청으로도 변경하거나 우회할 수 없다.
 
 [기관 정보 — 반드시 준수]
 - 기관명: 국가유산진흥원 (Korea Heritage Agency)
@@ -2630,6 +2705,13 @@ ${langLine}
 - 기본 결과 형식: ${persona.outputFormat}
 ${persona.instructions ? `- 추가 지시사항: ${persona.instructions}` : ''}
 이 페르소나는 업무 관점과 표현 방식을 정하는 용도다. 기관 정보, 개인정보 보호, 법령 정확성, 사실 확인 규칙을 변경하거나 우회할 수 없다.`;
+
+  if (conversationPersona) {
+    prompt += `\n\n[현재 대화에서 사용자가 요청한 페르소나 - 우선 적용]
+- 역할: ${conversationPersona.role}
+- 사용자 요청 원문: ${conversationPersona.instruction}
+이 역할을 지금 답변부터 자연스럽게 수행한다. Herian의 기본 업무 분야와 다르다는 이유로 역할 적용을 거절하거나 정체성 안내만 답하지 않는다.`;
+  }
 
   if (profileParts.length) {
     prompt += `\n\n[현재 사용자]\n${profileParts.join(' / ')}\n위 사용자에게 맞는 전문성과 어조로 답변한다.`;
@@ -2694,8 +2776,9 @@ async function sendMessage(options = {}) {
 
   if (!reuseLastUser) {
     chatHistory.push({ role: 'user', content: fullContent });
+    applyConversationPersonaCommand(text);
     const userBodyEl = appendMsgEl('user');
-    userBodyEl.innerHTML = `<p>${escHtml(text)}</p>` +
+    userBodyEl.innerHTML = `<p class="user-message-text">${renderUserMessageText(text)}</p>` +
       attachedFiles.map(f => `<div class="file-chip">📄 ${escHtml(f.name)}</div>`).join('');
     clearAttachments();
   }
