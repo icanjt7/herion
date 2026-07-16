@@ -1,6 +1,6 @@
-# Herion Document Service
+# Herian Document Service
 
-Herion의 정적 웹 화면과 분리된 문서 처리 컨테이너입니다.
+Herian의 정적 웹 화면과 분리된 문서 처리 컨테이너입니다.
 
 - `POST /v1/documents/parse`: Docling 기반 PDF/DOCX/PPTX/XLSX 구조 분석, HWPX 기본 구조 분석
 - `POST /v1/reports`: DOCX/PDF/PPTX 보고서 생성

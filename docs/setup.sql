@@ -1,4 +1,4 @@
--- Herion: Supabase 초기 설정 SQL
+-- Herian: Supabase 초기 설정 SQL
 -- Supabase Dashboard → SQL Editor 에서 전체 실행하세요.
 
 -- 기존 profiles 테이블/트리거 정리
@@ -126,7 +126,7 @@ drop policy if exists "요구사항 등록" on public.user_requests;
 create policy "요구사항 등록" on public.user_requests
   for insert with check (true);
 
--- 현재 Herion은 직원 화이트리스트 기반 세션을 사용하므로 관리자 화면의 상태 변경을 허용합니다.
+-- 현재 Herian은 직원 화이트리스트 기반 세션을 사용하므로 관리자 화면의 상태 변경을 허용합니다.
 drop policy if exists "요구사항 상태 변경" on public.user_requests;
 create policy "요구사항 상태 변경" on public.user_requests
   for update using (true) with check (true);

@@ -1,4 +1,4 @@
--- Herion 사용자 요구사항 게시판
+-- Herian 사용자 요구사항 게시판
 create table if not exists public.user_requests (
   id          uuid primary key default gen_random_uuid(),
   title       text not null check (char_length(title) between 2 and 120),

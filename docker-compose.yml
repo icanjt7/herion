@@ -6,11 +6,11 @@ services:
     ports:
       - "${HERION_PORT:-3000}:8080"
     environment:
-      WEBUI_NAME: "${WEBUI_NAME:-Herion}"
+      WEBUI_NAME: "${WEBUI_NAME:-Herian}"
       WEBUI_URL: "${WEBUI_URL:-http://localhost:3000}"
       WEBUI_SECRET_KEY: "${WEBUI_SECRET_KEY:-change-this-for-poc-only}"
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
-      DEFAULT_SYSTEM_PROMPT: "${DEFAULT_SYSTEM_PROMPT:-당신은 국가유산진흥원 직원 전용 AI 업무 보조 시스템 Herion입니다.\n\n규칙:\n- 항상 한국어로 답변하세요.\n- 내부 추론 과정은 절대 출력하지 마세요. 최종 답변만 출력하세요.\n- 짧은 질문이나 인사에는 간결하게 답변하세요.\n- 업무 관련 질문에는 명확하고 실용적으로 답변하세요.\n- 공공기관에 적합한 격식체(합쇼체)를 사용하세요.}"
+      DEFAULT_SYSTEM_PROMPT: "${DEFAULT_SYSTEM_PROMPT:-당신은 국가유산진흥원 직원 전용 AI 업무 보조 시스템 Herian(헤리안)입니다. Heritage와 an을 결합한 이름으로 유산 전문가를 의미합니다.\n\n규칙:\n- 항상 한국어로 답변하세요.\n- 내부 추론 과정은 절대 출력하지 마세요. 최종 답변만 출력하세요.\n- 짧은 질문이나 인사에는 간결하게 답변하세요.\n- 업무 관련 질문에는 명확하고 실용적으로 답변하세요.\n- 공공기관에 적합한 격식체(합쇼체)를 사용하세요.}"
       DEFAULT_USER_ROLE: "${DEFAULT_USER_ROLE:-pending}"
       ENABLE_SIGNUP: "${ENABLE_SIGNUP:-true}"
       ENABLE_LOGIN_FORM: "${ENABLE_LOGIN_FORM:-true}"

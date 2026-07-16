@@ -1,4 +1,6 @@
-# Herion
+# Herian
+
+헤리안(Herian)은 Heritage와 `~에 속한 사람/것`을 뜻하는 `an`을 결합한 이름으로, 국가유산 업무를 지원하는 **‘유산 전문가’** AI입니다.
 
 K-Heritage GPT service — internal AI chat assistant for kh.or.kr users.
 
@@ -61,7 +63,7 @@ docker compose --profile documents up --build document-service
 ```
 
 Set `documentApiUrl` in `docs/config.js` to the deployed HTTPS service URL. If
-the value is empty or the service is unavailable, Herion keeps using its local
+the value is empty or the service is unavailable, Herian keeps using its local
 browser parser. HWPX generation requires an approved template containing
 `{{TITLE}}`, `{{SUBTITLE}}`, `{{AUTHOR}}`, and `{{BODY}}` markers.
 
@@ -99,7 +101,7 @@ spell-check results. These values can be changed with `maxOutputTokens` and
 `spellCheckMaxOutputTokens` in `docs/config.js`; the upstream model may apply a
 lower hard limit.
 
-Herion does not truncate extracted attachment text or impose its own upload,
+Herian does not truncate extracted attachment text or impose its own upload,
 expanded-HWPX, or per-message character cap. Browser memory, hosting request
 size, and upstream model context limits still apply.
 

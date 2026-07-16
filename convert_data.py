@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-국가유산 CSV/API → JSON 변환 스크립트 (Herion 전용)
+국가유산 CSV/API → JSON 변환 스크립트 (Herian 전용)
 
 [로컬 실행]
   python convert_data.py
@@ -55,7 +55,7 @@ def fetch_from_api(api_key: str) -> list:
             )
             try:
                 req = urllib.request.Request(
-                    url, headers={'User-Agent': 'HerionBot/1.0', 'Accept': '*/*'}
+                    url, headers={'User-Agent': 'HerianBot/1.0', 'Accept': '*/*'}
                 )
                 with urllib.request.urlopen(req, timeout=30) as resp:
                     raw = resp.read().decode('utf-8')

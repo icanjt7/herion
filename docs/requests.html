@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Herion — 요구사항 게시판</title>
+  <title>Herian — 요구사항 게시판</title>
   <style>
     :root{font-family:Inter,"Segoe UI","Noto Sans KR",Arial,sans-serif;--bg:#f4f6f8;--panel:#fff;--line:#d9dee7;--text:#1c2430;--muted:#657386;--accent:#19715f;--accent-dark:#115648;--soft:#e8f5f1;--blue:#2457a6;--danger:#b3261e;--warn:#9a5a0a}
     *{box-sizing:border-box;margin:0;padding:0}body{min-height:100vh;color:var(--text);background:radial-gradient(circle at 80% 0%,rgba(25,113,95,.09),transparent 26%),var(--bg)}button,input,select,textarea{font:inherit}button{cursor:pointer}
@@ -25,11 +25,11 @@
 </head>
 <body>
   <header class="topbar">
-    <a class="brand-link" href="index.html"><span class="mark">H</span><span><span class="brand-title">Herion 요구사항 게시판</span><span class="brand-sub">사용자 의견을 제품 개선으로 연결합니다</span></span></a>
+    <a class="brand-link" href="index.html" title="헤리안(Herian) · Heritage + an · 유산 전문가"><span class="mark">H</span><span><span class="brand-title">Herian 요구사항 게시판</span><span class="brand-sub">Heritage + an · 유산 전문가</span></span></a>
     <div class="top-actions"><div class="user-chip"><span class="avatar" id="userInitial">?</span><span id="userName">사용자</span></div><a class="ghost-btn" href="index.html">← 대화로 돌아가기</a></div>
   </header>
   <main class="page">
-    <section class="hero"><div><div class="eyebrow">HERION FEEDBACK</div><h1>필요한 기능을 알려주세요</h1><p>업무 중 불편했던 점, 새로 필요한 기능, 개선 아이디어를 구체적으로 남겨주세요. 담당자가 검토하고 진행 상태를 공유합니다.</p></div><div class="stats"><div class="stat"><strong id="totalCount">–</strong><span>전체 의견</span></div><div class="stat"><strong id="activeCount">–</strong><span>검토·반영 중</span></div></div></section>
+    <section class="hero"><div><div class="eyebrow">HERIAN FEEDBACK</div><h1>필요한 기능을 알려주세요</h1><p>업무 중 불편했던 점, 새로 필요한 기능, 개선 아이디어를 구체적으로 남겨주세요. 담당자가 검토하고 진행 상태를 공유합니다.</p></div><div class="stats"><div class="stat"><strong id="totalCount">–</strong><span>전체 의견</span></div><div class="stat"><strong id="activeCount">–</strong><span>검토·반영 중</span></div></div></section>
     <section class="toolbar"><input class="field search" id="searchInput" type="search" placeholder="제목이나 내용 검색"><select class="field" id="categoryFilter"><option value="">모든 분류</option><option>기능 개선</option><option>신규 기능</option><option>오류 신고</option><option>문서·보고서</option><option>기타</option></select><select class="field" id="statusFilter"><option value="">모든 상태</option><option>접수</option><option>검토중</option><option>반영예정</option><option>완료</option></select><button class="primary-btn" type="button" onclick="openWriteDialog()">＋ 요구사항 등록</button></section>
     <div class="notice" id="boardNotice"></div><section class="request-list" id="requestList" aria-live="polite"><div class="loading">요구사항을 불러오는 중입니다…</div></section>
   </main>
@@ -241,7 +241,7 @@
       button.textContent = 'AI가 정리 중…';
       setFormStatus('');
       const prompt = [
-        '다음 사용자 메모를 Herion 제품 요구사항 게시글로 다듬어 주세요.',
+        '다음 사용자 메모를 Herian 제품 요구사항 게시글로 다듬어 주세요.',
         '사실이나 요구를 새로 만들지 말고, 모호한 부분은 확인 필요라고 표시하세요.',
         '상세 내용은 현재 상황, 문제점, 희망 결과, 참고사항 소제목을 사용하세요.',
         '담당자가 구현 범위와 완료 조건을 판단할 수 있을 만큼 구체적으로 작성하세요.',

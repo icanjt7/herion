@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 SUPPORTED_INPUTS = {".pdf", ".docx", ".pptx", ".xlsx", ".html", ".md", ".txt", ".csv", ".hwpx"}
 TEMPLATE_DIR = Path(os.getenv("HERION_TEMPLATE_DIR", "/app/templates"))
 
-app = FastAPI(title="Herion Document Service", version="0.1.0")
+app = FastAPI(title="Herian Document Service", version="0.1.0")
 allowed_origins = [origin.strip() for origin in os.getenv(
     "HERION_ALLOWED_ORIGINS", "https://icanjt7.github.io,http://localhost:3000"
 ).split(",") if origin.strip()]
@@ -63,7 +63,7 @@ class ReportRequest(BaseModel):
     sections: list[SectionSpec] = Field(default_factory=list)
 
 
-def safe_filename(value: str, fallback: str = "herion-report") -> str:
+def safe_filename(value: str, fallback: str = "herian-report") -> str:
     cleaned = "".join(char for char in value if char.isalnum() or char in " -_().").strip(" .")
     return cleaned[:80] or fallback
 
@@ -105,7 +105,7 @@ def parse_hwpx(data: bytes) -> tuple[str, dict]:
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "service": "herion-document-service"}
+    return {"status": "ok", "service": "herian-document-service"}
 
 
 @app.post("/v1/documents/parse")
@@ -117,7 +117,7 @@ async def parse_document(file: UploadFile = File(...)) -> dict:
 
     if suffix == ".hwpx":
         markdown, document = parse_hwpx(data)
-        return {"filename": file.filename, "parser": "herion-hwpx", "markdown": markdown, "document": document}
+        return {"filename": file.filename, "parser": "herian-hwpx", "markdown": markdown, "document": document}
 
     with tempfile.TemporaryDirectory(prefix="herion-parse-") as temp_dir:
         source = Path(temp_dir) / safe_filename(file.filename or f"document{suffix}")
@@ -259,7 +259,7 @@ def create_report(request: ReportRequest) -> StreamingResponse:
         payload = target.read_bytes()
         headers = {
             "Content-Disposition": (
-                f'attachment; filename="herion-report.{request.format}"; '
+                f'attachment; filename="herian-report.{request.format}"; '
                 f"filename*=UTF-8''{quote(target.name)}"
             )
         }

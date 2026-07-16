@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Herion — 국가유산진흥원 AI 업무 보조</title>
+  <title>Herian — 국가유산진흥원 AI 업무 보조</title>
   <style>
     :root {
       font-family: Inter, "Segoe UI", "Noto Sans KR", Arial, sans-serif;
@@ -64,6 +64,9 @@
       font-weight: 760;
       font-size: 17px;
     }
+
+    .brand-copy { display: grid; gap: 2px; line-height: 1.1; }
+    .brand-copy small { color: #8fa0b2; font-size: 9.5px; font-weight: 500; letter-spacing: .01em; }
 
     .mark {
       width: 32px; height: 32px;
@@ -872,9 +875,9 @@
 
   <!-- Sidebar -->
   <aside>
-    <div class="brand">
+    <div class="brand" title="헤리안(Herian) · Heritage + an · 유산 전문가">
       <div class="mark">H</div>
-      <span>Herion</span>
+      <span class="brand-copy"><span>Herian</span><small>Heritage + an · 유산 전문가</small></span>
     </div>
 
     <button class="new-chat" id="newChatBtn">＋&nbsp; 새 대화</button>
@@ -948,7 +951,7 @@
           <button class="attach-btn" id="fileBtn" title="파일 첨부 (PDF·DOCX·PPTX·HWPX·TXT)">📎</button>
           <input type="file" id="fileInput" style="display:none"
                  accept=".pdf,.docx,.doc,.pptx,.ppt,.xlsx,.hwpx,.html,.txt,.csv,.md" multiple>
-          <textarea rows="1" id="msgInput" placeholder="Herion에게 국가유산진흥원 업무를 요청하세요..."></textarea>
+          <textarea rows="1" id="msgInput" placeholder="Herian에게 국가유산진흥원 업무를 요청하세요..."></textarea>
           <button class="send-btn" id="sendBtn" type="button" aria-label="메시지 보내기" title="보내기">↑</button>
         </div>
         <div class="composer-hint">
@@ -2087,7 +2090,7 @@ function appendMsgEl(role) {
   const isAI  = role === 'assistant';
   const now   = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
   const avatar = isAI ? 'H' : (user?.name?.[0]?.toUpperCase() || 'U');
-  const name   = isAI ? 'Herion' : (user?.name || '사용자');
+  const name   = isAI ? 'Herian' : (user?.name || '사용자');
 
   const div = document.createElement('div');
   div.className = `msg ${isAI ? 'ai' : 'user'}`;
@@ -2136,7 +2139,7 @@ function addMessageActions(bodyEl, content) {
 let pendingReportContent = '';
 function openReportModal(content) {
   pendingReportContent = String(content || '');
-  document.getElementById('reportTitle').value = chatTitle.textContent === '새 대화' ? 'Herion 보고서' : chatTitle.textContent;
+  document.getElementById('reportTitle').value = chatTitle.textContent === '새 대화' ? 'Herian 보고서' : chatTitle.textContent;
   document.getElementById('reportStatus').textContent = cfg?.documentApiUrl
     ? '문서 생성 서비스를 사용할 수 있습니다.'
     : '문서 생성 서비스 주소가 아직 설정되지 않았습니다.';
@@ -2199,7 +2202,7 @@ async function createReportFile() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title: document.getElementById('reportTitle').value.trim() || 'Herion 보고서',
+        title: document.getElementById('reportTitle').value.trim() || 'Herian 보고서',
         author: user?.name || '',
         format,
         template_id: templateId,
@@ -2212,7 +2215,7 @@ async function createReportFile() {
     const encodedFilename = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
     const filename = encodedFilename
       ? decodeURIComponent(encodedFilename)
-      : (disposition.match(/filename="?([^";]+)"?/i)?.[1] || `herion-report.${format}`);
+      : (disposition.match(/filename="?([^";]+)"?/i)?.[1] || `herian-report.${format}`);
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
@@ -2251,7 +2254,7 @@ function appendThinking(label = '생각 중...') {
   const div = document.createElement('div');
   div.className = 'msg ai';
   div.innerHTML = `
-    <div class="msg-header"><div class="msg-avatar">H</div><span>Herion</span></div>
+    <div class="msg-header"><div class="msg-avatar">H</div><span>Herian</span></div>
     <div class="msg-body">
       <div class="thinking" id="thinkingLabel">
         <div class="dot-anim"><span></span><span></span><span></span></div>
@@ -2345,7 +2348,10 @@ function getSystemPrompt(heritageCtx = '') {
   if (user?.department)     profileParts.push(`부서: ${user.department}`);
   if (user?.position_title) profileParts.push(`직책: ${user.position_title}`);
 
-  let prompt = `당신은 국가유산진흥원 업무 전문 AI 보조 'Herion'입니다.
+  let prompt = `당신은 국가유산진흥원 업무 전문 AI 보조 'Herian(헤리안)'입니다.
+
+[브랜드 정체성]
+- Herian은 Heritage와 '~에 속한 사람/것'을 뜻하는 an을 결합한 이름으로, 국가유산 업무를 이해하고 지원하는 '유산 전문가'를 의미한다.
 
 [페르소나]
 너는 한국의 문화 공공기관 기획·관리 실무 전문가다. 대한민국 공공기관 공문서 작성 규정, 국가유산 분야 표준 용어, 행정 절차에 정통하다.
