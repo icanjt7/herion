@@ -720,6 +720,27 @@
       line-height: 1;
     }
 
+    .file-chip-thumb {
+      width: 30px;
+      height: 30px;
+      flex: 0 0 30px;
+      object-fit: cover;
+      border-radius: 5px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .generated-image {
+      display: block;
+      width: min(100%, 768px);
+      height: auto;
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #f3f4f6;
+      box-shadow: 0 8px 24px rgba(21,32,46,.08);
+    }
+
     .attach-btn {
       width: 34px; height: 34px;
       border: 1px solid var(--line);
@@ -1067,15 +1088,15 @@
       <div class="composer-inner">
         <div id="filePreview" style="display:none;margin-bottom:8px;gap:6px;flex-wrap:wrap;"></div>
         <div class="input-shell">
-          <div class="drop-overlay" id="dropOverlay">📄 여기에 놓으면 파일이 첨부됩니다</div>
-          <button class="attach-btn" id="fileBtn" title="파일 첨부 (PDF·DOCX·PPTX·HWPX·TXT)">📎</button>
+          <div class="drop-overlay" id="dropOverlay">📎 여기에 놓으면 파일이 첨부됩니다</div>
+          <button class="attach-btn" id="fileBtn" title="파일 첨부 (문서·PNG·JPG·WEBP·GIF)">📎</button>
           <input type="file" id="fileInput" style="display:none"
-                 accept=".pdf,.docx,.doc,.pptx,.ppt,.xlsx,.hwpx,.html,.txt,.csv,.md" multiple>
+                 accept=".pdf,.docx,.doc,.pptx,.ppt,.xlsx,.hwpx,.html,.txt,.csv,.md,.png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif" multiple>
           <textarea rows="1" id="msgInput" placeholder="Herian에게 국가유산진흥원 업무를 요청하세요..."></textarea>
           <button class="send-btn" id="sendBtn" type="button" aria-label="메시지 보내기" title="보내기">↑</button>
         </div>
         <div class="composer-hint">
-          <span class="hint-files">파일을 끌어 놓거나 붙여넣어 첨부할 수 있습니다. Shift+Enter로 줄바꿈합니다.</span>
+          <span class="hint-files">파일을 끌어 놓거나 붙여넣을 수 있고, “그려줘”라고 요청하면 이미지를 생성합니다. Shift+Enter로 줄바꿈합니다.</span>
           <span class="hint-privacy">&nbsp;·&nbsp; 주민번호·연락처 등 개인정보는 입력하지 마세요.</span>
           <span class="hint-secondary">&nbsp;·&nbsp; 문의: AI미디어센터 AI데이터팀
           &nbsp;·&nbsp; <a href="admin.html" style="color:inherit;">관리자</a></span>
@@ -1898,6 +1919,8 @@ const chatTitle  = document.getElementById('chatTitle');
 // ─── 상태 ────────────────────────────────────────────────────
 let currentConvId   = null;
 let chatHistory     = [];
+const transientMessageImages = new Map();
+const transientGeneratedImages = new Map();
 let isStreaming     = false;
 let webSearchEnabled = false;
 let activeRequestController = null;
@@ -2260,7 +2283,12 @@ document.addEventListener('mouseout', e => {
 
 function deleteConversation(e, id) {
   e.stopPropagation();
-  const convs = getConvs().filter(c => c.id !== id);
+  const allConversations = getConvs();
+  allConversations.find(c => c.id === id)?.messages?.forEach(message => {
+    if (message.attachmentId) transientMessageImages.delete(message.attachmentId);
+    if (message.generatedImageId) transientGeneratedImages.delete(message.generatedImageId);
+  });
+  const convs = allConversations.filter(c => c.id !== id);
   setConvs(convs);
   if (currentConvId === id) showWelcome();
   else renderSidebar();
@@ -2323,10 +2351,17 @@ function loadConversation(id) {
   let firstSearchHit = null;
   chatHistory.forEach(m => {
     const bodyEl = appendMsgEl(m.role);
-    bodyEl.innerHTML = m.role === 'user'
-      ? `<p class="user-message-text">${renderUserMessageText(m.content)}</p>`
-      : renderMd(m.content);
-    if (m.role === 'assistant') addMessageActions(bodyEl, m.content);
+    const generatedImage = m.generatedImageId
+      ? transientGeneratedImages.get(m.generatedImageId)
+      : null;
+    if (generatedImage) {
+      renderGeneratedImageMessage(bodyEl, m.content, generatedImage);
+    } else {
+      bodyEl.innerHTML = m.role === 'user'
+        ? `<p class="user-message-text">${renderUserMessageText(m.content)}</p>`
+        : renderMd(m.content);
+      if (m.role === 'assistant') addMessageActions(bodyEl, m.content);
+    }
     if (normalizedQuery && normalizeConversationSearch(m.content).includes(normalizedQuery)) {
       const messageEl = bodyEl.closest('.msg');
       messageEl?.classList.add('search-hit');
@@ -2399,8 +2434,37 @@ function addMessageActions(bodyEl, content) {
   bodyEl.parentElement.appendChild(actions);
 }
 
+function renderGeneratedImageMessage(bodyEl, content, dataUrl) {
+  bodyEl.innerHTML = renderMd(content);
+  const image = document.createElement('img');
+  image.className = 'generated-image';
+  image.src = dataUrl;
+  image.alt = 'AI가 생성한 이미지';
+  bodyEl.appendChild(image);
+
+  const actions = document.createElement('div');
+  actions.className = 'msg-actions';
+  const downloadButton = document.createElement('button');
+  downloadButton.className = 'action-pill';
+  downloadButton.type = 'button';
+  downloadButton.textContent = '이미지 다운로드';
+  downloadButton.addEventListener('click', () => {
+    const anchor = document.createElement('a');
+    anchor.href = dataUrl;
+    anchor.download = `herian-image-${Date.now()}.png`;
+    anchor.click();
+  });
+  const retryButton = document.createElement('button');
+  retryButton.className = 'action-pill';
+  retryButton.type = 'button';
+  retryButton.textContent = '다시 생성';
+  retryButton.addEventListener('click', () => regenerateLastResponse(bodyEl));
+  actions.append(downloadButton, retryButton);
+  bodyEl.parentElement.appendChild(actions);
+}
+
 function userDisplayText(content) {
-  return String(content || '').split(/\n\n\[첨부파일: [^\]]+\]\n/, 1)[0];
+  return String(content || '').split(/\n\n\[첨부(?:파일|이미지): [^\]]+\](?:\n|$)/, 1)[0];
 }
 
 function renderUserMessageText(content) {
@@ -2515,7 +2579,8 @@ async function regenerateLastResponse(bodyEl) {
   if (isStreaming || chatHistory.at(-1)?.role !== 'assistant') return;
   const lastUser = [...chatHistory].reverse().find(message => message.role === 'user');
   if (!lastUser) return;
-  chatHistory.pop();
+  const removedMessage = chatHistory.pop();
+  if (removedMessage?.generatedImageId) transientGeneratedImages.delete(removedMessage.generatedImageId);
   bodyEl.closest('.msg')?.remove();
   persistCurrentConversation();
   await sendMessage({ reuseLastUser: true });
@@ -2681,6 +2746,7 @@ ${langLine}
 - 불확실한 정보는 반드시 명시적으로 표시
 - 사용자가 명시적으로 요약·축약을 요청하지 않은 경우 원문의 내용, 수치, 표, 조건, 예외, 근거를 임의로 생략하거나 합쳐서 줄이지 않는다.
 - 첨부 문서를 분석할 때는 문서의 제목·목차·항목 구조를 유지하고 주요 사실, 날짜, 금액, 고유명사, 결정사항, 이견, 위험요소와 후속 조치를 구체적으로 제시한다.
+- 첨부 이미지가 있으면 이미지 안의 글자뿐 아니라 인물·사물·배치·색상·도표 등 시각 정보를 직접 살펴보고, 사용자의 요청에 맞게 설명하거나 분석한다.
 - 원문에서 확인할 수 있는 경우 페이지·슬라이드·절·표 위치를 함께 표시하고, 확인되지 않은 내용을 추정해서 채우지 않는다.
 - 내용이 길면 세부사항을 줄이는 대신 제목과 구획을 나누어 제시한다. 출력 한도 때문에 이어지는 내용이 있으면 누락 사실과 계속 작성할 항목을 명시한다.
 - 내부 추론, 판단 과정, 작업 계획, 사용자 의도 분석을 절대 출력하지 않고 최종 답변만 출력한다.
@@ -2724,21 +2790,148 @@ ${persona.instructions ? `- 추가 지시사항: ${persona.instructions}` : ''}
   return prompt;
 }
 
+function wantsImageGeneration(value) {
+  const text = userDisplayText(value).trim();
+  if (!text) return false;
+
+  const drawCommand = /그려\s*(?:줘|주세요|줄래|줘요|봐|보세요)?(?:\s|[.!?,]|$)/;
+  const imageNoun = /(그림|이미지|일러스트|삽화|포스터|배너|로고|사진|캐릭터|초상화)/;
+  const createCommand = /(생성|만들어|만들기|제작|그려)/;
+  const englishCommand = /\b(?:draw|generate|create|make)\b[\s\S]*\b(?:image|picture|illustration|poster|banner|logo|photo)\b/i;
+  if (drawCommand.test(text) || (imageNoun.test(text) && createCommand.test(text)) || englishCommand.test(text)) {
+    return true;
+  }
+
+  // "생성해"만 입력하거나 시각물 이외의 산출물을 명시하지 않은 짧은 요청도 이미지 생성으로 처리한다.
+  const nonImageOutput = /(보고서|문서|공문|파일|표|목록|요약|답변|코드|메일|계획서|제안서|PPT|엑셀|번역|문장|텍스트|목차|퀴즈|질문|일정)/i;
+  return text.length <= 80 && !nonImageOutput.test(text) &&
+    /(?:^|\s)생성해\s*(?:줘|주세요|줘요)?[.!?]*$/.test(text);
+}
+
+async function fetchGeneratedImage(prompt, signal) {
+  if (!cfg?.imageApiProxyUrl) {
+    const error = new Error('이미지 생성 기능의 Cloudflare 설정이 아직 완료되지 않았습니다.');
+    error.code = 'IMAGE_API_NOT_CONFIGURED';
+    throw error;
+  }
+  const response = await fetch(cfg.imageApiProxyUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': cfg.supabaseAnonKey,
+      'Authorization': `Bearer ${cfg.supabaseAnonKey}`
+    },
+    body: JSON.stringify({ prompt }),
+    signal
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(payload.error || `이미지 생성 API 오류 ${response.status}`);
+    error.code = payload.code || (response.status === 429 ? 'IMAGE_GENERATION_UNAVAILABLE' : 'IMAGE_API_ERROR');
+    throw error;
+  }
+  if (!/^data:image\/(?:png|jpeg|webp);base64,/i.test(payload.image || '')) {
+    throw new Error('이미지 생성 API가 올바른 이미지 데이터를 반환하지 않았습니다.');
+  }
+  return payload.image;
+}
+
+async function generateImageForConversation(text, { reuseLastUser = false } = {}) {
+  if (!currentConvId && !reuseLastUser) {
+    const id = Date.now().toString();
+    const title = text.length > 28 ? text.slice(0, 28) + '…' : text;
+    const convs = getConvs();
+    convs.unshift({ id, title, messages: [], updatedAt: Date.now() });
+    setConvs(convs);
+    currentConvId = id;
+    setCurrId(id);
+    chatTitle.textContent = title;
+    convInner.innerHTML = '';
+    renderSidebar();
+  }
+
+  if (!reuseLastUser) {
+    textarea.value = '';
+    resizeMessageInput();
+    chatHistory.push({ role: 'user', content: text });
+    const userBodyEl = appendMsgEl('user');
+    userBodyEl.innerHTML = `<p class="user-message-text">${renderUserMessageText(text)}</p>`;
+  }
+
+  setGenerationState(true);
+  activeRequestController = new AbortController();
+  const thinkEl = appendThinking('이미지 생성 중...');
+
+  try {
+    const dataUrl = await fetchGeneratedImage(text, activeRequestController.signal);
+    thinkEl.remove();
+    const finalContent = '요청하신 이미지를 생성했습니다.';
+    const generatedImageId = crypto.randomUUID?.() || `generated-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    transientGeneratedImages.set(generatedImageId, dataUrl);
+    chatHistory.push({ role: 'assistant', content: finalContent, generatedImageId });
+    const bodyEl = appendMsgEl('assistant');
+    renderGeneratedImageMessage(bodyEl, finalContent, dataUrl);
+    persistCurrentConversation();
+    renderSidebar();
+
+    if (sb) {
+      const logPayload = {
+        user_email: user.email,
+        user_name: user.name,
+        model: 'cloudflare-flux-1-schnell',
+        question: text.slice(0, 300),
+        answer_excerpt: finalContent
+      };
+      sb.from('chat_logs').insert(logPayload).then(({ error }) => {
+        if (error && /answer_excerpt/i.test(error.message || '')) {
+          const { answer_excerpt, ...legacyPayload } = logPayload;
+          return sb.from('chat_logs').insert(legacyPayload);
+        }
+      }).catch(() => {});
+    }
+  } catch (error) {
+    thinkEl.remove();
+    const bodyEl = appendMsgEl('assistant');
+    if (error?.name === 'AbortError') {
+      bodyEl.innerHTML = '<p style="color:var(--muted);">이미지 생성을 중지했습니다.</p>';
+    } else if (error?.code === 'DAILY_LIMIT_EXHAUSTED') {
+      const message = 'Cloudflare의 금일 무료 이미지 생성 한도를 모두 사용했습니다. 금일은 더 생성할 수 없습니다.';
+      bodyEl.innerHTML = renderMd(message);
+      chatHistory.push({ role: 'assistant', content: message });
+      persistCurrentConversation();
+      renderSidebar();
+    } else {
+      bodyEl.innerHTML = `<p style="color:var(--danger);">이미지 생성 오류: ${escHtml(error.message)}</p>`;
+    }
+  } finally {
+    activeRequestController = null;
+    setGenerationState(false);
+    textarea.focus();
+  }
+}
+
 async function sendMessage(options = {}) {
   if (isStreaming) return;
   const reuseLastUser = options.reuseLastUser === true;
   const reusedMessage = reuseLastUser
     ? [...chatHistory].reverse().find(message => message.role === 'user')
     : null;
-  const text = reuseLastUser ? (reusedMessage?.content || '') : textarea.value.trim();
+  const pendingAttachments = reuseLastUser ? [] : [...attachedFiles];
+  const typedText = reuseLastUser ? (reusedMessage?.content || '') : textarea.value.trim();
+  const text = typedText || (pendingAttachments.length ? '첨부파일을 분석해 주세요.' : '');
   if (!text) return;
 
   const privacyInput = reuseLastUser
     ? text
-    : [text, ...attachedFiles.flatMap(file => [file.name, file.content])].join('\n');
+    : [text, ...pendingAttachments.flatMap(file => [file.name, file.content || ''])].join('\n');
   const sensitiveTypes = detectSensitiveData(privacyInput);
   if (sensitiveTypes.length) {
     showPrivacyBlock(sensitiveTypes, attachedFiles.length && !reuseLastUser ? '메시지 또는 첨부파일' : '메시지');
+    return;
+  }
+
+  if (!pendingAttachments.length && wantsImageGeneration(text)) {
+    await generateImageForConversation(text, { reuseLastUser });
     return;
   }
 
@@ -2768,18 +2961,29 @@ async function sendMessage(options = {}) {
   setGenerationState(true);
   activeRequestController = new AbortController();
 
-  // 첨부 파일 텍스트 포함
+  // 문서는 추출 텍스트로 저장하고, 이미지는 현재 모델 요청에만 멀티모달 데이터로 포함한다.
+  const imageAttachments = pendingAttachments.filter(file => file.kind === 'image');
+  const documentAttachments = pendingAttachments.filter(file => file.kind !== 'image');
   const fileText = reuseLastUser
     ? ''
-    : attachedFiles.map(f => `\n\n[첨부파일: ${f.name}]\n${f.content}`).join('');
+    : documentAttachments.map(f => `\n\n[첨부파일: ${f.name}]\n${f.content}`).join('') +
+      imageAttachments.map(f => `\n\n[첨부이미지: ${f.name}]`).join('');
   const fullContent = reuseLastUser ? text : (fileText ? `${text}${fileText}` : text);
 
   if (!reuseLastUser) {
-    chatHistory.push({ role: 'user', content: fullContent });
+    const attachmentId = imageAttachments.length
+      ? (crypto.randomUUID?.() || `image-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+      : null;
+    chatHistory.push({
+      role: 'user',
+      content: fullContent,
+      ...(attachmentId ? { attachmentId } : {})
+    });
+    if (attachmentId) transientMessageImages.set(attachmentId, imageAttachments);
     applyConversationPersonaCommand(text);
     const userBodyEl = appendMsgEl('user');
     userBodyEl.innerHTML = `<p class="user-message-text">${renderUserMessageText(text)}</p>` +
-      attachedFiles.map(f => `<div class="file-chip">📄 ${escHtml(f.name)}</div>`).join('');
+      pendingAttachments.map(f => `<div class="file-chip">${f.kind === 'image' ? '🖼️' : '📄'} ${escHtml(f.name)}</div>`).join('');
     clearAttachments();
   }
 
@@ -2828,10 +3032,26 @@ async function sendMessage(options = {}) {
     const histSlice = chatHistory.length > MAX_HIST
       ? chatHistory.slice(chatHistory.length - MAX_HIST)
       : chatHistory;
+    const requestHistory = histSlice.map(message => {
+      const images = message.attachmentId
+        ? transientMessageImages.get(message.attachmentId) || []
+        : [];
+      if (!images.length) return { role: message.role, content: message.content };
+      return {
+        role: message.role,
+        content: [
+          { type: 'text', text: message.content },
+          ...images.flatMap(file => [
+            { type: 'text', text: `첨부 이미지 파일명: ${file.name}` },
+            { type: 'image_url', image_url: { url: file.dataUrl, detail: 'high' } }
+          ])
+        ]
+      };
+    });
 
     const resp = await fetchMotifCompletion({
         model,
-        messages: [{ role: 'system', content: systemPrompt }, ...histSlice],
+        messages: [{ role: 'system', content: systemPrompt }, ...requestHistory],
         stream: true,
         max_tokens: Number(cfg?.maxOutputTokens) || 16384,
         temperature: 0.6
@@ -2937,7 +3157,13 @@ async function sendMessage(options = {}) {
 }
 
 // ─── 파일 첨부 ───────────────────────────────────────────────
-let attachedFiles = [];  // [{name, content}]
+let attachedFiles = [];  // 문서: {kind:'document', name, content, size}, 이미지: {kind:'image', name, dataUrl, size}
+
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif']);
+const IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+const IMAGE_MIME_BY_EXTENSION = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif'
+};
 
 const fileBtn     = document.getElementById('fileBtn');
 const fileInput   = document.getElementById('fileInput');
@@ -2957,13 +3183,26 @@ async function handleFiles(files) {
   for (const file of incoming) {
     if (attachedFiles.some(item => item.name === file.name && item.size === file.size)) continue;
     try {
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      const browserMimeType = file.type.toLowerCase();
+      const imageMimeType = IMAGE_MIME_TYPES.has(browserMimeType)
+        ? browserMimeType
+        : IMAGE_MIME_BY_EXTENSION[ext];
+      const isImage = IMAGE_MIME_TYPES.has(browserMimeType) ||
+        (IMAGE_EXTENSIONS.has(ext) && (!browserMimeType || browserMimeType === 'application/octet-stream'));
+      if (isImage) {
+        const dataUrl = (await readFileAsDataUrl(file))
+          .replace(/^data:[^;]*;base64,/, `data:${imageMimeType};base64,`);
+        attachedFiles.push({ kind: 'image', name: file.name, dataUrl, size: file.size });
+        continue;
+      }
       const content = await extractText(file);
       const sensitiveTypes = detectSensitiveData(`${file.name}\n${content}`);
       if (sensitiveTypes.length) {
         errors.push(`${file.name}: 개인정보(${sensitiveTypes.join(', ')})가 탐지되어 첨부하지 않았습니다. 정보를 삭제하거나 마스킹해 주세요.`);
         continue;
       }
-      attachedFiles.push({ name: file.name, content, size: file.size });
+      attachedFiles.push({ kind: 'document', name: file.name, content, size: file.size });
     } catch (e) {
       errors.push(`${file.name}: ${e.message}`);
     }
@@ -3020,9 +3259,19 @@ function renderFileChips() {
   filePreview.style.display = 'flex';
   filePreview.innerHTML = attachedFiles.map((f, i) => `
     <div class="file-chip">
-      📄 ${escHtml(f.name)}
+      ${f.kind === 'image' ? `<img class="file-chip-thumb" src="${f.dataUrl}" alt="">` : '📄'}
+      ${escHtml(f.name)}
       <button onclick="removeFile(${i})" title="제거">✕</button>
     </div>`).join('');
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('이미지 파일을 읽지 못했습니다.'));
+    reader.readAsDataURL(file);
+  });
 }
 
 function removeFile(i) {
@@ -3148,7 +3397,7 @@ async function extractText(file) {
     return preserveDetail(text);
   }
 
-  throw new Error(`지원하지 않는 형식입니다 (.${ext}). PDF·DOCX·PPTX·HWPX·TXT를 사용해주세요.`);
+  throw new Error(`지원하지 않는 형식입니다 (.${ext}). 문서 또는 PNG·JPG·WEBP·GIF 파일을 사용해 주세요.`);
 }
 
 // 모바일 브라우저 주소창과 가상 키보드를 제외한 실제 표시 높이에 맞춘다.
