@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.motif-api]
 verify_jwt = false
+
+[functions.image-api]
+verify_jwt = false

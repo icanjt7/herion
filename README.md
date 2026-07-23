@@ -101,9 +101,24 @@ spell-check results. These values can be changed with `maxOutputTokens` and
 `spellCheckMaxOutputTokens` in `docs/config.js`; the upstream model may apply a
 lower hard limit.
 
-Herian does not truncate extracted attachment text or impose its own upload,
-expanded-HWPX, or per-message character cap. Browser memory, hosting request
-size, and upstream model context limits still apply.
+Herian accepts document attachments plus PNG, JPEG, WEBP, and GIF images.
+Documents are sent as extracted text, while images are sent to the model as
+OpenAI-compatible multimodal `image_url` content. Herian does not truncate
+extracted attachment text or impose its own upload, expanded-HWPX, or
+per-message character cap. Browser memory, hosting request size, and upstream
+model context limits still apply.
+
+## Cloudflare Image Generation
+
+Herian automatically routes prompts such as `그려줘`, `그려`, and image
+`생성해` requests to the `image-api` Supabase Edge Function. The function uses
+Cloudflare Workers AI with `@cf/black-forest-labs/flux-1-schnell`; API
+credentials remain in Supabase secrets. When Cloudflare returns the daily free
+allocation error (`3036`), the client explains that no more images can be
+generated that day.
+
+See [the Korean Cloudflare setup guide](docs/CLOUDFLARE_IMAGE_SETUP.md) for the
+account, token, GitHub secret, deployment, and verification steps.
 
 ## Requirement Board
 
