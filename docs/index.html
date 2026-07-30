@@ -1219,6 +1219,10 @@
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.7/dist/purify.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@9.7.1/dist/index.iife.js"></script>
+<script src="pptx-kha.js"></script>
+<script src="docx-kha.js"></script>
 <script src="config.js"></script>
 <script>
 // ─── 세션 확인 ───────────────────────────────────────────────
@@ -2465,8 +2469,8 @@ function openReportModal(content) {
   pendingReportContent = String(content || '');
   document.getElementById('reportTitle').value = chatTitle.textContent === '새 대화' ? 'Herian 보고서' : chatTitle.textContent;
   document.getElementById('reportStatus').textContent = cfg?.documentApiUrl
-    ? '문서 생성 서비스를 사용할 수 있습니다.'
-    : 'PowerPoint와 HWPX는 브라우저에서 바로 생성할 수 있습니다.';
+    ? '브라우저 문서 생성과 문서 생성 서비스를 사용할 수 있습니다.'
+    : 'PowerPoint, Word, HWPX는 브라우저에서 바로 생성할 수 있습니다.';
   const modal = document.getElementById('reportModal');
   modal.style.display = 'flex';
   modal.showModal();
@@ -2769,42 +2773,24 @@ function presentationTitleFromMarkdown(markdown, fallback = 'Herian 발표자료
 }
 
 async function buildKhaPresentation(markdown, options = {}) {
-  if (typeof JSZip === 'undefined') throw new Error('PPT 생성 라이브러리를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.');
-  const response = await fetch(KHA_PPT_TEMPLATE_URL, { cache: 'no-cache' });
-  if (!response.ok) throw new Error(`국가유산진흥원 PPT 양식을 불러오지 못했습니다. (${response.status})`);
-  const zip = await JSZip.loadAsync(await response.arrayBuffer());
+  if (!window.KhaPptx) throw new Error('PPT 생성 라이브러리를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.');
   const slides = presentationSlidesFromMarkdown(markdown);
   const title = cleanPresentationText(options.title) || presentationTitleFromMarkdown(markdown);
   const author = cleanPresentationText(options.author) || '국가유산진흥원';
-  const date = new Intl.DateTimeFormat('ko-KR', {
-    year: 'numeric', month: '2-digit', day: '2-digit'
-  }).format(new Date()).replace(/\s/g, '');
-
-  const coverXml = await zip.file('ppt/slides/slide1.xml').async('string');
-  const cover = parsePptXml(coverXml);
-  replacePptTextContaining(cover, '제목을 넣어주세요', title);
-  replacePptTextContaining(cover, '2024.00.00.', `${date} | ${author}`);
-  zip.file('ppt/slides/slide1.xml', serializePptXml(cover));
-
-  const contentTemplate = await zip.file('ppt/slides/slide2.xml').async('string');
-  zip.file('ppt/slides/slide2.xml', fillPptContentSlide(contentTemplate, slides[0]));
-  await updatePptPackageForSlides(zip, slides.length);
-  for (let index = 1; index < slides.length; index += 1) {
-    zip.file(`ppt/slides/slide${index + 3}.xml`, fillPptContentSlide(contentTemplate, slides[index]));
-  }
-
-  const appFile = zip.file('docProps/app.xml');
-  if (appFile) {
-    const appXml = await appFile.async('string');
-    zip.file('docProps/app.xml', appXml.replace(/<Slides>\d+<\/Slides>/, `<Slides>${slides.length + 2}</Slides>`));
-  }
+  const pptx = window.KhaPptx.createPresentation({
+    title,
+    author,
+    department: author,
+    slides: slides.map(slide => ({
+      title: slide.title,
+      sections: [{
+        title: slide.baseTitle,
+        bullets: slide.items.map(item => item.text),
+      }],
+    })),
+  });
   return {
-    blob: await zip.generateAsync({
-      type: 'blob',
-      mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      compression: 'DEFLATE',
-      compressionOptions: { level: 6 }
-    }),
+    blob: await pptx.write({ outputType: 'blob', compression: true }),
     filename: safePresentationFilename(title)
   };
 }
@@ -2842,7 +2828,29 @@ const HWPX_XML_NS = {
   xml: 'http://www.w3.org/XML/1998/namespace'
 };
 
-function addHwpxCharacterStyle(headerDocument, sourceId, newId, height, color) {
+function addHwpxFont(headerDocument, face = '맑은 고딕') {
+  const fontfaces = headerDocument.getElementsByTagNameNS(HWPX_XML_NS.hh, 'fontfaces')[0];
+  const fontfaceNodes = [...fontfaces.getElementsByTagNameNS(HWPX_XML_NS.hh, 'fontface')];
+  let fontId = 0;
+  fontfaceNodes.forEach(fontface => {
+    const fonts = [...fontface.getElementsByTagNameNS(HWPX_XML_NS.hh, 'font')];
+    const existing = fonts.find(font => font.getAttribute('face') === face);
+    const id = existing
+      ? Number(existing.getAttribute('id'))
+      : Math.max(...fonts.map(font => Number(font.getAttribute('id')) || 0), -1) + 1;
+    fontId = Math.max(fontId, id);
+    if (existing) return;
+    const source = fonts[0];
+    const font = source.cloneNode(true);
+    font.setAttribute('id', String(id));
+    font.setAttribute('face', face);
+    fontface.appendChild(font);
+    fontface.setAttribute('fontCnt', String(fonts.length + 1));
+  });
+  return fontId;
+}
+
+function addHwpxCharacterStyle(headerDocument, sourceId, newId, height, color, options = {}) {
   const charProperties = headerDocument.getElementsByTagNameNS(HWPX_XML_NS.hh, 'charProperties')[0];
   const source = [...charProperties.getElementsByTagNameNS(HWPX_XML_NS.hh, 'charPr')]
     .find(node => node.getAttribute('id') === String(sourceId));
@@ -2851,8 +2859,16 @@ function addHwpxCharacterStyle(headerDocument, sourceId, newId, height, color) {
   style.setAttribute('id', String(newId));
   style.setAttribute('height', String(height));
   style.setAttribute('textColor', color);
-  if (!style.getElementsByTagNameNS(HWPX_XML_NS.hh, 'bold').length) {
+  const fontRef = style.getElementsByTagNameNS(HWPX_XML_NS.hh, 'fontRef')[0];
+  if (fontRef && Number.isFinite(options.fontId)) {
+    ['hangul', 'latin', 'hanja', 'japanese', 'other', 'symbol', 'user']
+      .forEach(language => fontRef.setAttribute(language, String(options.fontId)));
+  }
+  const boldNodes = [...style.getElementsByTagNameNS(HWPX_XML_NS.hh, 'bold')];
+  if (options.bold !== false && !boldNodes.length) {
     style.appendChild(headerDocument.createElementNS(HWPX_XML_NS.hh, 'hh:bold'));
+  } else if (options.bold === false) {
+    boldNodes.forEach(node => node.remove());
   }
   charProperties.appendChild(style);
   charProperties.setAttribute('itemCnt', String(
@@ -2897,13 +2913,13 @@ function hwpxContentBlocks(markdown) {
     section.tables.forEach(table => {
       if (table.title) blocks.push({ type: 'heading', text: cleanPresentationText(table.title) });
       const headers = table.headers.map(cleanPresentationText);
-      if (headers.some(Boolean)) blocks.push({ type: 'table', text: headers.join(' | ') });
+      if (headers.some(Boolean)) blocks.push({
+        type: 'tableHeader',
+        text: headers.join('  │  ')
+      });
       table.rows.forEach(row => {
-        const cells = row.map((value, index) => {
-          const label = headers[index] ? `${headers[index]}: ` : '';
-          return `${label}${cleanPresentationText(value)}`;
-        }).filter(Boolean);
-        if (cells.length) blocks.push({ type: 'table', text: cells.join(' | ') });
+        const cells = row.map(cleanPresentationText).filter(Boolean);
+        if (cells.length) blocks.push({ type: 'tableRow', text: cells.join('  │  ') });
       });
     });
   });
@@ -2925,8 +2941,28 @@ async function buildHwpxDocument(markdown, options = {}) {
   }
 
   const headerDocument = parsePptXml(await zip.file('Contents/header.xml').async('string'));
-  addHwpxCharacterStyle(headerDocument, 5, 7, 2200, '#192D7B');
-  addHwpxCharacterStyle(headerDocument, 5, 8, 1400, '#192D7B');
+  const malgunFontId = addHwpxFont(headerDocument);
+  addHwpxCharacterStyle(headerDocument, 5, 7, 2200, '#122856', {
+    bold: true, fontId: malgunFontId
+  });
+  addHwpxCharacterStyle(headerDocument, 5, 8, 1500, '#122856', {
+    bold: true, fontId: malgunFontId
+  });
+  addHwpxCharacterStyle(headerDocument, 5, 9, 1200, '#4DA3E2', {
+    bold: true, fontId: malgunFontId
+  });
+  addHwpxCharacterStyle(headerDocument, 0, 10, 1100, '#333333', {
+    bold: false, fontId: malgunFontId
+  });
+  addHwpxCharacterStyle(headerDocument, 2, 11, 900, '#667085', {
+    bold: false, fontId: malgunFontId
+  });
+  addHwpxCharacterStyle(headerDocument, 5, 12, 1000, '#122856', {
+    bold: true, fontId: malgunFontId
+  });
+  addHwpxCharacterStyle(headerDocument, 0, 13, 950, '#333333', {
+    bold: false, fontId: malgunFontId
+  });
   zip.file('Contents/header.xml', serializePptXml(headerDocument));
 
   const sectionDocument = parsePptXml(await zip.file('Contents/section0.xml').async('string'));
@@ -2944,21 +2980,30 @@ async function buildHwpxDocument(markdown, options = {}) {
     id: paragraphId++, paraPrId: 12, styleId: 14, charPrId: 7
   });
   appendHwpxParagraph(sectionDocument, sectionRoot, `${date} | ${author}`, {
-    id: paragraphId++, paraPrId: 13, styleId: 15, charPrId: 2
+    id: paragraphId++, paraPrId: 13, styleId: 15, charPrId: 11
   });
   appendHwpxParagraph(sectionDocument, sectionRoot, '', {
-    id: paragraphId++, paraPrId: 3, styleId: 1, charPrId: 0
+    id: paragraphId++, paraPrId: 3, styleId: 1, charPrId: 10
   });
-  hwpxContentBlocks(markdown).forEach(block => {
+  hwpxContentBlocks(markdown).forEach((block, index) => {
     const isHeading = block.type === 'heading';
-    const prefix = block.type === 'bullet' ? '• ' : '';
+    const isTableHeader = block.type === 'tableHeader';
+    const isTableRow = block.type === 'tableRow';
+    const prefix = block.type === 'bullet' ? '– ' : '';
     appendHwpxParagraph(sectionDocument, sectionRoot, `${prefix}${block.text}`, {
       id: paragraphId++,
-      paraPrId: isHeading ? 12 : 3,
+      paraPrId: isHeading ? 12 : (isTableHeader || isTableRow ? 13 : 3),
       styleId: isHeading ? 14 : 1,
-      charPrId: isHeading ? 8 : 0
+      charPrId: isHeading ? 8 : (isTableHeader ? 12 : (isTableRow ? 13 : 10)),
+      pageBreak: index === 0
     });
   });
+  appendHwpxParagraph(
+    sectionDocument,
+    sectionRoot,
+    'www.kh.or.kr  |  서울특별시 강남구 봉은사로 406  |  T. 02-566-6300',
+    { id: paragraphId++, paraPrId: 13, styleId: 15, charPrId: 11 }
+  );
   zip.file('Contents/section0.xml', serializePptXml(sectionDocument));
 
   const contentFile = zip.file('Contents/content.hpf');
@@ -2985,6 +3030,35 @@ async function buildHwpxDocument(markdown, options = {}) {
   };
 }
 
+async function buildDocxDocument(markdown, options = {}) {
+  if (!window.KhaDocx) throw new Error('Word 생성 라이브러리를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.');
+  const title = cleanPresentationText(options.title) || presentationTitleFromMarkdown(markdown, 'Herian 보고서');
+  const author = cleanPresentationText(options.author) || '국가유산진흥원';
+  return window.KhaDocx.buildDocument({
+    title,
+    author,
+    department: cleanPresentationText(options.department) || author,
+    date: options.date || new Date(),
+    sections: markdownToReportSections(
+      String(markdown || '').replace(/^#\s+.+(?:\r?\n|$)/m, '')
+    ),
+  });
+}
+
+function appendDocxDownload(assistantBodyEl, blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const notice = document.createElement('div');
+  notice.style.cssText = 'margin-top:12px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#f8faff;font-size:12px;';
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.textContent = `📄 ${filename} 다시 다운로드`;
+  link.style.cssText = 'color:var(--accent);font-weight:650;text-decoration:none;';
+  notice.append('국가유산진흥원 보고서 양식으로 Word 문서를 생성했습니다. ', link);
+  assistantBodyEl.appendChild(notice);
+  window.setTimeout(() => URL.revokeObjectURL(url), 10 * 60 * 1000);
+}
+
 function appendHwpxDownload(assistantBodyEl, blob, filename) {
   const url = URL.createObjectURL(blob);
   const notice = document.createElement('div');
@@ -3003,7 +3077,7 @@ async function createReportFile() {
   const status = document.getElementById('reportStatus');
   const format = document.getElementById('reportFormat').value;
   const base = String(cfg?.documentApiUrl || '').replace(/\/$/, '');
-  if (!['pptx', 'hwpx'].includes(format) && !base) { status.textContent = '관리자가 documentApiUrl을 설정한 뒤 사용할 수 있습니다.'; return; }
+  if (!['pptx', 'docx', 'hwpx'].includes(format) && !base) { status.textContent = '관리자가 documentApiUrl을 설정한 뒤 사용할 수 있습니다.'; return; }
   const templateId = document.getElementById('reportTemplate').value.trim();
   const button = document.getElementById('reportCreateBtn');
   button.disabled = true;
@@ -3013,6 +3087,16 @@ async function createReportFile() {
       const result = await buildKhaPresentation(pendingReportContent, {
         title: document.getElementById('reportTitle').value.trim() || 'Herian 발표자료',
         author: user?.department || user?.name || '국가유산진흥원'
+      });
+      downloadBlob(result.blob, result.filename);
+      status.textContent = `${result.filename} 파일을 생성했습니다.`;
+      return;
+    }
+    if (format === 'docx') {
+      const result = await buildDocxDocument(pendingReportContent, {
+        title: document.getElementById('reportTitle').value.trim() || 'Herian 보고서',
+        author: user?.name || '국가유산진흥원',
+        department: user?.department || ''
       });
       downloadBlob(result.blob, result.filename);
       status.textContent = `${result.filename} 파일을 생성했습니다.`;
@@ -3317,6 +3401,14 @@ function wantsHwpxFile(value) {
   return hwpxNoun.test(text) && createCommand.test(text);
 }
 
+function wantsDocxFile(value) {
+  const text = userDisplayText(value).trim();
+  if (!text) return false;
+  const docxNoun = /(?:DOCX|Word|워드)(?:\s*(?:파일|문서|보고서))?/i;
+  const createCommand = /(?:만들|제작|생성|작성|정리|변환|뽑아|내려받|다운로드)/;
+  return docxNoun.test(text) && createCommand.test(text);
+}
+
 async function fetchGeneratedImage(prompt, signal) {
   if (!cfg?.imageApiProxyUrl) {
     const error = new Error('이미지 생성 기능의 Cloudflare 설정이 아직 완료되지 않았습니다.');
@@ -3431,6 +3523,7 @@ async function sendMessage(options = {}) {
   if (!text) return;
   const presentationRequested = wantsPresentationFile(text);
   const hwpxRequested = wantsHwpxFile(text);
+  const docxRequested = wantsDocxFile(text);
 
   const privacyInput = reuseLastUser
     ? text
@@ -3549,6 +3642,16 @@ async function sendMessage(options = {}) {
 - 자료에 없는 사실이나 수치를 만들지 말고, 필요한 미확정 항목은 '검토안' 또는 '추후 확정'으로 표시한다.
 - 인사말, 파일 생성 방법 설명, 코드 블록은 넣지 않는다.`;
     }
+    if (docxRequested) {
+      systemPrompt += `\n\n[Word 보고서 생성용 답변 규칙]
+- 답변은 기관 내부 보고서로 바로 제출하거나 편집할 수 있는 완성된 원고로 작성한다.
+- 첫 줄은 문서 제목을 Markdown 1단계 제목(#)으로 작성한다.
+- 본문은 Markdown 2단계 제목(##), 설명 문단, 글머리표와 표로 논리적으로 구분한다.
+- 개요, 주요 내용, 추진 결과 또는 실행 계획, 향후 조치가 요청 목적에 맞게 드러나야 한다.
+- 사용자가 제공한 수치, 일정, 기관명, 조건과 근거를 누락하지 않는다.
+- 확인되지 않은 사실이나 수치를 만들지 말고 미확정 항목은 '검토안' 또는 '추후 확정'으로 표시한다.
+- 인사말, 다운로드 방법 설명, 코드 블록은 넣지 않는다.`;
+    }
 
     // 저장된 대화는 축약하지 않고, 모델 입력에는 최근 대화를 넉넉히 유지한다.
     const MAX_HIST = 32;
@@ -3664,6 +3767,26 @@ async function sendMessage(options = {}) {
         appendHwpxDownload(assistantBodyEl, documentFile.blob, documentFile.filename);
       } catch (documentError) {
         generatingNotice.textContent = `HWPX 생성 실패: ${documentError.message}`;
+        generatingNotice.style.color = 'var(--danger)';
+      }
+    }
+
+    if (docxRequested && !result.stopped) {
+      const generatingNotice = document.createElement('div');
+      generatingNotice.style.cssText = 'margin-top:10px;color:var(--muted);font-size:12px;';
+      generatingNotice.textContent = '국가유산진흥원 보고서 양식으로 Word 문서를 생성하고 있습니다…';
+      assistantBodyEl.appendChild(generatingNotice);
+      try {
+        const documentFile = await buildDocxDocument(finalContent, {
+          title: presentationTitleFromMarkdown(finalContent, 'Herian 보고서'),
+          author: user?.name || '국가유산진흥원',
+          department: user?.department || ''
+        });
+        generatingNotice.remove();
+        downloadBlob(documentFile.blob, documentFile.filename);
+        appendDocxDownload(assistantBodyEl, documentFile.blob, documentFile.filename);
+      } catch (documentError) {
+        generatingNotice.textContent = `Word 생성 실패: ${documentError.message}`;
         generatingNotice.style.color = 'var(--danger)';
       }
     }

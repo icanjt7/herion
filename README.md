@@ -63,10 +63,17 @@ National Heritage Promotion Agency template. Enter a request such as
 `PPT 만들어줘` or select PowerPoint from the report-file dialog; no
 `documentApiUrl` is required for this format.
 
+DOCX reports can be generated directly in the browser with an A4 cover,
+National Heritage Promotion Agency colors, structured headings, native Word
+bullets, formatted tables, a header, and an official-information footer. Enter
+`Word 보고서로 만들어줘` or select Word from the report-file dialog; no
+`documentApiUrl` is required.
+
 HWPX files can be generated directly in the browser as well. Enter
 `HWPX 문서로 정리해줘` or select HWPX from the report-file dialog. The generated
-document preserves headings, paragraphs, bullet lists, tables as structured
-text, author metadata, and the creation date without requiring a template ID or
+document applies the agency palette and Malgun Gothic typography to its cover,
+headings, body copy, bullet lists, table-style rows, author metadata, creation
+date, and official contact information without requiring a template ID or
 `documentApiUrl`.
 
 ```powershell
