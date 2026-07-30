@@ -2774,19 +2774,22 @@ function presentationTitleFromMarkdown(markdown, fallback = 'Herian 발표자료
 
 async function buildKhaPresentation(markdown, options = {}) {
   if (!window.KhaPptx) throw new Error('PPT 생성 라이브러리를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.');
-  const slides = presentationSlidesFromMarkdown(markdown);
   const title = cleanPresentationText(options.title) || presentationTitleFromMarkdown(markdown);
   const author = cleanPresentationText(options.author) || '국가유산진흥원';
+  const withoutDeckTitle = String(markdown || '').replace(/^#\s+.+(?:\r?\n|$)/m, '');
+  const reportSections = markdownToReportSections(withoutDeckTitle || markdown);
   const pptx = window.KhaPptx.createPresentation({
     title,
     author,
     department: author,
-    slides: slides.map(slide => ({
-      title: slide.title,
+    slides: reportSections.map(section => ({
+      title: cleanPresentationText(section.heading) || '주요 내용',
       sections: [{
-        title: slide.baseTitle,
-        bullets: slide.items.map(item => item.text),
-      }],
+        title: cleanPresentationText(section.heading) || '주요 내용',
+        paragraphs: section.paragraphs,
+        bullets: section.bullets,
+        tables: section.tables
+      }]
     })),
   });
   return {

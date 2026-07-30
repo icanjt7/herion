@@ -7,31 +7,46 @@
     blue: '4DA3E2',
     yellow: 'F1A000',
     gray: '333333',
+    muted: '64748B',
     lightGray: 'F8F9FA',
-    border: 'E3E8EF',
+    border: 'E2E8F0',
+    paleBlue: 'EEF6FC',
+    paleYellow: 'FFF7E6',
     white: 'FFFFFF',
   });
   const FONT_FACE = 'Malgun Gothic';
   const SLIDE_W = 13.333;
   const SLIDE_H = 7.5;
-  const BODY_TOP = 1.42;
-  const BODY_BOTTOM = 7.02;
-  const CARD_GAP = 0.22;
-  const CARD_W = 5.93;
-  const COLUMN_X = [0.62, 6.78];
+  const BODY_TOP = 1.4;
+  const BODY_BOTTOM = 6.2;
+  const BODY_H = BODY_BOTTOM - BODY_TOP;
 
-  function cleanText(value) {
+  function preprocessText(value) {
     return String(value ?? '')
       .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
       .replace(/<[^>]+>/g, '')
       .replace(/[`*_~]/g, '')
+      // 2026. 6. 9. 6. 30. → 2026. 06. 09. ~ 06. 30.
+      .replace(
+        /\b(20\d{2})\.\s*(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{1,2})\.(?!\s*\d)/g,
+        (_, year, startMonth, startDay, endMonth, endDay) =>
+          `${year}. ${String(startMonth).padStart(2, '0')}. ${String(startDay).padStart(2, '0')}. ~ ${String(endMonth).padStart(2, '0')}. ${String(endDay).padStart(2, '0')}.`,
+      )
+      // Normalize ordinary dotted dates after range correction.
+      .replace(
+        /\b(20\d{2})\.\s*(\d{1,2})\.\s*(\d{1,2})\./g,
+        (_, year, month, day) =>
+          `${year}. ${String(month).padStart(2, '0')}. ${String(day).padStart(2, '0')}.`,
+      )
+      .replace(/(\d)\s*~\s*(\d)/g, '$1 ~ $2')
+      .replace(/\s*([:：])\s*/g, '$1 ')
       .replace(/\s+/g, ' ')
       .trim();
   }
 
   function safeFilename(value) {
-    const name = cleanText(value)
+    const name = preprocessText(value)
       .replace(/[\\/:*?"<>|]/g, '')
       .slice(0, 60);
     return `${name || '국가유산진흥원 발표자료'}.pptx`;
@@ -39,7 +54,7 @@
 
   function formatDate(value) {
     const date = value ? new Date(value) : new Date();
-    if (Number.isNaN(date.getTime())) return cleanText(value);
+    if (Number.isNaN(date.getTime())) return preprocessText(value);
     return new Intl.DateTimeFormat('ko-KR', {
       year: 'numeric',
       month: '2-digit',
@@ -54,9 +69,18 @@
   function addRect(slide, pptx, x, y, w, h, color, options = {}) {
     slide.addShape(shapeType(pptx, options.rounded ? 'roundRect' : 'rect'), {
       x, y, w, h,
-      rectRadius: options.rounded ? 0.07 : undefined,
+      rectRadius: options.rounded ? 0.08 : undefined,
       fill: { color, transparency: options.transparency || 0 },
       line: options.line || { color, transparency: 100 },
+      shapeName: options.shapeName,
+    });
+  }
+
+  function addCardBackground(slide, pptx, x, y, w, h, options = {}) {
+    addRect(slide, pptx, x, y, w, h, options.fill || COLORS.lightGray, {
+      rounded: true,
+      line: { color: options.line || COLORS.border, width: 0.9 },
+      shapeName: options.shapeName,
     });
   }
 
@@ -64,45 +88,50 @@
     if (data.logoData) {
       slide.addImage({
         data: data.logoData,
-        x: 0.68,
-        y: 0.42,
+        x: 0.8,
+        y: 0.4,
         w: Number(data.logoWidth) || 1.45,
         h: Number(data.logoHeight) || 0.52,
       });
       return;
     }
     slide.addText('국가유산진흥원', {
-      x: 0.68, y: 0.43, w: 2.6, h: 0.38,
+      x: 0.8, y: 0.42, w: 2.6, h: 0.38,
       fontFace: FONT_FACE, fontSize: 14, bold: true,
-      color: COLORS.navy, margin: 0, breakLine: false,
+      color: COLORS.navy, margin: 0,
     });
     slide.addText('KOREA HERITAGE AGENCY', {
-      x: 0.69, y: 0.77, w: 2.8, h: 0.18,
+      x: 0.81, y: 0.76, w: 2.8, h: 0.18,
       fontFace: 'Arial', fontSize: 5.5, bold: true,
       charSpacing: 1.5, color: COLORS.gray, margin: 0,
     });
   }
 
   function addAccentBar(slide, pptx) {
-    const y = 1.1;
-    addRect(slide, pptx, 0.62, y, 0.66, 0.055, COLORS.yellow);
-    addRect(slide, pptx, 1.28, y, 0.66, 0.055, COLORS.blue);
-    addRect(slide, pptx, 1.94, y, 10.77, 0.055, COLORS.navy);
+    const y = 1.12;
+    addRect(slide, pptx, 0.8, y, 0.62, 0.055, COLORS.yellow);
+    addRect(slide, pptx, 1.42, y, 0.62, 0.055, COLORS.blue);
+    addRect(slide, pptx, 2.04, y, 10.49, 0.055, COLORS.navy);
   }
 
   function addContentHeader(slide, pptx, title, continued = false) {
     slide.background = { color: COLORS.white };
-    slide.addText(`${cleanText(title) || '주요 내용'}${continued ? ' (계속)' : ''}`, {
-      x: 0.62, y: 0.5, w: 12.08, h: 0.42,
-      fontFace: FONT_FACE, fontSize: 20, bold: true,
+    slide.addText(`${preprocessText(title) || '주요 내용'}${continued ? ' (계속)' : ''}`, {
+      x: 0.8, y: 0.5, w: 11.73, h: 0.44,
+      fontFace: FONT_FACE, fontSize: 22, bold: true,
       color: COLORS.navy, margin: 0, fit: 'shrink',
-      breakLine: false, valign: 'middle',
+      valign: 'middle',
     });
     addAccentBar(slide, pptx);
+    slide.addText('HERIAN  |  국가유산진흥원', {
+      x: 0.8, y: 6.72, w: 4.0, h: 0.2,
+      fontFace: FONT_FACE, fontSize: 8.5,
+      color: COLORS.muted, margin: 0,
+    });
   }
 
   function splitLongText(value, maxChars = 92) {
-    const text = cleanText(value);
+    const text = preprocessText(value);
     if (!text) return [];
     if (text.length <= maxChars) return [text];
     const sentences = text.match(/[^.!?。！？]+[.!?。！？]?/g) || [text];
@@ -129,176 +158,604 @@
     return result;
   }
 
+  function normalizeTables(rawTables) {
+    return (Array.isArray(rawTables) ? rawTables : []).map(table => ({
+      title: preprocessText(table?.title),
+      headers: (Array.isArray(table?.headers) ? table.headers : []).map(preprocessText),
+      rows: (Array.isArray(table?.rows) ? table.rows : [])
+        .map(row => (Array.isArray(row) ? row : [row]).map(preprocessText)),
+    }));
+  }
+
   function normalizeSections(data = {}) {
     const rawSections = Array.isArray(data.sections) ? data.sections : [];
     return rawSections.map((section, index) => {
-      const heading = cleanText(section?.title || section?.heading || `핵심 내용 ${index + 1}`);
-      let rawItems = section?.bullets || section?.items || section?.points || section?.body || [];
+      let rawItems = section?.bullets || section?.items || section?.points || [];
       if (!Array.isArray(rawItems)) rawItems = [rawItems];
       const bullets = rawItems.flatMap(item => {
         const value = typeof item === 'object' ? item?.text : item;
         return splitLongText(value);
       }).filter(Boolean);
-      return { heading, bullets: bullets.length ? bullets : ['내용을 확인해 주세요.'] };
-    }).filter(section => section.heading || section.bullets.length);
+      let rawParagraphs = section?.paragraphs || section?.body || [];
+      if (!Array.isArray(rawParagraphs)) rawParagraphs = [rawParagraphs];
+      const paragraphs = rawParagraphs.flatMap(value => splitLongText(value, 130)).filter(Boolean);
+      return {
+        heading: preprocessText(section?.title || section?.heading || `핵심 내용 ${index + 1}`),
+        paragraphs,
+        bullets,
+        tables: normalizeTables(section?.tables),
+      };
+    }).filter(section =>
+      section.heading || section.paragraphs.length || section.bullets.length || section.tables.length
+    );
+  }
+
+  function allContentItems(sections) {
+    return sections.flatMap(section => [
+      ...section.paragraphs.map(text => ({ heading: section.heading, text, type: 'paragraph' })),
+      ...section.bullets.map(text => ({ heading: section.heading, text, type: 'bullet' })),
+    ]);
+  }
+
+  function combinedText(data, sections) {
+    return [
+      data.title,
+      ...sections.flatMap(section => [
+        section.heading,
+        ...section.paragraphs,
+        ...section.bullets,
+        ...section.tables.flatMap(table => [
+          table.title,
+          ...table.headers,
+          ...table.rows.flat(),
+        ]),
+      ]),
+    ].map(preprocessText).join(' ');
+  }
+
+  function extractMetrics(sections) {
+    const candidates = allContentItems(sections);
+    const metrics = [];
+    const unitPattern = /-?\d[\d,]*(?:\.\d+)?\s*(?:점|%|명|건|개|억\s*원|만\s*원|원|회|일|개월|배|위)(?![가-힣A-Za-z0-9])/g;
+    candidates.forEach(item => {
+      const matches = item.text.match(unitPattern) || [];
+      matches.forEach(value => {
+        const label = preprocessText(
+          item.text.replace(value, '').replace(/^[\s:：·\-–]+|[\s:：·\-–]+$/g, ''),
+        ) || item.heading;
+        metrics.push({ label: label.slice(0, 34), value: value.replace(/\s+/g, '') });
+      });
+    });
+    sections.forEach(section => {
+      section.tables.forEach(table => {
+        table.rows.forEach(row => {
+          row.slice(1).forEach((cell, columnOffset) => {
+            const matches = cell.match(unitPattern) || [];
+            matches.forEach(value => {
+              const header = table.headers[columnOffset + 1];
+              metrics.push({
+                label: preprocessText([row[0], header].filter(Boolean).join(' · ')).slice(0, 34),
+                value: value.replace(/\s+/g, ''),
+              });
+            });
+          });
+        });
+      });
+    });
+    return metrics.filter((metric, index, array) =>
+      array.findIndex(candidate => candidate.value === metric.value && candidate.label === metric.label) === index
+    ).slice(0, 3);
+  }
+
+  function comparisonRows(sections) {
+    const rows = [];
+    sections.forEach(section => {
+      section.tables.forEach(table => {
+        table.rows.forEach(row => {
+          const label = row[0] || section.heading;
+          const value = row.slice(1).filter(Boolean).join(' · ');
+          if (label && value) rows.push([label, value]);
+        });
+      });
+    });
+    if (rows.length) return rows;
+
+    allContentItems(sections).forEach(item => {
+      const explicit = item.text.match(/^(.{1,34}?)(?:[:：]| - | – )\s*(.+)$/);
+      if (explicit) rows.push([preprocessText(explicit[1]), preprocessText(explicit[2])]);
+      else if (/\d/.test(item.text)) rows.push([item.heading, item.text]);
+    });
+    return rows;
+  }
+
+  function detectSlidePattern(data, sections) {
+    const explicit = preprocessText(data.pattern || data.layout).toLowerCase();
+    const allowed = new Set(['overview', 'metrics', 'priority', 'timeline', 'cards']);
+    if (allowed.has(explicit)) return explicit;
+
+    const text = combinedText(data, sections);
+    const titleAndHeadings = [
+      preprocessText(data.title),
+      ...sections.map(section => section.heading),
+    ].join(' ');
+    const metrics = extractMetrics(sections);
+    const hasComparisonTable = sections.some(section =>
+      section.tables.some(table => table.rows.length > 0)
+    );
+    if (/(우선순위|우선 과제|개선과제|개선 과제|중점과제|1순위|2순위|3순위)/i.test(text)) {
+      return 'priority';
+    }
+    if (
+      /(향후 일정|추진 일정|세부 일정|로드맵|월별 계획|추진계획)/i.test(text) ||
+      ((text.match(/\d{1,2}\s*월/g) || []).length >= 2)
+    ) {
+      return 'timeline';
+    }
+    if (
+      /(성과|종합 진단|진단 결과|점수|격차|실적|지표|KPI|평가 결과|달성률)/i.test(titleAndHeadings) ||
+      metrics.length >= 2 ||
+      (metrics.length >= 1 && hasComparisonTable)
+    ) {
+      return 'metrics';
+    }
+    if (/(개요|현황|배경|목적|기본정보|사업 개요|추진 개요|운영 현황)/i.test(text)) {
+      return 'overview';
+    }
+    return 'cards';
+  }
+
+  function createBodySlide(pptx, title, continued = false) {
+    const slide = pptx.addSlide();
+    addContentHeader(slide, pptx, title, continued);
+    return slide;
+  }
+
+  function addBulletList(slide, items, box, options = {}) {
+    if (!items.length) {
+      slide.addText('내용을 확인해 주세요.', {
+        x: box.x, y: box.y, w: box.w, h: 0.35,
+        fontFace: FONT_FACE, fontSize: 12, color: COLORS.muted,
+        margin: 0, fit: 'shrink',
+      });
+      return;
+    }
+    const lineWeights = items.map(item =>
+      Math.max(1, Math.ceil(preprocessText(item).length / (options.charsPerLine || 36))),
+    );
+    const totalWeight = lineWeights.reduce((sum, value) => sum + value, 0) || 1;
+    let y = box.y;
+    items.forEach((item, index) => {
+      const h = Math.max(0.28, box.h * (lineWeights[index] / totalWeight));
+      slide.addText(preprocessText(item), {
+        x: box.x, y, w: box.w, h,
+        fontFace: FONT_FACE, fontSize: options.fontSize || 12,
+        color: options.color || COLORS.gray,
+        bullet: options.bullet !== false, margin: 2,
+        paraSpaceAfter: 3, fit: 'shrink', valign: 'top',
+        lineSpacingMultiple: 1.08,
+      });
+      y += h;
+    });
+  }
+
+  function sectionItems(section) {
+    return [...section.paragraphs, ...section.bullets];
+  }
+
+  function overviewColumns(sections) {
+    const left = [];
+    const right = [];
+    sections.forEach(section => {
+      const target = /(목적|핵심|수치|목표|효과|성과)/.test(section.heading) ? right : left;
+      sectionItems(section).forEach(item => target.push(item));
+    });
+    const all = [...left, ...right];
+    if (!left.length || !right.length) {
+      const half = Math.ceil(all.length / 2);
+      return [all.slice(0, half), all.slice(half)];
+    }
+    return [left, right];
+  }
+
+  function renderOverview(pptx, data, sections) {
+    const [leftItems, rightItems] = overviewColumns(sections);
+    const metrics = extractMetrics(sections);
+    const pages = Math.max(1, Math.ceil(Math.max(leftItems.length, rightItems.length) / 5));
+    const slides = [];
+
+    for (let pageIndex = 0; pageIndex < pages; pageIndex += 1) {
+      const slide = createBodySlide(pptx, data.title, pageIndex > 0);
+      const cards = [
+        { x: 0.8, title: data.leftTitle || '기본정보', items: leftItems.slice(pageIndex * 5, pageIndex * 5 + 5) },
+        { x: 6.77, title: data.rightTitle || '핵심 수치·목적', items: rightItems.slice(pageIndex * 5, pageIndex * 5 + 5) },
+      ];
+      cards.forEach((card, columnIndex) => {
+        addCardBackground(slide, pptx, card.x, BODY_TOP, 5.76, BODY_H, {
+          shapeName: `overview-card-${columnIndex + 1}`,
+        });
+        addRect(slide, pptx, card.x, BODY_TOP, 0.08, BODY_H, columnIndex ? COLORS.yellow : COLORS.blue);
+        slide.addText(card.title, {
+          x: card.x + 0.28, y: 1.68, w: 5.15, h: 0.38,
+          fontFace: FONT_FACE, fontSize: 16, bold: true,
+          color: COLORS.navy, margin: 0, fit: 'shrink',
+        });
+
+        if (columnIndex === 1 && pageIndex === 0 && metrics.length) {
+          const metric = metrics[0];
+          slide.addText(metric.value, {
+            x: card.x + 0.28, y: 2.15, w: 5.15, h: 0.74,
+            fontFace: FONT_FACE, fontSize: 30, bold: true,
+            color: COLORS.blue, margin: 0, fit: 'shrink',
+          });
+          slide.addText(metric.label, {
+            x: card.x + 0.3, y: 2.85, w: 5.1, h: 0.34,
+            fontFace: FONT_FACE, fontSize: 11, color: COLORS.muted,
+            margin: 0, fit: 'shrink',
+          });
+          addBulletList(slide, card.items.filter(item => !item.includes(metric.value)), {
+            x: card.x + 0.28, y: 3.35, w: 5.05, h: 2.35,
+          });
+        } else {
+          addBulletList(slide, card.items, {
+            x: card.x + 0.28, y: 2.2, w: 5.05, h: 3.5,
+          });
+        }
+      });
+      slides.push(slide);
+    }
+    return slides;
+  }
+
+  function tableRowsForPptx(rows) {
+    return rows.map((row, index) => [
+      {
+        text: preprocessText(row[0]),
+        options: {
+          bold: index === 0,
+          color: index === 0 ? COLORS.white : COLORS.navy,
+          fill: index === 0 ? COLORS.navy : (index % 2 ? COLORS.white : COLORS.lightGray),
+        },
+      },
+      {
+        text: preprocessText(row[1]),
+        options: {
+          bold: index === 0,
+          color: index === 0 ? COLORS.white : COLORS.gray,
+          fill: index === 0 ? COLORS.navy : (index % 2 ? COLORS.white : COLORS.lightGray),
+        },
+      },
+    ]);
+  }
+
+  function renderMetrics(pptx, data, sections) {
+    const metrics = extractMetrics(sections);
+    const comparisons = comparisonRows(sections);
+    const rowPages = [];
+    if (comparisons.length) {
+      for (let offset = 0; offset < comparisons.length; offset += 6) {
+        rowPages.push(comparisons.slice(offset, offset + 6));
+      }
+    } else {
+      rowPages.push([]);
+    }
+
+    return rowPages.map((pageRows, pageIndex) => {
+      const slide = createBodySlide(pptx, data.title, pageIndex > 0);
+      const visibleMetrics = metrics.length ? metrics : [{
+        value: '—',
+        label: '핵심 수치를 확인해 주세요.',
+      }];
+      const count = Math.min(3, visibleMetrics.length);
+      const gap = 0.25;
+      const cardW = (11.73 - gap * (count - 1)) / count;
+      visibleMetrics.slice(0, count).forEach((metric, index) => {
+        const x = 0.8 + index * (cardW + gap);
+        addCardBackground(slide, pptx, x, BODY_TOP, cardW, 1.45, {
+          fill: index === 0 ? COLORS.paleBlue : COLORS.lightGray,
+          line: index === 0 ? COLORS.blue : COLORS.border,
+          shapeName: `kpi-card-${index + 1}`,
+        });
+        slide.addText(metric.value, {
+          x: x + 0.22, y: 1.67, w: cardW - 0.44, h: 0.58,
+          fontFace: FONT_FACE, fontSize: count === 1 ? 32 : 27,
+          bold: true, color: index === 0 ? COLORS.blue : COLORS.navy,
+          margin: 0, align: 'center', fit: 'shrink',
+        });
+        slide.addText(metric.label, {
+          x: x + 0.22, y: 2.28, w: cardW - 0.44, h: 0.32,
+          fontFace: FONT_FACE, fontSize: 10.5,
+          color: COLORS.muted, margin: 0, align: 'center', fit: 'shrink',
+        });
+      });
+
+      if (pageRows.length) {
+        const tableRows = [['구분', '비교 내용'], ...pageRows];
+        slide.addTable(tableRowsForPptx(tableRows), {
+          x: 0.8, y: 3.05, w: 11.73, h: 2.9,
+          colW: [3.65, 8.08],
+          rowH: 2.9 / tableRows.length,
+          fontFace: FONT_FACE, fontSize: 11.5,
+          color: COLORS.gray, margin: [5, 9, 5, 9],
+          valign: 'middle',
+          border: { type: 'solid', pt: 0.7, color: COLORS.border },
+        });
+      } else {
+        const fallbackItems = allContentItems(sections).map(item => item.text).slice(0, 6);
+        addCardBackground(slide, pptx, 0.8, 3.05, 11.73, 2.9);
+        addBulletList(slide, fallbackItems, {
+          x: 1.08, y: 3.34, w: 11.15, h: 2.3,
+        }, { charsPerLine: 70 });
+      }
+      return slide;
+    });
+  }
+
+  function priorityItems(data, sections) {
+    if (Array.isArray(data.priorities)) {
+      return data.priorities.map((item, index) => ({
+        rank: index + 1,
+        title: preprocessText(item?.title || item?.heading || `${index + 1}순위`),
+        detail: preprocessText(item?.detail || item?.text || item?.description),
+      }));
+    }
+    return allContentItems(sections).map((item, index) => {
+      const rankMatch = item.text.match(/^\s*([1-9])\s*(?:순위|[.)])\s*(.*)$/);
+      const remainder = preprocessText(rankMatch?.[2] || item.text);
+      const parts = remainder.split(/[:：]\s*/, 2);
+      return {
+        rank: Number(rankMatch?.[1]) || index + 1,
+        title: preprocessText(parts.length > 1 ? parts[0] : item.heading),
+        detail: preprocessText(parts.length > 1 ? parts[1] : remainder),
+      };
+    });
+  }
+
+  function renderPriority(pptx, data, sections) {
+    const items = priorityItems(data, sections);
+    const pages = [];
+    for (let offset = 0; offset < Math.max(items.length, 1); offset += 3) {
+      pages.push(items.slice(offset, offset + 3));
+    }
+    return pages.map((pageItems, pageIndex) => {
+      const slide = createBodySlide(pptx, data.title, pageIndex > 0);
+      const itemsToRender = pageItems.length ? pageItems : [{
+        rank: 1, title: '우선과제', detail: '우선순위 내용을 확인해 주세요.',
+      }];
+      const cardW = 3.76;
+      const gap = 0.23;
+      itemsToRender.forEach((item, index) => {
+        const x = 0.8 + index * (cardW + gap);
+        addCardBackground(slide, pptx, x, 1.76, cardW, 4.18, {
+          fill: index === 0 ? COLORS.paleBlue : COLORS.lightGray,
+          line: index === 0 ? COLORS.blue : COLORS.border,
+          shapeName: `priority-card-${index + 1}`,
+        });
+        slide.addShape(shapeType(pptx, 'ellipse'), {
+          x: x + 1.43, y: 1.5, w: 0.9, h: 0.9,
+          fill: { color: index === 0 ? COLORS.blue : COLORS.navy },
+          line: { color: COLORS.white, transparency: 100 },
+        });
+        slide.addText(String(item.rank).padStart(2, '0'), {
+          x: x + 1.43, y: 1.66, w: 0.9, h: 0.32,
+          fontFace: FONT_FACE, fontSize: 17, bold: true,
+          color: COLORS.white, align: 'center', margin: 0,
+        });
+        slide.addText(item.title || `${item.rank}순위`, {
+          x: x + 0.28, y: 2.65, w: cardW - 0.56, h: 0.62,
+          fontFace: FONT_FACE, fontSize: 17, bold: true,
+          color: COLORS.navy, align: 'center', valign: 'middle',
+          margin: 0, fit: 'shrink',
+        });
+        slide.addText(item.detail, {
+          x: x + 0.3, y: 3.48, w: cardW - 0.6, h: 1.85,
+          fontFace: FONT_FACE, fontSize: 12,
+          color: COLORS.gray, align: 'center', valign: 'middle',
+          margin: 5, fit: 'shrink', breakLine: false,
+        });
+      });
+      return slide;
+    });
+  }
+
+  function timelineItems(data, sections) {
+    if (Array.isArray(data.timeline)) {
+      return data.timeline.map((item, index) => ({
+        period: preprocessText(item?.period || item?.date || item?.month || `단계 ${index + 1}`),
+        title: preprocessText(item?.title || item?.heading || item?.label),
+        detail: preprocessText(item?.detail || item?.text || item?.description),
+      }));
+    }
+    const rows = comparisonRows(sections);
+    if (rows.length) {
+      return rows.map(row => ({ period: row[0], title: row[1], detail: '' }));
+    }
+    return allContentItems(sections).map((item, index) => {
+      const periodMatch = item.text.match(
+        /((?:20\d{2}\.\s*)?\d{1,2}(?:\.\s*\d{1,2}\.)?(?:\s*~\s*\d{1,2}(?:\.\s*\d{1,2}\.)?)?|\d{1,2}\s*(?:~\s*\d{1,2})?\s*월)/,
+      );
+      const period = preprocessText(periodMatch?.[1] || `단계 ${index + 1}`);
+      const remainder = preprocessText(item.text.replace(periodMatch?.[0] || '', ''));
+      const parts = remainder.replace(/^[:：·\-–\s]+/, '').split(/[:：]\s*/, 2);
+      return {
+        period,
+        title: preprocessText(parts[0] || item.heading),
+        detail: preprocessText(parts[1] || (parts.length > 1 ? '' : remainder)),
+      };
+    });
+  }
+
+  function renderTimeline(pptx, data, sections) {
+    const items = timelineItems(data, sections);
+    const pages = [];
+    for (let offset = 0; offset < Math.max(items.length, 1); offset += 4) {
+      pages.push(items.slice(offset, offset + 4));
+    }
+    return pages.map((pageItems, pageIndex) => {
+      const slide = createBodySlide(pptx, data.title, pageIndex > 0);
+      const itemsToRender = pageItems.length ? pageItems : [{
+        period: '일정', title: '추진계획', detail: '일정 내용을 확인해 주세요.',
+      }];
+      const count = itemsToRender.length;
+      const startX = 1.25;
+      const endX = 12.08;
+      const step = count > 1 ? (endX - startX) / (count - 1) : 0;
+      slide.addShape(shapeType(pptx, 'line'), {
+        x: startX, y: 3.05, w: Math.max(0.01, endX - startX), h: 0,
+        line: {
+          color: COLORS.blue, width: 2.2,
+          endArrowType: count > 1 ? 'triangle' : 'none',
+        },
+      });
+      itemsToRender.forEach((item, index) => {
+        const centerX = count === 1 ? SLIDE_W / 2 : startX + index * step;
+        const cardW = count === 1 ? 4.2 : Math.min(2.7, step - 0.22);
+        slide.addText(item.period, {
+          x: centerX - cardW / 2, y: 1.75, w: cardW, h: 0.55,
+          fontFace: FONT_FACE, fontSize: 17, bold: true,
+          color: index === 0 ? COLORS.blue : COLORS.navy,
+          align: 'center', valign: 'middle', margin: 0, fit: 'shrink',
+        });
+        slide.addShape(shapeType(pptx, 'ellipse'), {
+          x: centerX - 0.16, y: 2.89, w: 0.32, h: 0.32,
+          fill: { color: index === 0 ? COLORS.yellow : COLORS.blue },
+          line: { color: COLORS.white, width: 1 },
+        });
+        addCardBackground(slide, pptx, centerX - cardW / 2, 3.55, cardW, 2.12, {
+          fill: index === 0 ? COLORS.paleYellow : COLORS.lightGray,
+          line: index === 0 ? COLORS.yellow : COLORS.border,
+          shapeName: `timeline-card-${index + 1}`,
+        });
+        slide.addText(item.title || `단계 ${index + 1}`, {
+          x: centerX - cardW / 2 + 0.18, y: 3.82, w: cardW - 0.36, h: 0.5,
+          fontFace: FONT_FACE, fontSize: 14, bold: true,
+          color: COLORS.navy, align: 'center', margin: 0, fit: 'shrink',
+        });
+        slide.addText(item.detail, {
+          x: centerX - cardW / 2 + 0.18, y: 4.43, w: cardW - 0.36, h: 0.9,
+          fontFace: FONT_FACE, fontSize: 10.5,
+          color: COLORS.gray, align: 'center', valign: 'middle',
+          margin: 3, fit: 'shrink',
+        });
+      });
+      return slide;
+    });
   }
 
   function estimatedLineCount(text, charsPerLine = 39) {
-    return Math.max(1, Math.ceil(cleanText(text).length / charsPerLine));
+    return Math.max(1, Math.ceil(preprocessText(text).length / charsPerLine));
   }
 
-  function estimatedCardHeight(section) {
-    const titleLines = estimatedLineCount(section.heading, 28);
-    const bodyLines = section.bullets.reduce(
-      (sum, bullet) => sum + estimatedLineCount(bullet, 40),
-      0,
-    );
-    return Math.min(5.48, Math.max(
-      1.08,
-      0.32 + titleLines * 0.27 + bodyLines * 0.245 + section.bullets.length * 0.09 + 0.28,
-    ));
-  }
-
-  function splitOversizedSection(section, maxHeight = 2.65) {
-    const parts = [];
-    let bullets = [];
-    for (const bullet of section.bullets) {
-      const candidate = { heading: section.heading, bullets: [...bullets, bullet] };
-      if (bullets.length && estimatedCardHeight(candidate) > maxHeight) {
-        parts.push({ heading: section.heading, bullets });
-        bullets = [bullet];
-      } else {
-        bullets.push(bullet);
+  function genericCards(sections) {
+    return sections.flatMap(section => {
+      const items = sectionItems(section);
+      if (!items.length && section.tables.length) {
+        return section.tables.flatMap(table => table.rows.map(row => ({
+          heading: row[0] || section.heading,
+          items: [row.slice(1).join(' · ')],
+        })));
       }
-    }
-    if (bullets.length) parts.push({ heading: section.heading, bullets });
-    return parts.map((part, index) => ({
-      ...part,
-      heading: index ? `${part.heading} (계속)` : part.heading,
-    }));
+      const cards = [];
+      for (let offset = 0; offset < Math.max(items.length, 1); offset += 3) {
+        cards.push({
+          heading: offset ? `${section.heading} (계속)` : section.heading,
+          items: items.slice(offset, offset + 3),
+        });
+      }
+      return cards;
+    });
   }
 
-  function paginateCards(sections) {
-    const cards = sections.flatMap(section => splitOversizedSection(section));
+  function renderCards(pptx, data, sections) {
+    const cards = genericCards(sections.length ? sections : [{
+      heading: '주요 내용', paragraphs: [], bullets: ['내용을 확인해 주세요.'], tables: [],
+    }]);
     const pages = [];
-    let page = [];
-    let rowY = BODY_TOP;
-
-    for (let index = 0; index < cards.length; index += 2) {
-      const row = cards.slice(index, index + 2);
-      const heights = row.map(estimatedCardHeight);
-      const rowHeight = Math.max(...heights);
-      if (page.length && rowY + rowHeight > BODY_BOTTOM) {
-        pages.push(page);
-        page = [];
-        rowY = BODY_TOP;
-      }
-      row.forEach((card, column) => {
-        page.push({
-          ...card,
-          x: COLUMN_X[column],
-          y: rowY,
-          h: heights[column],
+    for (let offset = 0; offset < cards.length; offset += 4) {
+      pages.push(cards.slice(offset, offset + 4));
+    }
+    return pages.map((pageCards, pageIndex) => {
+      const slide = createBodySlide(pptx, data.title, pageIndex > 0);
+      pageCards.forEach((card, index) => {
+        const column = index % 2;
+        const row = Math.floor(index / 2);
+        const x = column ? 6.77 : 0.8;
+        const y = BODY_TOP + row * 2.52;
+        addCardBackground(slide, pptx, x, y, 5.76, 2.25, {
+          shapeName: `content-card-${index + 1}`,
+        });
+        addRect(slide, pptx, x, y, 0.07, 2.25, column ? COLORS.yellow : COLORS.blue);
+        slide.addText(card.heading, {
+          x: x + 0.25, y: y + 0.18, w: 5.2, h: 0.4,
+          fontFace: FONT_FACE, fontSize: 16, bold: true,
+          color: COLORS.navy, margin: 0, fit: 'shrink',
+        });
+        addBulletList(slide, card.items, {
+          x: x + 0.27, y: y + 0.72, w: 5.12, h: 1.2,
         });
       });
-      rowY += rowHeight + CARD_GAP;
-    }
-    if (page.length || !pages.length) pages.push(page);
-    return pages;
-  }
-
-  function addCard(slide, pptx, card) {
-    addRect(slide, pptx, card.x, card.y, CARD_W, card.h, COLORS.lightGray, {
-      rounded: true,
-      line: { color: COLORS.border, width: 0.8 },
-    });
-    addRect(slide, pptx, card.x, card.y, 0.07, card.h, COLORS.blue);
-
-    const titleH = Math.max(0.3, estimatedLineCount(card.heading, 28) * 0.27);
-    slide.addText(card.heading, {
-      x: card.x + 0.26, y: card.y + 0.17, w: CARD_W - 0.48, h: titleH,
-      fontFace: FONT_FACE, fontSize: 16, bold: true,
-      color: COLORS.navy, margin: 0, fit: 'shrink', valign: 'top',
-      breakLine: false,
-    });
-
-    let bulletY = card.y + 0.25 + titleH;
-    const remaining = card.y + card.h - 0.18 - bulletY;
-    const weights = card.bullets.map(bullet => estimatedLineCount(bullet, 40));
-    const totalWeight = weights.reduce((sum, weight) => sum + weight, 0) || 1;
-    card.bullets.forEach((bullet, index) => {
-      const bulletH = Math.max(0.24, remaining * (weights[index] / totalWeight));
-      slide.addText(bullet, {
-        x: card.x + 0.3, y: bulletY, w: CARD_W - 0.55, h: bulletH,
-        fontFace: FONT_FACE, fontSize: 12, color: COLORS.gray,
-        bullet: true, margin: 2, breakLine: false,
-        paraSpaceAfter: 3, fit: 'shrink', valign: 'top',
-        lineSpacingMultiple: 1.1,
-      });
-      bulletY += bulletH;
+      return slide;
     });
   }
 
   /**
-   * @param {PptxGenJS} pptx
-   * @param {{title:string, date?:string|Date, department?:string, team?:string,
-   *          logoData?:string, logoWidth?:number, logoHeight?:number}} data
+   * Selects and renders a visual layout from the semantic content of slideData.
+   * Returns an array because overflow may create continuation slides.
    */
+  function renderSlideByPattern(pptx, slideData = {}) {
+    const normalized = {
+      ...slideData,
+      title: preprocessText(slideData.title) || '주요 내용',
+    };
+    const sections = normalizeSections(normalized);
+    const pattern = detectSlidePattern(normalized, sections);
+    switch (pattern) {
+      case 'overview':
+        return renderOverview(pptx, normalized, sections);
+      case 'metrics':
+        return renderMetrics(pptx, normalized, sections);
+      case 'priority':
+        return renderPriority(pptx, normalized, sections);
+      case 'timeline':
+        return renderTimeline(pptx, normalized, sections);
+      default:
+        return renderCards(pptx, normalized, sections);
+    }
+  }
+
   function createCoverSlide(pptx, data = {}) {
     const slide = pptx.addSlide();
     slide.background = { color: COLORS.white };
     addBrandMark(slide, data);
-
-    addRect(slide, pptx, 0.68, 1.35, 0.9, 0.06, COLORS.yellow);
-    addRect(slide, pptx, 1.58, 1.35, 0.9, 0.06, COLORS.blue);
-    addRect(slide, pptx, 2.48, 1.35, 10.18, 0.06, COLORS.navy);
-
-    slide.addText(cleanText(data.title) || '발표자료 제목', {
-      x: 0.78, y: 2.35, w: 11.75, h: 1.52,
+    addRect(slide, pptx, 0.8, 1.35, 0.9, 0.06, COLORS.yellow);
+    addRect(slide, pptx, 1.7, 1.35, 0.9, 0.06, COLORS.blue);
+    addRect(slide, pptx, 2.6, 1.35, 9.93, 0.06, COLORS.navy);
+    slide.addText(preprocessText(data.title) || '발표자료 제목', {
+      x: 0.8, y: 2.35, w: 11.73, h: 1.52,
       fontFace: FONT_FACE, fontSize: 32, bold: true,
       color: COLORS.navy, align: 'center', valign: 'middle',
-      margin: 0.04, fit: 'shrink', breakLine: false,
+      margin: 0.04, fit: 'shrink',
     });
-
     if (data.subtitle) {
-      slide.addText(cleanText(data.subtitle), {
+      slide.addText(preprocessText(data.subtitle), {
         x: 1.15, y: 4.0, w: 11.03, h: 0.52,
         fontFace: FONT_FACE, fontSize: 17,
         color: COLORS.gray, align: 'center', valign: 'middle',
         margin: 0, fit: 'shrink',
       });
     }
-
-    const organization = [cleanText(data.department), cleanText(data.team)]
+    const organization = [preprocessText(data.department), preprocessText(data.team)]
       .filter(Boolean).join(' · ') || '국가유산진흥원';
     slide.addText(`${formatDate(data.date)}\n${organization}`, {
-      x: 8.15, y: 5.92, w: 4.42, h: 0.78,
+      x: 8.15, y: 5.92, w: 4.38, h: 0.78,
       fontFace: FONT_FACE, fontSize: 14,
       color: COLORS.gray, align: 'right', valign: 'bottom',
-      margin: 0, breakLine: false, fit: 'shrink',
-      lineSpacingMultiple: 1.05,
+      margin: 0, fit: 'shrink',
     });
     return slide;
   }
 
-  /**
-   * Creates one or more slides when the card content does not fit.
-   * @param {PptxGenJS} pptx
-   * @param {{title:string, sections:Array}} data
-   * @returns {Array} generated slides
-   */
   function createContentSlide(pptx, data = {}) {
-    const sections = normalizeSections(data);
-    const pages = paginateCards(sections.length ? sections : [{
-      heading: '주요 내용',
-      bullets: ['내용을 확인해 주세요.'],
-    }]);
-    return pages.map((cards, pageIndex) => {
-      const slide = pptx.addSlide();
-      addContentHeader(slide, pptx, data.title, pageIndex > 0);
-      cards.forEach(card => addCard(slide, pptx, card));
-      return slide;
-    });
+    return renderSlideByPattern(pptx, data);
   }
 
   function createEndingSlide(pptx) {
@@ -307,12 +764,11 @@
     addRect(slide, pptx, 0, 0, 0.16, SLIDE_H, COLORS.navy);
     addRect(slide, pptx, 0.16, 0, 0.07, SLIDE_H, COLORS.blue);
     addRect(slide, pptx, 0.23, 0, 0.04, SLIDE_H, COLORS.yellow);
-
     slide.addText('감사합니다', {
       x: 1.35, y: 2.63, w: 10.8, h: 0.8,
       fontFace: FONT_FACE, fontSize: 36, bold: true,
       color: COLORS.navy, align: 'center', valign: 'middle',
-      margin: 0, breakLine: false,
+      margin: 0,
     });
     slide.addShape(shapeType(pptx, 'line'), {
       x: 5.82, y: 3.65, w: 1.7, h: 0,
@@ -323,8 +779,7 @@
       {
         x: 1.2, y: 6.62, w: 11.1, h: 0.28,
         fontFace: FONT_FACE, fontSize: 10.5,
-        color: COLORS.gray, align: 'center', margin: 0,
-        fit: 'shrink', breakLine: false,
+        color: COLORS.gray, align: 'center', margin: 0, fit: 'shrink',
       },
     );
     return slide;
@@ -336,23 +791,22 @@
     }
     const pptx = new global.PptxGenJS();
     pptx.layout = 'LAYOUT_WIDE';
-    pptx.author = cleanText(data.author) || '국가유산진흥원';
+    pptx.author = preprocessText(data.author) || '국가유산진흥원';
     pptx.company = '국가유산진흥원';
-    pptx.subject = cleanText(data.subject) || cleanText(data.title);
-    pptx.title = cleanText(data.title) || '국가유산진흥원 발표자료';
+    pptx.subject = preprocessText(data.subject) || preprocessText(data.title);
+    pptx.title = preprocessText(data.title) || '국가유산진흥원 발표자료';
     pptx.lang = 'ko-KR';
     pptx.theme = {
       headFontFace: FONT_FACE,
       bodyFontFace: FONT_FACE,
       lang: 'ko-KR',
     };
-
     createCoverSlide(pptx, data);
     const contentSlides = Array.isArray(data.slides) ? data.slides : [{
       title: data.contentTitle || '주요 내용',
       sections: data.sections || [],
     }];
-    contentSlides.forEach(slideData => createContentSlide(pptx, slideData));
+    contentSlides.forEach(slideData => renderSlideByPattern(pptx, slideData));
     createEndingSlide(pptx);
     return pptx;
   }
@@ -366,6 +820,9 @@
 
   global.KhaPptx = Object.freeze({
     COLORS,
+    preprocessText,
+    detectSlidePattern,
+    renderSlideByPattern,
     createCoverSlide,
     createContentSlide,
     createEndingSlide,
@@ -373,6 +830,7 @@
     downloadKhaPresentation,
     safeFilename,
   });
+  global.renderSlideByPattern = renderSlideByPattern;
   global.createCoverSlide = createCoverSlide;
   global.createContentSlide = createContentSlide;
   global.createEndingSlide = createEndingSlide;

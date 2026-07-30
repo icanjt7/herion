@@ -61,7 +61,11 @@ parsing and generates DOCX, PDF, PPTX, or template-based HWPX reports.
 PowerPoint files can also be generated directly in the browser with the bundled
 National Heritage Promotion Agency template. Enter a request such as
 `PPT 만들어줘` or select PowerPoint from the report-file dialog; no
-`documentApiUrl` is required for this format.
+`documentApiUrl` is required for this format. The client-side layout engine
+classifies each slide as overview, metrics, priority, timeline, or general
+cards, then applies two-column information cards, big-stat KPIs and editable
+comparison tables, three-step priority cards, or a horizontal process timeline.
+Long content is split into continuation slides within a fixed safe area.
 
 DOCX reports can be generated directly in the browser with an A4 cover,
 National Heritage Promotion Agency colors, structured headings, native Word
