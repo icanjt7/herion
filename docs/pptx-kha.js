@@ -8,6 +8,7 @@
     yellow: 'F1A000',
     gray: '333333',
     muted: '64748B',
+    bgGray: 'F4F6F9',
     lightGray: 'F8F9FA',
     border: 'E2E8F0',
     paleBlue: 'EEF6FC',
@@ -26,7 +27,8 @@
       .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
       .replace(/<[^>]+>/g, '')
-      .replace(/[`*_~]/g, '')
+      .replace(/~~([^~]+)~~/g, '$1')
+      .replace(/[`*_]/g, '')
       // 2026. 6. 9. 6. 30. → 2026. 06. 09. ~ 06. 30.
       .replace(
         /\b(20\d{2})\.\s*(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{1,2})\.(?!\s*\d)/g,
@@ -38,6 +40,11 @@
         /\b(20\d{2})\.\s*(\d{1,2})\.\s*(\d{1,2})\./g,
         (_, year, month, day) =>
           `${year}. ${String(month).padStart(2, '0')}. ${String(day).padStart(2, '0')}.`,
+      )
+      .replace(
+        /~\s*(\d{1,2})\.\s*(\d{1,2})\./g,
+        (_, month, day) =>
+          `~ ${String(month).padStart(2, '0')}. ${String(day).padStart(2, '0')}.`,
       )
       .replace(/(\d)\s*~\s*(\d)/g, '$1 ~ $2')
       .replace(/\s*([:：])\s*/g, '$1 ')
@@ -268,9 +275,52 @@
     return rows;
   }
 
+  function adaptTypedSlideData(slideData = {}) {
+    const type = String(slideData.type ?? '').trim().toLowerCase();
+    if (type === 'cards_2col') {
+      const columns = (Array.isArray(slideData.columns) ? slideData.columns : []).slice(0, 2);
+      return {
+        ...slideData,
+        pattern: 'overview',
+        leftTitle: preprocessText(columns[0]?.header || columns[0]?.title || '기본정보'),
+        rightTitle: preprocessText(columns[1]?.header || columns[1]?.title || '핵심 내용'),
+        sections: columns.map((column, index) => ({
+          title: preprocessText(column?.header || column?.title || `${index + 1}영역`),
+          bullets: Array.isArray(column?.items) ? column.items : [],
+        })),
+      };
+    }
+    if (type === 'stat') {
+      return { ...slideData, pattern: 'stat' };
+    }
+    if (type === 'timeline' && Array.isArray(slideData.steps)) {
+      return {
+        ...slideData,
+        pattern: 'timeline',
+        timeline: slideData.steps.map(step => ({
+          period: step?.date || step?.period,
+          title: step?.title,
+          detail: step?.desc || step?.detail,
+        })),
+      };
+    }
+    if (type === 'table') {
+      return { ...slideData, pattern: 'table' };
+    }
+    if (type === 'diagram') {
+      return { ...slideData, pattern: 'diagram' };
+    }
+    if (type === 'chart') {
+      return { ...slideData, pattern: 'chart' };
+    }
+    return slideData;
+  }
+
   function detectSlidePattern(data, sections) {
     const explicit = preprocessText(data.pattern || data.layout).toLowerCase();
-    const allowed = new Set(['overview', 'metrics', 'priority', 'timeline', 'cards']);
+    const allowed = new Set([
+      'overview', 'metrics', 'stat', 'priority', 'timeline', 'table', 'diagram', 'chart', 'cards',
+    ]);
     if (allowed.has(explicit)) return explicit;
 
     const text = combinedText(data, sections);
@@ -358,7 +408,12 @@
   }
 
   function renderOverview(pptx, data, sections) {
-    const [leftItems, rightItems] = overviewColumns(sections);
+    const explicitColumns = Array.isArray(data.columns) && data.columns.length >= 2
+      ? data.columns.slice(0, 2).map(column => (
+        Array.isArray(column.items) ? column.items.map(preprocessText).filter(Boolean) : []
+      ))
+      : null;
+    const [leftItems, rightItems] = explicitColumns || overviewColumns(sections);
     const metrics = extractMetrics(sections);
     const pages = Math.max(1, Math.ceil(Math.max(leftItems.length, rightItems.length) / 5));
     const slides = [];
@@ -366,8 +421,16 @@
     for (let pageIndex = 0; pageIndex < pages; pageIndex += 1) {
       const slide = createBodySlide(pptx, data.title, pageIndex > 0);
       const cards = [
-        { x: 0.8, title: data.leftTitle || '기본정보', items: leftItems.slice(pageIndex * 5, pageIndex * 5 + 5) },
-        { x: 6.77, title: data.rightTitle || '핵심 수치·목적', items: rightItems.slice(pageIndex * 5, pageIndex * 5 + 5) },
+        {
+          x: 0.8,
+          title: data.columns?.[0]?.header || data.leftTitle || '기본정보',
+          items: leftItems.slice(pageIndex * 5, pageIndex * 5 + 5),
+        },
+        {
+          x: 6.77,
+          title: data.columns?.[1]?.header || data.rightTitle || '핵심 수치·목적',
+          items: rightItems.slice(pageIndex * 5, pageIndex * 5 + 5),
+        },
       ];
       cards.forEach((card, columnIndex) => {
         addCardBackground(slide, pptx, card.x, BODY_TOP, 5.76, BODY_H, {
@@ -488,6 +551,234 @@
       }
       return slide;
     });
+  }
+
+  function renderStat(pptx, data) {
+    const subCards = (Array.isArray(data.subCards) ? data.subCards : []).map((card, index) => ({
+      title: preprocessText(card?.title || `${index + 1} 세부 지표`),
+      items: (Array.isArray(card?.items) ? card.items : [])
+        .flatMap(item => splitLongText(item, 90))
+        .filter(Boolean),
+    }));
+    const pages = [];
+    for (let offset = 0; offset < Math.max(subCards.length, 1); offset += 2) {
+      pages.push(subCards.slice(offset, offset + 2));
+    }
+    return pages.map((pageCards, pageIndex) => {
+      const slide = createBodySlide(pptx, data.title, pageIndex > 0);
+      addCardBackground(slide, pptx, 0.8, BODY_TOP, 11.73, 1.45, {
+        fill: COLORS.paleBlue,
+        line: COLORS.blue,
+        shapeName: 'main-stat-card',
+      });
+      slide.addText(preprocessText(data.mainStatLabel) || '핵심 지표', {
+        x: 1.12, y: 1.66, w: 5.2, h: 0.34,
+        fontFace: FONT_FACE, fontSize: 14,
+        color: COLORS.muted, margin: 0, fit: 'shrink',
+      });
+      slide.addText(preprocessText(data.mainStatValue) || '—', {
+        x: 1.12, y: 2.02, w: 10.9, h: 0.62,
+        fontFace: FONT_FACE, fontSize: 34, bold: true,
+        color: COLORS.navy, margin: 0, fit: 'shrink',
+      });
+
+      const cards = pageCards.length ? pageCards : [{
+        title: '세부 진단',
+        items: ['세부 지표와 해석 내용을 확인해 주세요.'],
+      }];
+      const gap = 0.28;
+      const cardW = cards.length === 1 ? 11.73 : (11.73 - gap) / 2;
+      cards.forEach((card, index) => {
+        const x = 0.8 + index * (cardW + gap);
+        addCardBackground(slide, pptx, x, 3.1, cardW, 3.1, {
+          shapeName: `stat-detail-card-${index + 1}`,
+        });
+        addRect(slide, pptx, x, 3.1, 0.07, 3.1, index ? COLORS.yellow : COLORS.blue);
+        slide.addText(card.title, {
+          x: x + 0.28, y: 3.35, w: cardW - 0.56, h: 0.42,
+          fontFace: FONT_FACE, fontSize: 15.5, bold: true,
+          color: COLORS.navy, margin: 0, fit: 'shrink',
+        });
+        addBulletList(slide, card.items, {
+          x: x + 0.28, y: 3.98, w: cardW - 0.58, h: 1.82,
+        }, { charsPerLine: cards.length === 1 ? 72 : 34 });
+      });
+      return slide;
+    });
+  }
+
+  function renderTable(pptx, data) {
+    const headers = (Array.isArray(data.headers) ? data.headers : [])
+      .map(value => preprocessText(value))
+      .filter(Boolean);
+    const rows = (Array.isArray(data.rows) ? data.rows : [])
+      .map(row => (Array.isArray(row) ? row : [row]))
+      .map(row => headers.map((_, index) => preprocessText(row[index] ?? '')));
+    const safeHeaders = headers.length ? headers : ['구분', '내용'];
+    const normalizedRows = rows.map(row => (
+      safeHeaders.map((_, index) => preprocessText(row[index] ?? ''))
+    ));
+    const rowsPerPage = Math.max(4, Math.min(8, Number(data.rowsPerPage) || 7));
+    const pages = [];
+    for (let offset = 0; offset < Math.max(normalizedRows.length, 1); offset += rowsPerPage) {
+      pages.push(normalizedRows.slice(offset, offset + rowsPerPage));
+    }
+
+    return pages.map((pageRows, pageIndex) => {
+      const slide = createBodySlide(pptx, data.title, pageIndex > 0);
+      const tableRows = [
+        safeHeaders.map(header => ({
+          text: header,
+          options: { bold: true, color: COLORS.white, fill: COLORS.navy, align: 'center' },
+        })),
+        ...pageRows.map((row, rowIndex) => row.map(value => ({
+          text: value,
+          options: {
+            color: COLORS.gray,
+            fill: rowIndex % 2 ? COLORS.bgGray : COLORS.white,
+          },
+        }))),
+      ];
+      const rowHeight = Math.min(0.62, 4.45 / Math.max(tableRows.length, 1));
+      const explicitWidths = Array.isArray(data.colWidths)
+        && data.colWidths.length === safeHeaders.length
+        ? data.colWidths.map(Number)
+        : null;
+      const widthSum = explicitWidths?.reduce((sum, width) => sum + width, 0);
+      const colW = widthSum > 0
+        ? explicitWidths.map(width => 11.73 * width / widthSum)
+        : safeHeaders.map(() => 11.73 / safeHeaders.length);
+
+      slide.addTable(tableRows, {
+        x: 0.8, y: 1.48, w: 11.73,
+        colW,
+        rowH: rowHeight,
+        fontFace: FONT_FACE,
+        fontSize: safeHeaders.length > 5 ? 9.5 : 11.5,
+        color: COLORS.gray,
+        margin: [5, 7, 5, 7],
+        valign: 'middle',
+        border: { type: 'solid', pt: 0.7, color: COLORS.border },
+        autoFit: false,
+      });
+      if (data.note && pageIndex === pages.length - 1) {
+        slide.addText(preprocessText(data.note), {
+          x: 0.84, y: 5.98, w: 11.65, h: 0.2,
+          fontFace: FONT_FACE, fontSize: 8.5,
+          color: COLORS.muted, margin: 0, fit: 'shrink',
+        });
+      }
+      return slide;
+    });
+  }
+
+  function renderDiagram(pptx, data) {
+    const steps = (Array.isArray(data.steps) ? data.steps : []).map((step, index) => ({
+      title: preprocessText(step?.title || step?.label || `단계 ${index + 1}`),
+      desc: preprocessText(step?.desc || step?.detail || step?.description || step?.text),
+    }));
+    const pages = [];
+    for (let offset = 0; offset < Math.max(steps.length, 1); offset += 4) {
+      pages.push(steps.slice(offset, offset + 4));
+    }
+
+    return pages.map((pageSteps, pageIndex) => {
+      const slide = createBodySlide(pptx, data.title, pageIndex > 0);
+      const items = pageSteps.length ? pageSteps : [{
+        title: '프로세스 단계',
+        desc: '단계별 실행 내용을 확인해 주세요.',
+      }];
+      const arrowW = 0.38;
+      const gap = 0.16;
+      const cardW = (11.73 - (items.length - 1) * (arrowW + gap * 2)) / items.length;
+      items.forEach((step, index) => {
+        const x = 0.8 + index * (cardW + arrowW + gap * 2);
+        addCardBackground(slide, pptx, x, 2.02, cardW, 3.58, {
+          fill: index === 0 ? COLORS.paleBlue : COLORS.bgGray,
+          line: index === 0 ? COLORS.blue : COLORS.border,
+          shapeName: `process-card-${index + 1}`,
+        });
+        slide.addText(String(pageIndex * 4 + index + 1).padStart(2, '0'), {
+          x: x + 0.22, y: 2.28, w: 0.58, h: 0.32,
+          fontFace: FONT_FACE, fontSize: 12, bold: true,
+          color: index === 0 ? COLORS.blue : COLORS.yellow,
+          margin: 0,
+        });
+        slide.addText(step.title, {
+          x: x + 0.22, y: 2.83, w: cardW - 0.44, h: 0.68,
+          fontFace: FONT_FACE, fontSize: 16, bold: true,
+          color: COLORS.navy, align: 'center', valign: 'middle',
+          margin: 0, fit: 'shrink',
+        });
+        slide.addText(step.desc, {
+          x: x + 0.24, y: 3.72, w: cardW - 0.48, h: 1.36,
+          fontFace: FONT_FACE, fontSize: 11,
+          color: COLORS.gray, align: 'center', valign: 'middle',
+          margin: 4, fit: 'shrink',
+        });
+        if (index < items.length - 1) {
+          slide.addShape(shapeType(pptx, 'rightArrow'), {
+            x: x + cardW + gap, y: 3.53, w: arrowW, h: 0.48,
+            fill: { color: COLORS.blue },
+            line: { color: COLORS.blue, transparency: 100 },
+            shapeName: `process-arrow-${index + 1}`,
+          });
+        }
+      });
+      return slide;
+    });
+  }
+
+  function renderChart(pptx, data) {
+    const categories = (Array.isArray(data.categories) ? data.categories : [])
+      .map(value => preprocessText(value))
+      .filter(Boolean)
+      .slice(0, 12);
+    const series = (Array.isArray(data.series) ? data.series : [])
+      .slice(0, 4)
+      .map((item, index) => ({
+        name: preprocessText(item?.name || `계열 ${index + 1}`),
+        labels: categories,
+        values: categories.map((_, valueIndex) => {
+          const value = Number(item?.values?.[valueIndex]);
+          return Number.isFinite(value) ? value : 0;
+        }),
+      }));
+    const slide = createBodySlide(pptx, data.title);
+    if (!categories.length || !series.length) {
+      addCardBackground(slide, pptx, 0.8, BODY_TOP, 11.73, BODY_H);
+      slide.addText('차트에 표시할 범주와 수치 데이터를 확인해 주세요.', {
+        x: 1.1, y: 3.3, w: 11.13, h: 0.5,
+        fontFace: FONT_FACE, fontSize: 15,
+        color: COLORS.muted, align: 'center', margin: 0,
+      });
+      return [slide];
+    }
+    addCardBackground(slide, pptx, 0.8, BODY_TOP, 11.73, BODY_H, {
+      fill: COLORS.white,
+      shapeName: 'chart-card',
+    });
+    slide.addChart(pptx.ChartType?.bar || 'bar', series, {
+      x: 1.12, y: 1.66, w: 11.08, h: 4.22,
+      catAxisLabelFontFace: FONT_FACE,
+      catAxisLabelFontSize: 10,
+      valAxisLabelFontFace: FONT_FACE,
+      valAxisLabelFontSize: 9,
+      valAxisMinVal: Number.isFinite(Number(data.minValue)) ? Number(data.minValue) : 0,
+      showLegend: data.showLegend !== false && series.length > 1,
+      legendPos: 'b',
+      legendFontFace: FONT_FACE,
+      legendFontSize: 9,
+      showTitle: false,
+      showValue: Boolean(data.showValues),
+      dataLabelPosition: 'outEnd',
+      showCatName: false,
+      showSerName: false,
+      chartColors: [COLORS.blue, COLORS.navy, COLORS.yellow, COLORS.muted],
+      showBorder: false,
+      showGridLines: true,
+    });
+    return [slide];
   }
 
   function priorityItems(data, sections) {
@@ -702,9 +993,10 @@
    * Returns an array because overflow may create continuation slides.
    */
   function renderSlideByPattern(pptx, slideData = {}) {
+    const adapted = adaptTypedSlideData(slideData);
     const normalized = {
-      ...slideData,
-      title: preprocessText(slideData.title) || '주요 내용',
+      ...adapted,
+      title: preprocessText(adapted.title) || '주요 내용',
     };
     const sections = normalizeSections(normalized);
     const pattern = detectSlidePattern(normalized, sections);
@@ -713,10 +1005,18 @@
         return renderOverview(pptx, normalized, sections);
       case 'metrics':
         return renderMetrics(pptx, normalized, sections);
+      case 'stat':
+        return renderStat(pptx, normalized);
       case 'priority':
         return renderPriority(pptx, normalized, sections);
       case 'timeline':
         return renderTimeline(pptx, normalized, sections);
+      case 'table':
+        return renderTable(pptx, normalized);
+      case 'diagram':
+        return renderDiagram(pptx, normalized);
+      case 'chart':
+        return renderChart(pptx, normalized);
       default:
         return renderCards(pptx, normalized, sections);
     }
@@ -818,6 +1118,28 @@
     return resolvedName;
   }
 
+  async function generateKHA_PPT(slideDataArray, options = {}) {
+    if (!Array.isArray(slideDataArray) || !slideDataArray.length) {
+      throw new Error('한 개 이상의 PowerPoint 슬라이드 JSON이 필요합니다.');
+    }
+    const title = preprocessText(options.title)
+      || preprocessText(slideDataArray[0]?.deckTitle)
+      || '국가유산진흥원 발표자료';
+    const pptx = createPresentation({
+      title,
+      subtitle: options.subtitle,
+      author: options.author,
+      department: options.department,
+      team: options.team,
+      date: options.date,
+      slides: slideDataArray,
+    });
+    if (options.download === false) return pptx;
+    const filename = options.fileName || safeFilename(title);
+    await pptx.writeFile({ fileName: filename, compression: true });
+    return filename;
+  }
+
   global.KhaPptx = Object.freeze({
     COLORS,
     preprocessText,
@@ -827,10 +1149,12 @@
     createContentSlide,
     createEndingSlide,
     createPresentation,
+    generateKHA_PPT,
     downloadKhaPresentation,
     safeFilename,
   });
   global.renderSlideByPattern = renderSlideByPattern;
+  global.generateKHA_PPT = generateKHA_PPT;
   global.createCoverSlide = createCoverSlide;
   global.createContentSlide = createContentSlide;
   global.createEndingSlide = createEndingSlide;

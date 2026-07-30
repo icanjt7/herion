@@ -1222,6 +1222,7 @@
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/docx@9.7.1/dist/index.iife.js"></script>
 <script src="pptx-kha.js"></script>
+<script src="pptx-llm-parser.js"></script>
 <script src="docx-kha.js"></script>
 <script src="config.js"></script>
 <script>
@@ -2774,15 +2775,16 @@ function presentationTitleFromMarkdown(markdown, fallback = 'Herian 발표자료
 
 async function buildKhaPresentation(markdown, options = {}) {
   if (!window.KhaPptx) throw new Error('PPT 생성 라이브러리를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.');
-  const title = cleanPresentationText(options.title) || presentationTitleFromMarkdown(markdown);
+  const parsedDeck = window.KhaPptxLlmParser?.tryParse(markdown);
+  const title = cleanPresentationText(options.title)
+    || cleanPresentationText(parsedDeck?.title)
+    || presentationTitleFromMarkdown(markdown);
   const author = cleanPresentationText(options.author) || '국가유산진흥원';
-  const withoutDeckTitle = String(markdown || '').replace(/^#\s+.+(?:\r?\n|$)/m, '');
-  const reportSections = markdownToReportSections(withoutDeckTitle || markdown);
-  const pptx = window.KhaPptx.createPresentation({
-    title,
-    author,
-    department: author,
-    slides: reportSections.map(section => ({
+  let slides = parsedDeck?.slides;
+  if (!slides?.length) {
+    const withoutDeckTitle = String(markdown || '').replace(/^#\s+.+(?:\r?\n|$)/m, '');
+    const reportSections = markdownToReportSections(withoutDeckTitle || markdown);
+    slides = reportSections.map(section => ({
       title: cleanPresentationText(section.heading) || '주요 내용',
       sections: [{
         title: cleanPresentationText(section.heading) || '주요 내용',
@@ -2790,7 +2792,13 @@ async function buildKhaPresentation(markdown, options = {}) {
         bullets: section.bullets,
         tables: section.tables
       }]
-    })),
+    }));
+  }
+  const pptx = window.KhaPptx.createPresentation({
+    title,
+    author,
+    department: author,
+    slides,
   });
   return {
     blob: await pptx.write({ outputType: 'blob', compression: true }),
@@ -3623,20 +3631,9 @@ async function sendMessage(options = {}) {
 
     let systemPrompt = getSystemPrompt(heritageCtx + lawCtx + searchCtx);
     if (presentationRequested) {
-      systemPrompt += `\n\n[PowerPoint 파일 생성용 답변 규칙]
-- 답변은 단순 요약이 아니라 실제 보고·발표에 바로 쓸 수 있는 충분한 분량의 발표자료 원고로 작성한다.
-- 첫 줄은 전체 발표 제목을 Markdown 1단계 제목(#)으로 작성한다.
-- 각 슬라이드는 짧은 Markdown 2단계 제목(##)으로 구분한다.
-- 특별히 짧은 분량을 요청하지 않았다면 주제에 맞춰 8~12개의 본문 슬라이드로 구성한다.
-- 기본 흐름은 핵심 요약, 추진 배경·필요성, 현황·문제, 목표·추진 원칙, 주요 전략, 세부 실행과제, 단계별 일정, 역할·협업체계, 성과지표, 위험요인·대응, 기대효과, 후속 조치 중 관련 항목을 선택해 구성한다.
-- 슬라이드마다 핵심 메시지 1개와 구체적인 근거·설명·실행사항을 3~6개 글머리표로 제시한다. 단순 키워드 나열을 피하고 '무엇을·왜·어떻게·어떤 결과로' 이어지는 내용으로 보강한다.
-- 일정, 역할, 성과지표, 위험 대응처럼 비교가 필요한 내용은 간결한 Markdown 표를 활용한다.
-- 사용자가 제공한 문서·대화에 있는 수치, 일정, 기관명, 근거와 조건은 빠뜨리지 않고 반영한다.
-- 확인되지 않은 사실이나 수치는 만들지 않는다. 정보가 부족하지만 기획안 보강이 필요한 부분은 '검토안', '예시', '추후 확정'으로 명확히 표시한다.
-- 국가유산진흥원 내부 보고에 적합한 공공기관 문체를 사용하고, 슬라이드 간 내용이 중복되지 않게 한다.
-- 인사말, 파일 생성 방법 설명, 코드 블록은 넣지 않는다.`;
+      systemPrompt += `\n\n${window.KhaPptxLlmParser?.PPT_JSON_SYSTEM_PROMPT || ''}`;
     }
-    if (hwpxRequested) {
+    if (hwpxRequested && !presentationRequested) {
       systemPrompt += `\n\n[HWPX 문서 생성용 답변 규칙]
 - 답변은 한글 문서로 바로 제출하거나 편집할 수 있는 완성된 원고로 작성한다.
 - 첫 줄은 문서 제목을 Markdown 1단계 제목(#)으로 작성한다.
@@ -3645,7 +3642,7 @@ async function sendMessage(options = {}) {
 - 자료에 없는 사실이나 수치를 만들지 말고, 필요한 미확정 항목은 '검토안' 또는 '추후 확정'으로 표시한다.
 - 인사말, 파일 생성 방법 설명, 코드 블록은 넣지 않는다.`;
     }
-    if (docxRequested) {
+    if (docxRequested && !presentationRequested) {
       systemPrompt += `\n\n[Word 보고서 생성용 답변 규칙]
 - 답변은 기관 내부 보고서로 바로 제출하거나 편집할 수 있는 완성된 원고로 작성한다.
 - 첫 줄은 문서 제목을 Markdown 1단계 제목(#)으로 작성한다.
@@ -3694,11 +3691,17 @@ async function sendMessage(options = {}) {
     const finalContent = result.finishReason === 'length'
       ? `${full}\n\n> 출력 한도에 도달해 이후 내용이 남아 있습니다. 세부사항을 줄여 마무리한 것이 아니므로 “계속 작성해 줘”라고 요청하면 다음 항목부터 이어서 작성합니다.`
       : full;
-    assistantBodyEl.innerHTML = renderMd(finalContent);
+    const parsedPresentation = presentationRequested
+      ? window.KhaPptxLlmParser?.tryParse(finalContent)
+      : null;
+    const displayContent = parsedPresentation
+      ? window.KhaPptxLlmParser.toMarkdown(parsedPresentation)
+      : finalContent;
+    assistantBodyEl.innerHTML = renderMd(displayContent);
     if (result.stopped) {
       assistantBodyEl.insertAdjacentHTML('beforeend', '<div style="margin-top:8px;color:var(--muted);font-size:12px;">사용자가 생성을 중지했습니다.</div>');
     }
-    addMessageActions(assistantBodyEl, finalContent);
+    addMessageActions(assistantBodyEl, displayContent);
     workspace.scrollTop = workspace.scrollHeight;
 
     // 웹 검색을 사용한 경우 출처 배지 표시
@@ -3734,7 +3737,7 @@ async function sendMessage(options = {}) {
       }
     }
 
-    chatHistory.push({ role: 'assistant', content: finalContent });
+    chatHistory.push({ role: 'assistant', content: displayContent });
 
     if (presentationRequested && !result.stopped) {
       const generatingNotice = document.createElement('div');
@@ -3743,7 +3746,8 @@ async function sendMessage(options = {}) {
       assistantBodyEl.appendChild(generatingNotice);
       try {
         const presentation = await buildKhaPresentation(finalContent, {
-          title: presentationTitleFromMarkdown(finalContent, userDisplayText(text).replace(/(?:PPTX?|파워포인트|프레젠테이션|발표\s*자료|슬라이드)/ig, '').trim()),
+          title: cleanPresentationText(parsedPresentation?.title)
+            || presentationTitleFromMarkdown(displayContent, userDisplayText(text).replace(/(?:PPTX?|파워포인트|프레젠테이션|발표\s*자료|슬라이드)/ig, '').trim()),
           author: user?.department || user?.name || '국가유산진흥원'
         });
         generatingNotice.remove();
@@ -3761,8 +3765,8 @@ async function sendMessage(options = {}) {
       generatingNotice.textContent = 'HWPX 문서를 생성하고 있습니다…';
       assistantBodyEl.appendChild(generatingNotice);
       try {
-        const documentFile = await buildHwpxDocument(finalContent, {
-          title: presentationTitleFromMarkdown(finalContent, 'Herian 보고서'),
+        const documentFile = await buildHwpxDocument(displayContent, {
+          title: presentationTitleFromMarkdown(displayContent, 'Herian 보고서'),
           author: user?.department || user?.name || '국가유산진흥원'
         });
         generatingNotice.remove();
@@ -3780,8 +3784,8 @@ async function sendMessage(options = {}) {
       generatingNotice.textContent = '국가유산진흥원 보고서 양식으로 Word 문서를 생성하고 있습니다…';
       assistantBodyEl.appendChild(generatingNotice);
       try {
-        const documentFile = await buildDocxDocument(finalContent, {
-          title: presentationTitleFromMarkdown(finalContent, 'Herian 보고서'),
+        const documentFile = await buildDocxDocument(displayContent, {
+          title: presentationTitleFromMarkdown(displayContent, 'Herian 보고서'),
           author: user?.name || '국가유산진흥원',
           department: user?.department || ''
         });
@@ -3801,7 +3805,7 @@ async function sendMessage(options = {}) {
         user_name:  user.name,
         model,
         question:   text.slice(0, 300),
-        answer_excerpt: finalContent.slice(0, 1000)
+        answer_excerpt: displayContent.slice(0, 1000)
       };
       sb.from('chat_logs').insert(logPayload).then(({ error }) => {
         // DB 마이그레이션 전에도 기존 질문 로그는 계속 남긴다.

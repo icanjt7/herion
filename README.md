@@ -66,6 +66,15 @@ classifies each slide as overview, metrics, priority, timeline, or general
 cards, then applies two-column information cards, big-stat KPIs and editable
 comparison tables, three-step priority cards, or a horizontal process timeline.
 Long content is split into continuation slides within a fixed safe area.
+For PowerPoint requests, the LLM is instructed to return a validated JSON array
+using `cards_2col`, `stat`, `timeline`, `table`, `diagram`, and `chart` slide
+types. Tables use a navy header with alternating body rows, process diagrams use
+rounded step cards and directional arrows, and charts use editable native
+PptxGenJS bar charts. The browser parser in
+`docs/pptx-llm-parser.js` validates and normalizes that response without
+executing it, maps the structured data into the visual layout engine, and
+converts it back to readable Markdown for the chat, DOCX, and HWPX download
+flows. Legacy Markdown presentation responses remain supported as a fallback.
 
 DOCX reports can be generated directly in the browser with an A4 cover,
 National Heritage Promotion Agency colors, structured headings, native Word
