@@ -106,9 +106,13 @@ spell-check results. These values can be changed with `maxOutputTokens` and
 `spellCheckMaxOutputTokens` in `docs/config.js`; the upstream model may apply a
 lower hard limit.
 
-Herian does not truncate extracted attachment text or impose its own upload,
-expanded-HWPX, or per-message character cap. Browser memory, hosting request
-size, and upstream model context limits still apply.
+Herian parses PDF, DOCX, PPTX, XLSX/XLS/XLSB/ODS, HWPX, and text attachments in
+the browser when the optional document service is unavailable. Spreadsheet
+parsing preserves sheet names, cell locations, formatted values, formulas,
+links, comments, merged ranges, and hidden-sheet state. Herian does not
+truncate extracted attachment text or impose its own upload, expanded-HWPX, or
+per-message character cap. Browser memory, hosting request size, and upstream
+model context limits still apply.
 
 ## Cloudflare Image Generation
 

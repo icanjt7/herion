@@ -1079,9 +1079,9 @@
         <div id="filePreview" style="display:none;margin-bottom:8px;gap:6px;flex-wrap:wrap;"></div>
         <div class="input-shell">
           <div class="drop-overlay" id="dropOverlay">📄 여기에 놓으면 파일이 첨부됩니다</div>
-          <button class="attach-btn" id="fileBtn" title="파일 첨부 (PDF·DOCX·PPTX·HWPX·TXT)">📎</button>
+          <button class="attach-btn" id="fileBtn" title="파일 첨부 (PDF·DOCX·PPTX·XLSX·HWPX·TXT)">📎</button>
           <input type="file" id="fileInput" style="display:none"
-                 accept=".pdf,.docx,.doc,.pptx,.ppt,.xlsx,.hwpx,.html,.txt,.csv,.md" multiple>
+                 accept=".pdf,.docx,.doc,.pptx,.ppt,.xlsx,.xls,.xlsb,.ods,.hwpx,.html,.txt,.csv,.md" multiple>
           <textarea rows="1" id="msgInput" placeholder="Herian에게 국가유산진흥원 업무를 요청하세요..."></textarea>
           <button class="send-btn" id="sendBtn" type="button" aria-label="메시지 보내기" title="보내기">↑</button>
         </div>
@@ -1216,6 +1216,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.7/dist/purify.min.js"></script>
 <script src="config.js"></script>
@@ -3621,6 +3622,100 @@ function extractHwpxPartText(xml, partName) {
     .join('\n');
 }
 
+function spreadsheetMarkdownCell(value) {
+  return String(value ?? '')
+    .replace(/\r\n?|\n/g, ' ↵ ')
+    .replace(/\|/g, '\\|')
+    .trim();
+}
+
+function spreadsheetCellDescription(cell) {
+  if (!cell) return '';
+  let value = '';
+  try {
+    value = XLSX.utils.format_cell(cell, undefined, { dateNF: 'yyyy-mm-dd' });
+  } catch {
+    value = cell.v instanceof Date ? cell.v.toISOString().slice(0, 10) : String(cell.v ?? '');
+  }
+  const details = [];
+  if (cell.f) details.push(`수식: =${cell.f}`);
+  if (cell.l?.Target) details.push(`링크: ${cell.l.Target}`);
+  const comments = Array.isArray(cell.c)
+    ? cell.c.map(comment => String(comment?.t || '').trim()).filter(Boolean)
+    : [];
+  if (comments.length) details.push(`메모: ${comments.join(' / ')}`);
+  const suffix = details.length ? ` [${details.join(' · ')}]` : '';
+  return spreadsheetMarkdownCell(`${value}${suffix}`);
+}
+
+function extractSpreadsheetText(arrayBuffer, fileName) {
+  if (typeof XLSX === 'undefined') {
+    throw new Error('Excel 분석 라이브러리를 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+  }
+
+  let workbook;
+  try {
+    workbook = XLSX.read(arrayBuffer, {
+      type: 'array',
+      cellDates: true,
+      cellFormula: true,
+      cellHTML: false,
+      cellStyles: false
+    });
+  } catch (error) {
+    throw new Error(`Excel 파일을 열지 못했습니다. 암호로 보호되었거나 손상된 파일인지 확인해주세요. (${error.message})`);
+  }
+  if (!workbook.SheetNames?.length) throw new Error('Excel 파일에서 워크시트를 찾지 못했습니다.');
+
+  const workbookInfo = [
+    `[Excel 통합문서: ${fileName}]`,
+    `시트 수: ${workbook.SheetNames.length}`,
+    workbook.Props?.Title ? `제목: ${spreadsheetMarkdownCell(workbook.Props.Title)}` : '',
+    workbook.Props?.Author ? `작성자: ${spreadsheetMarkdownCell(workbook.Props.Author)}` : ''
+  ].filter(Boolean);
+  const output = [workbookInfo.join('\n')];
+
+  workbook.SheetNames.forEach((sheetName, sheetIndex) => {
+    const sheet = workbook.Sheets[sheetName];
+    const sheetMeta = workbook.Workbook?.Sheets?.[sheetIndex];
+    const visibility = sheetMeta?.Hidden === 2 ? '매우 숨김' : (sheetMeta?.Hidden === 1 ? '숨김' : '표시');
+    const addresses = Object.keys(sheet || {}).filter(address =>
+      !address.startsWith('!') && /^[A-Z]{1,3}\d+$/.test(address)
+    );
+    const rows = new Map();
+    const usedColumns = new Set();
+    for (const address of addresses) {
+      const position = XLSX.utils.decode_cell(address);
+      const value = spreadsheetCellDescription(sheet[address]);
+      if (!value) continue;
+      if (!rows.has(position.r)) rows.set(position.r, new Map());
+      rows.get(position.r).set(position.c, value);
+      usedColumns.add(position.c);
+    }
+
+    const range = sheet?.['!ref'] || '내용 없음';
+    const merges = Array.isArray(sheet?.['!merges']) ? sheet['!merges'] : [];
+    output.push(`\n[Excel 시트 ${sheetIndex + 1}: ${spreadsheetMarkdownCell(sheetName)}]\n범위: ${range} · 상태: ${visibility} · 데이터 셀: ${addresses.length}`);
+    if (merges.length) {
+      output.push(`병합 영역: ${merges.map(merge => XLSX.utils.encode_range(merge)).join(', ')}`);
+    }
+    if (!rows.size || !usedColumns.size) {
+      output.push('(읽을 수 있는 셀 내용이 없습니다.)');
+      return;
+    }
+
+    const columns = [...usedColumns].sort((a, b) => a - b);
+    output.push(`| 행 | ${columns.map(column => XLSX.utils.encode_col(column)).join(' | ')} |`);
+    output.push(`| ---: | ${columns.map(() => '---').join(' | ')} |`);
+    [...rows.keys()].sort((a, b) => a - b).forEach(rowIndex => {
+      const row = rows.get(rowIndex);
+      output.push(`| ${rowIndex + 1} | ${columns.map(column => row.get(column) || '').join(' | ')} |`);
+    });
+  });
+
+  return output.join('\n');
+}
+
 async function extractText(file) {
   const ext = file.name.split('.').pop().toLowerCase();
   const preserveDetail = text => String(text || '');
@@ -3683,6 +3778,11 @@ async function extractText(file) {
     return preserveDetail(text) || '(텍스트를 추출하지 못했습니다)';
   }
 
+  if (['xlsx', 'xls', 'xlsb', 'ods'].includes(ext)) {
+    const buf = await file.arrayBuffer();
+    return preserveDetail(extractSpreadsheetText(buf, file.name));
+  }
+
   if (ext === 'hwpx') {
     if (typeof JSZip === 'undefined') throw new Error('ZIP 라이브러리 로딩 중입니다.');
     const buf = await file.arrayBuffer();
@@ -3705,7 +3805,7 @@ async function extractText(file) {
     return preserveDetail(text);
   }
 
-  throw new Error(`지원하지 않는 형식입니다 (.${ext}). PDF·DOCX·PPTX·HWPX·TXT를 사용해주세요.`);
+  throw new Error(`지원하지 않는 형식입니다 (.${ext}). PDF·DOCX·PPTX·XLSX·HWPX·TXT를 사용해주세요.`);
 }
 
 // 모바일 브라우저 주소창과 가상 키보드를 제외한 실제 표시 높이에 맞춘다.
