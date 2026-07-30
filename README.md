@@ -63,6 +63,12 @@ National Heritage Promotion Agency template. Enter a request such as
 `PPT 만들어줘` or select PowerPoint from the report-file dialog; no
 `documentApiUrl` is required for this format.
 
+HWPX files can be generated directly in the browser as well. Enter
+`HWPX 문서로 정리해줘` or select HWPX from the report-file dialog. The generated
+document preserves headings, paragraphs, bullet lists, tables as structured
+text, author metadata, and the creation date without requiring a template ID or
+`documentApiUrl`.
+
 ```powershell
 docker compose --profile documents up --build document-service
 ```
