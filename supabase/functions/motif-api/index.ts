@@ -11,16 +11,6 @@ const optionalFields = [
   'presence_penalty', 'seed', 'stop', 'response_format',
 ] as const;
 
-type TextContentPart = { type: 'text'; text: string };
-type ImageContentPart = {
-  type: 'image_url';
-  image_url: { url: string; detail?: 'auto' | 'low' | 'high' };
-};
-type MessageContent = string | Array<TextContentPart | ImageContentPart>;
-type ChatMessage = { role: string; content: MessageContent };
-
-const imageDataUrlPattern = /^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/;
-
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -28,36 +18,12 @@ function json(body: unknown, status = 200) {
   });
 }
 
-function validContentPart(value: unknown) {
-  if (!value || typeof value !== 'object') return false;
-  const part = value as Record<string, unknown>;
-  if (part.type === 'text') return typeof part.text === 'string' && part.text.length > 0;
-  if (part.type !== 'image_url' || !part.image_url || typeof part.image_url !== 'object') return false;
-  const imageUrl = part.image_url as Record<string, unknown>;
-  return typeof imageUrl.url === 'string' && imageDataUrlPattern.test(imageUrl.url) &&
-    (imageUrl.detail === undefined || ['auto', 'low', 'high'].includes(String(imageUrl.detail)));
-}
-
-function validMessages(value: unknown): value is ChatMessage[] {
-  return Array.isArray(value) && value.length > 0 && value.length <= 50 && value.every((message) => {
-    if (!message || typeof message !== 'object') return false;
-    const candidate = message as Record<string, unknown>;
-    const role = String(candidate.role);
-    if (!allowedRoles.has(role)) return false;
-    if (typeof candidate.content === 'string') return true;
-    return role === 'user' && Array.isArray(candidate.content) && candidate.content.length > 0 &&
-      candidate.content.every(validContentPart) &&
-      candidate.content.some(part => (part as Record<string, unknown>).type === 'text') &&
-      candidate.content.some(part => (part as Record<string, unknown>).type === 'image_url');
-  });
-}
-
-function textFromContent(content: MessageContent) {
-  if (typeof content === 'string') return content;
-  return content
-    .filter((part): part is TextContentPart => part.type === 'text')
-    .map(part => part.text)
-    .join('\n');
+function validMessages(value: unknown): value is Array<{ role: string; content: string }> {
+  return Array.isArray(value) && value.length > 0 && value.length <= 50 && value.every((message) =>
+    message && typeof message === 'object' &&
+    allowedRoles.has(String((message as Record<string, unknown>).role)) &&
+    typeof (message as Record<string, unknown>).content === 'string'
+  );
 }
 
 function isValidCardNumber(candidate: string) {
@@ -141,12 +107,12 @@ Deno.serve(async (request) => {
 
     const body = await request.json();
     if (!validMessages(body?.messages)) {
-      return json({ error: 'A valid text or image messages array is required' }, 400);
+      return json({ error: 'A valid text messages array is required' }, 400);
     }
 
     const sensitiveTypes = new Set<string>();
     for (const message of body.messages) {
-      for (const type of detectSensitiveData(textFromContent(message.content))) sensitiveTypes.add(type);
+      for (const type of detectSensitiveData(message.content)) sensitiveTypes.add(type);
     }
     if (sensitiveTypes.size > 0) {
       return json({

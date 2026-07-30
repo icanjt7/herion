@@ -720,16 +720,6 @@
       line-height: 1;
     }
 
-    .file-chip-thumb {
-      width: 30px;
-      height: 30px;
-      flex: 0 0 30px;
-      object-fit: cover;
-      border-radius: 5px;
-      border: 1px solid var(--line);
-      background: #fff;
-    }
-
     .generated-image {
       display: block;
       width: min(100%, 768px);
@@ -1088,15 +1078,15 @@
       <div class="composer-inner">
         <div id="filePreview" style="display:none;margin-bottom:8px;gap:6px;flex-wrap:wrap;"></div>
         <div class="input-shell">
-          <div class="drop-overlay" id="dropOverlay">📎 여기에 놓으면 파일이 첨부됩니다</div>
-          <button class="attach-btn" id="fileBtn" title="파일 첨부 (문서·PNG·JPG·WEBP·GIF)">📎</button>
+          <div class="drop-overlay" id="dropOverlay">📄 여기에 놓으면 파일이 첨부됩니다</div>
+          <button class="attach-btn" id="fileBtn" title="파일 첨부 (PDF·DOCX·PPTX·HWPX·TXT)">📎</button>
           <input type="file" id="fileInput" style="display:none"
-                 accept=".pdf,.docx,.doc,.pptx,.ppt,.xlsx,.hwpx,.html,.txt,.csv,.md,.png,.jpg,.jpeg,.webp,.gif,image/png,image/jpeg,image/webp,image/gif" multiple>
+                 accept=".pdf,.docx,.doc,.pptx,.ppt,.xlsx,.hwpx,.html,.txt,.csv,.md" multiple>
           <textarea rows="1" id="msgInput" placeholder="Herian에게 국가유산진흥원 업무를 요청하세요..."></textarea>
           <button class="send-btn" id="sendBtn" type="button" aria-label="메시지 보내기" title="보내기">↑</button>
         </div>
         <div class="composer-hint">
-          <span class="hint-files">파일을 끌어 놓거나 붙여넣을 수 있고, “그려줘”라고 요청하면 이미지를 생성합니다. Shift+Enter로 줄바꿈합니다.</span>
+          <span class="hint-files">파일을 끌어 놓거나 붙여넣을 수 있고, “그려줘”는 이미지, “PPT 만들어줘”는 발표자료를 생성합니다. Shift+Enter로 줄바꿈합니다.</span>
           <span class="hint-privacy">&nbsp;·&nbsp; 주민번호·연락처 등 개인정보는 입력하지 마세요.</span>
           <span class="hint-secondary">&nbsp;·&nbsp; 문의: AI미디어센터 AI데이터팀
           &nbsp;·&nbsp; <a href="admin.html" style="color:inherit;">관리자</a></span>
@@ -1919,7 +1909,6 @@ const chatTitle  = document.getElementById('chatTitle');
 // ─── 상태 ────────────────────────────────────────────────────
 let currentConvId   = null;
 let chatHistory     = [];
-const transientMessageImages = new Map();
 const transientGeneratedImages = new Map();
 let isStreaming     = false;
 let webSearchEnabled = false;
@@ -2285,7 +2274,6 @@ function deleteConversation(e, id) {
   e.stopPropagation();
   const allConversations = getConvs();
   allConversations.find(c => c.id === id)?.messages?.forEach(message => {
-    if (message.attachmentId) transientMessageImages.delete(message.attachmentId);
     if (message.generatedImageId) transientGeneratedImages.delete(message.generatedImageId);
   });
   const convs = allConversations.filter(c => c.id !== id);
@@ -2464,7 +2452,7 @@ function renderGeneratedImageMessage(bodyEl, content, dataUrl) {
 }
 
 function userDisplayText(content) {
-  return String(content || '').split(/\n\n\[첨부(?:파일|이미지): [^\]]+\](?:\n|$)/, 1)[0];
+  return String(content || '').split(/\n\n\[첨부파일: [^\]]+\]\n/, 1)[0];
 }
 
 function renderUserMessageText(content) {
@@ -2477,7 +2465,7 @@ function openReportModal(content) {
   document.getElementById('reportTitle').value = chatTitle.textContent === '새 대화' ? 'Herian 보고서' : chatTitle.textContent;
   document.getElementById('reportStatus').textContent = cfg?.documentApiUrl
     ? '문서 생성 서비스를 사용할 수 있습니다.'
-    : '문서 생성 서비스 주소가 아직 설정되지 않았습니다.';
+    : 'PowerPoint는 국가유산진흥원 양식으로 바로 생성할 수 있습니다.';
   const modal = document.getElementById('reportModal');
   modal.style.display = 'flex';
   modal.showModal();
@@ -2522,17 +2510,348 @@ function markdownToReportSections(markdown) {
   flush();
   return sections.length ? sections : [{ heading: '작성 내용', paragraphs: [String(markdown || '')], bullets: [], tables: [] }];
 }
+
+const KHA_PPT_TEMPLATE_URL = 'templates/kha-presentation-template.pptx';
+const PPT_XML_NS = {
+  a: 'http://schemas.openxmlformats.org/drawingml/2006/main',
+  p: 'http://schemas.openxmlformats.org/presentationml/2006/main',
+  r: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+  rel: 'http://schemas.openxmlformats.org/package/2006/relationships',
+  ct: 'http://schemas.openxmlformats.org/package/2006/content-types'
+};
+
+function cleanPresentationText(value) {
+  return String(value || '')
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/<[^>]+>/g, '')
+    .replace(/[`*_~]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function splitPresentationText(value, maxLength = 115) {
+  const text = cleanPresentationText(value);
+  if (!text) return [];
+  const sentences = text.match(/[^.!?。！？]+[.!?。！？]?/g) || [text];
+  const chunks = [];
+  let current = '';
+  for (const sentence of sentences) {
+    const part = sentence.trim();
+    if (!part) continue;
+    if ((current + ' ' + part).trim().length <= maxLength) {
+      current = (current + ' ' + part).trim();
+      continue;
+    }
+    if (current) chunks.push(current);
+    if (part.length <= maxLength) {
+      current = part;
+      continue;
+    }
+    for (let index = 0; index < part.length; index += maxLength) {
+      chunks.push(part.slice(index, index + maxLength));
+    }
+    current = '';
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+function presentationSlidesFromMarkdown(markdown) {
+  const withoutDeckTitle = String(markdown || '').replace(/^#\s+.+(?:\r?\n|$)/m, '');
+  const sections = markdownToReportSections(withoutDeckTitle || markdown);
+  const slides = [];
+  for (const section of sections) {
+    const heading = cleanPresentationText(section.heading) || '주요 내용';
+    const items = [];
+    section.paragraphs.forEach(paragraph => {
+      splitPresentationText(paragraph).forEach(text => items.push({ type: 'text', text }));
+    });
+    section.bullets.forEach(bullet => {
+      splitPresentationText(bullet, 95).forEach(text => items.push({ type: 'bullet', text }));
+    });
+    section.tables.forEach(table => {
+      if (table.title) items.push({ type: 'subheading', text: cleanPresentationText(table.title) });
+      const headers = table.headers.map(cleanPresentationText);
+      table.rows.forEach(row => {
+        const text = row.map((value, index) => {
+          const label = headers[index] ? `${headers[index]}: ` : '';
+          return `${label}${cleanPresentationText(value)}`;
+        }).filter(Boolean).join(' · ');
+        splitPresentationText(text, 95).forEach(chunk => items.push({ type: 'bullet', text: chunk }));
+      });
+    });
+    if (!items.length) items.push({ type: 'text', text: '내용을 확인해 주세요.' });
+
+    let pageItems = [];
+    let pageWeight = 0;
+    const flushPage = () => {
+      if (!pageItems.length) return;
+      slides.push({
+        title: slides.some(slide => slide.baseTitle === heading) ? `${heading} (계속)` : heading,
+        baseTitle: heading,
+        items: pageItems
+      });
+      pageItems = [];
+      pageWeight = 0;
+    };
+    for (const item of items) {
+      const weight = Math.max(1, Math.ceil(item.text.length / 54)) + (item.type === 'subheading' ? 1 : 0);
+      if (pageItems.length && (pageItems.length >= 7 || pageWeight + weight > 10)) flushPage();
+      pageItems.push(item);
+      pageWeight += weight;
+    }
+    flushPage();
+  }
+  return slides.length ? slides : [{ title: '주요 내용', baseTitle: '주요 내용', items: [{ type: 'text', text: cleanPresentationText(markdown) || '내용을 확인해 주세요.' }] }];
+}
+
+function parsePptXml(xml) {
+  const documentNode = new DOMParser().parseFromString(xml, 'application/xml');
+  if (documentNode.querySelector('parsererror')) throw new Error('PPT 템플릿 XML을 읽지 못했습니다.');
+  return documentNode;
+}
+
+function serializePptXml(documentNode) {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n${new XMLSerializer().serializeToString(documentNode.documentElement)}`;
+}
+
+function pptShapes(documentNode) {
+  return [...documentNode.getElementsByTagNameNS(PPT_XML_NS.p, 'sp')];
+}
+
+function replacePptShapeText(shape, value) {
+  const textNodes = [...shape.getElementsByTagNameNS(PPT_XML_NS.a, 't')];
+  if (!textNodes.length) return;
+  textNodes[0].textContent = String(value || '');
+  textNodes.slice(1).forEach(node => { node.textContent = ''; });
+}
+
+function replacePptTextContaining(documentNode, marker, value) {
+  const shape = pptShapes(documentNode).find(node => node.textContent.includes(marker));
+  if (!shape) throw new Error(`PPT 템플릿의 '${marker}' 입력란을 찾지 못했습니다.`);
+  replacePptShapeText(shape, value);
+}
+
+function addPptRun(documentNode, paragraph, text, options = {}) {
+  const run = documentNode.createElementNS(PPT_XML_NS.a, 'a:r');
+  const runProps = documentNode.createElementNS(PPT_XML_NS.a, 'a:rPr');
+  runProps.setAttribute('lang', 'ko-KR');
+  runProps.setAttribute('altLang', 'en-US');
+  runProps.setAttribute('sz', String(options.size || 1400));
+  runProps.setAttribute('dirty', '0');
+  if (options.bold) runProps.setAttribute('b', '1');
+
+  const solidFill = documentNode.createElementNS(PPT_XML_NS.a, 'a:solidFill');
+  const color = documentNode.createElementNS(PPT_XML_NS.a, 'a:srgbClr');
+  color.setAttribute('val', options.color || '231815');
+  solidFill.appendChild(color);
+  runProps.appendChild(solidFill);
+
+  ['latin', 'ea', 'cs'].forEach(name => {
+    const font = documentNode.createElementNS(PPT_XML_NS.a, `a:${name}`);
+    font.setAttribute('typeface', options.font || (options.bold ? 'Pretendard SemiBold' : 'Pretendard Medium'));
+    runProps.appendChild(font);
+  });
+
+  const textNode = documentNode.createElementNS(PPT_XML_NS.a, 'a:t');
+  textNode.textContent = text;
+  run.append(runProps, textNode);
+  paragraph.appendChild(run);
+}
+
+function createPptParagraph(documentNode, item) {
+  const paragraph = documentNode.createElementNS(PPT_XML_NS.a, 'a:p');
+  const props = documentNode.createElementNS(PPT_XML_NS.a, 'a:pPr');
+  const spacing = documentNode.createElementNS(PPT_XML_NS.a, 'a:lnSpc');
+  const spacingPercent = documentNode.createElementNS(PPT_XML_NS.a, 'a:spcPct');
+  spacingPercent.setAttribute('val', '115000');
+  spacing.appendChild(spacingPercent);
+  const after = documentNode.createElementNS(PPT_XML_NS.a, 'a:spcAft');
+  const afterPoints = documentNode.createElementNS(PPT_XML_NS.a, 'a:spcPts');
+  afterPoints.setAttribute('val', item.type === 'subheading' ? '900' : '650');
+  after.appendChild(afterPoints);
+  props.append(spacing, after);
+  paragraph.appendChild(props);
+
+  const isSubheading = item.type === 'subheading';
+  const prefix = item.type === 'bullet' ? '•  ' : '';
+  addPptRun(documentNode, paragraph, `${prefix}${item.text}`, {
+    size: isSubheading ? 1700 : 1400,
+    bold: isSubheading,
+    color: isSubheading ? '192D7B' : '231815'
+  });
+  return paragraph;
+}
+
+function fillPptContentSlide(xml, slide) {
+  const documentNode = parsePptXml(xml);
+  const titleShape = pptShapes(documentNode).find(shape =>
+    shape.getElementsByTagNameNS(PPT_XML_NS.p, 'cNvPr')[0]?.getAttribute('name') === 'Rectangle 395'
+  );
+  const bodyShape = pptShapes(documentNode).find(shape =>
+    shape.getElementsByTagNameNS(PPT_XML_NS.p, 'cNvPr')[0]?.getAttribute('name') === 'TextBox 3'
+  );
+  if (!titleShape || !bodyShape) throw new Error('PPT 본문 템플릿의 제목 또는 본문 입력란을 찾지 못했습니다.');
+  replacePptShapeText(titleShape, slide.title.slice(0, 32));
+
+  const transform = bodyShape.getElementsByTagNameNS(PPT_XML_NS.a, 'xfrm')[0];
+  const extent = transform?.getElementsByTagNameNS(PPT_XML_NS.a, 'ext')[0];
+  if (extent) extent.setAttribute('cy', '5400000');
+  const textBody = bodyShape.getElementsByTagNameNS(PPT_XML_NS.p, 'txBody')[0];
+  [...textBody.children].forEach(child => {
+    if (!['bodyPr', 'lstStyle'].includes(child.localName)) child.remove();
+  });
+  slide.items.forEach(item => textBody.appendChild(createPptParagraph(documentNode, item)));
+  return serializePptXml(documentNode);
+}
+
+function updatePptPackageForSlides(zip, slideCount) {
+  const additionalCount = Math.max(0, slideCount - 1);
+  if (!additionalCount) return Promise.resolve();
+  return Promise.all([
+    zip.file('ppt/presentation.xml').async('string'),
+    zip.file('ppt/_rels/presentation.xml.rels').async('string'),
+    zip.file('[Content_Types].xml').async('string'),
+    zip.file('ppt/slides/_rels/slide2.xml.rels').async('string')
+  ]).then(([presentationXml, relationshipsXml, contentTypesXml, slideRelationshipsXml]) => {
+    const presentation = parsePptXml(presentationXml);
+    const relationships = parsePptXml(relationshipsXml);
+    const contentTypes = parsePptXml(contentTypesXml);
+    const slideIdList = presentation.getElementsByTagNameNS(PPT_XML_NS.p, 'sldIdLst')[0];
+    const slideIds = [...slideIdList.getElementsByTagNameNS(PPT_XML_NS.p, 'sldId')];
+    const closingSlideId = slideIds.find(node => node.getAttributeNS(PPT_XML_NS.r, 'id') === 'rId4') || slideIds.at(-1);
+    let nextSlideId = Math.max(...slideIds.map(node => Number(node.getAttribute('id')) || 255)) + 1;
+    const relationshipNodes = [...relationships.getElementsByTagNameNS(PPT_XML_NS.rel, 'Relationship')];
+    let nextRelationshipId = Math.max(...relationshipNodes.map(node => Number((node.getAttribute('Id').match(/\d+/) || [0])[0]))) + 1;
+
+    for (let index = 0; index < additionalCount; index += 1) {
+      const slideNumber = 4 + index;
+      const relationshipId = `rId${nextRelationshipId++}`;
+      const slideId = presentation.createElementNS(PPT_XML_NS.p, 'p:sldId');
+      slideId.setAttribute('id', String(nextSlideId++));
+      slideId.setAttributeNS(PPT_XML_NS.r, 'r:id', relationshipId);
+      slideIdList.insertBefore(slideId, closingSlideId);
+
+      const relationship = relationships.createElementNS(PPT_XML_NS.rel, 'Relationship');
+      relationship.setAttribute('Id', relationshipId);
+      relationship.setAttribute('Type', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide');
+      relationship.setAttribute('Target', `slides/slide${slideNumber}.xml`);
+      relationships.documentElement.appendChild(relationship);
+
+      const override = contentTypes.createElementNS(PPT_XML_NS.ct, 'Override');
+      override.setAttribute('PartName', `/ppt/slides/slide${slideNumber}.xml`);
+      override.setAttribute('ContentType', 'application/vnd.openxmlformats-officedocument.presentationml.slide+xml');
+      contentTypes.documentElement.appendChild(override);
+      zip.file(`ppt/slides/_rels/slide${slideNumber}.xml.rels`, slideRelationshipsXml);
+    }
+
+    zip.file('ppt/presentation.xml', serializePptXml(presentation));
+    zip.file('ppt/_rels/presentation.xml.rels', serializePptXml(relationships));
+    zip.file('[Content_Types].xml', serializePptXml(contentTypes));
+  });
+}
+
+function safePresentationFilename(value) {
+  const name = cleanPresentationText(value)
+    .replace(/[\\/:*?"<>|]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 60);
+  return `${name || 'Herian 발표자료'}.pptx`;
+}
+
+function presentationTitleFromMarkdown(markdown, fallback = 'Herian 발표자료') {
+  const heading = String(markdown || '').match(/^#{1,3}\s+(.+)$/m)?.[1];
+  return cleanPresentationText(heading || fallback).slice(0, 60) || 'Herian 발표자료';
+}
+
+async function buildKhaPresentation(markdown, options = {}) {
+  if (typeof JSZip === 'undefined') throw new Error('PPT 생성 라이브러리를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.');
+  const response = await fetch(KHA_PPT_TEMPLATE_URL, { cache: 'no-cache' });
+  if (!response.ok) throw new Error(`국가유산진흥원 PPT 양식을 불러오지 못했습니다. (${response.status})`);
+  const zip = await JSZip.loadAsync(await response.arrayBuffer());
+  const slides = presentationSlidesFromMarkdown(markdown);
+  const title = cleanPresentationText(options.title) || presentationTitleFromMarkdown(markdown);
+  const author = cleanPresentationText(options.author) || '국가유산진흥원';
+  const date = new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(new Date()).replace(/\s/g, '');
+
+  const coverXml = await zip.file('ppt/slides/slide1.xml').async('string');
+  const cover = parsePptXml(coverXml);
+  replacePptTextContaining(cover, '제목을 넣어주세요', title);
+  replacePptTextContaining(cover, '2024.00.00.', `${date} | ${author}`);
+  zip.file('ppt/slides/slide1.xml', serializePptXml(cover));
+
+  const contentTemplate = await zip.file('ppt/slides/slide2.xml').async('string');
+  zip.file('ppt/slides/slide2.xml', fillPptContentSlide(contentTemplate, slides[0]));
+  await updatePptPackageForSlides(zip, slides.length);
+  for (let index = 1; index < slides.length; index += 1) {
+    zip.file(`ppt/slides/slide${index + 3}.xml`, fillPptContentSlide(contentTemplate, slides[index]));
+  }
+
+  const appFile = zip.file('docProps/app.xml');
+  if (appFile) {
+    const appXml = await appFile.async('string');
+    zip.file('docProps/app.xml', appXml.replace(/<Slides>\d+<\/Slides>/, `<Slides>${slides.length + 2}</Slides>`));
+  }
+  return {
+    blob: await zip.generateAsync({
+      type: 'blob',
+      mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 6 }
+    }),
+    filename: safePresentationFilename(title)
+  };
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+function appendPresentationDownload(assistantBodyEl, blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const notice = document.createElement('div');
+  notice.style.cssText = 'margin-top:12px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#f8faff;font-size:12px;';
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.textContent = `📊 ${filename} 다시 다운로드`;
+  link.style.cssText = 'color:var(--accent);font-weight:650;text-decoration:none;';
+  notice.append('국가유산진흥원 양식으로 PPT를 생성했습니다. ', link);
+  assistantBodyEl.appendChild(notice);
+  window.setTimeout(() => URL.revokeObjectURL(url), 10 * 60 * 1000);
+}
+
 async function createReportFile() {
-  const base = String(cfg?.documentApiUrl || '').replace(/\/$/, '');
   const status = document.getElementById('reportStatus');
-  if (!base) { status.textContent = '관리자가 documentApiUrl을 설정한 뒤 사용할 수 있습니다.'; return; }
   const format = document.getElementById('reportFormat').value;
+  const base = String(cfg?.documentApiUrl || '').replace(/\/$/, '');
+  if (format !== 'pptx' && !base) { status.textContent = '관리자가 documentApiUrl을 설정한 뒤 사용할 수 있습니다.'; return; }
   const templateId = document.getElementById('reportTemplate').value.trim();
   if (format === 'hwpx' && !templateId) { status.textContent = 'HWPX에는 승인된 기관 템플릿 ID가 필요합니다.'; return; }
   const button = document.getElementById('reportCreateBtn');
   button.disabled = true;
   status.textContent = '보고서 파일을 생성하고 있습니다…';
   try {
+    if (format === 'pptx') {
+      const result = await buildKhaPresentation(pendingReportContent, {
+        title: document.getElementById('reportTitle').value.trim() || 'Herian 발표자료',
+        author: user?.department || user?.name || '국가유산진흥원'
+      });
+      downloadBlob(result.blob, result.filename);
+      status.textContent = `${result.filename} 파일을 생성했습니다.`;
+      return;
+    }
     const response = await fetch(`${base}/v1/reports`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2746,7 +3065,6 @@ ${langLine}
 - 불확실한 정보는 반드시 명시적으로 표시
 - 사용자가 명시적으로 요약·축약을 요청하지 않은 경우 원문의 내용, 수치, 표, 조건, 예외, 근거를 임의로 생략하거나 합쳐서 줄이지 않는다.
 - 첨부 문서를 분석할 때는 문서의 제목·목차·항목 구조를 유지하고 주요 사실, 날짜, 금액, 고유명사, 결정사항, 이견, 위험요소와 후속 조치를 구체적으로 제시한다.
-- 첨부 이미지가 있으면 이미지 안의 글자뿐 아니라 인물·사물·배치·색상·도표 등 시각 정보를 직접 살펴보고, 사용자의 요청에 맞게 설명하거나 분석한다.
 - 원문에서 확인할 수 있는 경우 페이지·슬라이드·절·표 위치를 함께 표시하고, 확인되지 않은 내용을 추정해서 채우지 않는다.
 - 내용이 길면 세부사항을 줄이는 대신 제목과 구획을 나누어 제시한다. 출력 한도 때문에 이어지는 내용이 있으면 누락 사실과 계속 작성할 항목을 명시한다.
 - 내부 추론, 판단 과정, 작업 계획, 사용자 의도 분석을 절대 출력하지 않고 최종 답변만 출력한다.
@@ -2806,6 +3124,14 @@ function wantsImageGeneration(value) {
   const nonImageOutput = /(보고서|문서|공문|파일|표|목록|요약|답변|코드|메일|계획서|제안서|PPT|엑셀|번역|문장|텍스트|목차|퀴즈|질문|일정)/i;
   return text.length <= 80 && !nonImageOutput.test(text) &&
     /(?:^|\s)생성해\s*(?:줘|주세요|줘요)?[.!?]*$/.test(text);
+}
+
+function wantsPresentationFile(value) {
+  const text = userDisplayText(value).trim();
+  if (!text) return false;
+  const presentationNoun = /(?:PPTX?|파워포인트|프레젠테이션|발표\s*자료|슬라이드)/i;
+  const createCommand = /(?:만들|제작|생성|작성|구성|변환|뽑아|내려받|다운로드)/;
+  return presentationNoun.test(text) && createCommand.test(text);
 }
 
 async function fetchGeneratedImage(prompt, signal) {
@@ -2920,6 +3246,7 @@ async function sendMessage(options = {}) {
   const typedText = reuseLastUser ? (reusedMessage?.content || '') : textarea.value.trim();
   const text = typedText || (pendingAttachments.length ? '첨부파일을 분석해 주세요.' : '');
   if (!text) return;
+  const presentationRequested = wantsPresentationFile(text);
 
   const privacyInput = reuseLastUser
     ? text
@@ -2961,29 +3288,18 @@ async function sendMessage(options = {}) {
   setGenerationState(true);
   activeRequestController = new AbortController();
 
-  // 문서는 추출 텍스트로 저장하고, 이미지는 현재 모델 요청에만 멀티모달 데이터로 포함한다.
-  const imageAttachments = pendingAttachments.filter(file => file.kind === 'image');
-  const documentAttachments = pendingAttachments.filter(file => file.kind !== 'image');
+  // 첨부 문서의 추출 텍스트 포함
   const fileText = reuseLastUser
     ? ''
-    : documentAttachments.map(f => `\n\n[첨부파일: ${f.name}]\n${f.content}`).join('') +
-      imageAttachments.map(f => `\n\n[첨부이미지: ${f.name}]`).join('');
+    : pendingAttachments.map(f => `\n\n[첨부파일: ${f.name}]\n${f.content}`).join('');
   const fullContent = reuseLastUser ? text : (fileText ? `${text}${fileText}` : text);
 
   if (!reuseLastUser) {
-    const attachmentId = imageAttachments.length
-      ? (crypto.randomUUID?.() || `image-${Date.now()}-${Math.random().toString(36).slice(2)}`)
-      : null;
-    chatHistory.push({
-      role: 'user',
-      content: fullContent,
-      ...(attachmentId ? { attachmentId } : {})
-    });
-    if (attachmentId) transientMessageImages.set(attachmentId, imageAttachments);
+    chatHistory.push({ role: 'user', content: fullContent });
     applyConversationPersonaCommand(text);
     const userBodyEl = appendMsgEl('user');
     userBodyEl.innerHTML = `<p class="user-message-text">${renderUserMessageText(text)}</p>` +
-      pendingAttachments.map(f => `<div class="file-chip">${f.kind === 'image' ? '🖼️' : '📄'} ${escHtml(f.name)}</div>`).join('');
+      pendingAttachments.map(f => `<div class="file-chip">📄 ${escHtml(f.name)}</div>`).join('');
     clearAttachments();
   }
 
@@ -3025,29 +3341,25 @@ async function sendMessage(options = {}) {
     ]);
     if (searchCtx || lawCtx) setThinkingLabel(thinkEl, '생각 중...');
 
-    const systemPrompt = getSystemPrompt(heritageCtx + lawCtx + searchCtx);
+    let systemPrompt = getSystemPrompt(heritageCtx + lawCtx + searchCtx);
+    if (presentationRequested) {
+      systemPrompt += `\n\n[PowerPoint 파일 생성용 답변 규칙]
+- 답변은 발표자료의 원고로 바로 쓸 수 있게 작성한다.
+- 첫 줄은 전체 발표 제목을 Markdown 1단계 제목(#)으로 작성한다.
+- 각 슬라이드는 짧은 Markdown 2단계 제목(##)으로 구분한다.
+- 슬라이드 본문은 핵심 문장과 글머리표를 중심으로 간결하게 작성한다.
+- 인사말, 파일 생성 방법 설명, 코드 블록은 넣지 않는다.`;
+    }
 
     // 저장된 대화는 축약하지 않고, 모델 입력에는 최근 대화를 넉넉히 유지한다.
     const MAX_HIST = 32;
     const histSlice = chatHistory.length > MAX_HIST
       ? chatHistory.slice(chatHistory.length - MAX_HIST)
       : chatHistory;
-    const requestHistory = histSlice.map(message => {
-      const images = message.attachmentId
-        ? transientMessageImages.get(message.attachmentId) || []
-        : [];
-      if (!images.length) return { role: message.role, content: message.content };
-      return {
-        role: message.role,
-        content: [
-          { type: 'text', text: message.content },
-          ...images.flatMap(file => [
-            { type: 'text', text: `첨부 이미지 파일명: ${file.name}` },
-            { type: 'image_url', image_url: { url: file.dataUrl, detail: 'high' } }
-          ])
-        ]
-      };
-    });
+    const requestHistory = histSlice.map(message => ({
+      role: message.role,
+      content: message.content
+    }));
 
     const resp = await fetchMotifCompletion({
         model,
@@ -3119,6 +3431,25 @@ async function sendMessage(options = {}) {
 
     chatHistory.push({ role: 'assistant', content: finalContent });
 
+    if (presentationRequested && !result.stopped) {
+      const generatingNotice = document.createElement('div');
+      generatingNotice.style.cssText = 'margin-top:10px;color:var(--muted);font-size:12px;';
+      generatingNotice.textContent = '국가유산진흥원 양식으로 PPT를 생성하고 있습니다…';
+      assistantBodyEl.appendChild(generatingNotice);
+      try {
+        const presentation = await buildKhaPresentation(finalContent, {
+          title: presentationTitleFromMarkdown(finalContent, userDisplayText(text).replace(/(?:PPTX?|파워포인트|프레젠테이션|발표\s*자료|슬라이드)/ig, '').trim()),
+          author: user?.department || user?.name || '국가유산진흥원'
+        });
+        generatingNotice.remove();
+        downloadBlob(presentation.blob, presentation.filename);
+        appendPresentationDownload(assistantBodyEl, presentation.blob, presentation.filename);
+      } catch (presentationError) {
+        generatingNotice.textContent = `PPT 생성 실패: ${presentationError.message}`;
+        generatingNotice.style.color = 'var(--danger)';
+      }
+    }
+
     // 대화 로그 Supabase에 기록 (비동기, 오류 무시)
     if (sb) {
       const logPayload = {
@@ -3157,13 +3488,7 @@ async function sendMessage(options = {}) {
 }
 
 // ─── 파일 첨부 ───────────────────────────────────────────────
-let attachedFiles = [];  // 문서: {kind:'document', name, content, size}, 이미지: {kind:'image', name, dataUrl, size}
-
-const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif']);
-const IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
-const IMAGE_MIME_BY_EXTENSION = {
-  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif'
-};
+let attachedFiles = [];  // [{name, content, size}]
 
 const fileBtn     = document.getElementById('fileBtn');
 const fileInput   = document.getElementById('fileInput');
@@ -3183,26 +3508,13 @@ async function handleFiles(files) {
   for (const file of incoming) {
     if (attachedFiles.some(item => item.name === file.name && item.size === file.size)) continue;
     try {
-      const ext = file.name.split('.').pop()?.toLowerCase() || '';
-      const browserMimeType = file.type.toLowerCase();
-      const imageMimeType = IMAGE_MIME_TYPES.has(browserMimeType)
-        ? browserMimeType
-        : IMAGE_MIME_BY_EXTENSION[ext];
-      const isImage = IMAGE_MIME_TYPES.has(browserMimeType) ||
-        (IMAGE_EXTENSIONS.has(ext) && (!browserMimeType || browserMimeType === 'application/octet-stream'));
-      if (isImage) {
-        const dataUrl = (await readFileAsDataUrl(file))
-          .replace(/^data:[^;]*;base64,/, `data:${imageMimeType};base64,`);
-        attachedFiles.push({ kind: 'image', name: file.name, dataUrl, size: file.size });
-        continue;
-      }
       const content = await extractText(file);
       const sensitiveTypes = detectSensitiveData(`${file.name}\n${content}`);
       if (sensitiveTypes.length) {
         errors.push(`${file.name}: 개인정보(${sensitiveTypes.join(', ')})가 탐지되어 첨부하지 않았습니다. 정보를 삭제하거나 마스킹해 주세요.`);
         continue;
       }
-      attachedFiles.push({ kind: 'document', name: file.name, content, size: file.size });
+      attachedFiles.push({ name: file.name, content, size: file.size });
     } catch (e) {
       errors.push(`${file.name}: ${e.message}`);
     }
@@ -3259,19 +3571,9 @@ function renderFileChips() {
   filePreview.style.display = 'flex';
   filePreview.innerHTML = attachedFiles.map((f, i) => `
     <div class="file-chip">
-      ${f.kind === 'image' ? `<img class="file-chip-thumb" src="${f.dataUrl}" alt="">` : '📄'}
-      ${escHtml(f.name)}
+      📄 ${escHtml(f.name)}
       <button onclick="removeFile(${i})" title="제거">✕</button>
     </div>`).join('');
-}
-
-function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('이미지 파일을 읽지 못했습니다.'));
-    reader.readAsDataURL(file);
-  });
 }
 
 function removeFile(i) {
@@ -3397,7 +3699,7 @@ async function extractText(file) {
     return preserveDetail(text);
   }
 
-  throw new Error(`지원하지 않는 형식입니다 (.${ext}). 문서 또는 PNG·JPG·WEBP·GIF 파일을 사용해 주세요.`);
+  throw new Error(`지원하지 않는 형식입니다 (.${ext}). PDF·DOCX·PPTX·HWPX·TXT를 사용해주세요.`);
 }
 
 // 모바일 브라우저 주소창과 가상 키보드를 제외한 실제 표시 높이에 맞춘다.

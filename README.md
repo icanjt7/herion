@@ -58,6 +58,11 @@ A static UI preview is available via GitHub Pages at `docs/index.html`.
 The optional `document-service` container uses Docling for structured document
 parsing and generates DOCX, PDF, PPTX, or template-based HWPX reports.
 
+PowerPoint files can also be generated directly in the browser with the bundled
+National Heritage Promotion Agency template. Enter a request such as
+`PPT 만들어줘` or select PowerPoint from the report-file dialog; no
+`documentApiUrl` is required for this format.
+
 ```powershell
 docker compose --profile documents up --build document-service
 ```
@@ -101,12 +106,9 @@ spell-check results. These values can be changed with `maxOutputTokens` and
 `spellCheckMaxOutputTokens` in `docs/config.js`; the upstream model may apply a
 lower hard limit.
 
-Herian accepts document attachments plus PNG, JPEG, WEBP, and GIF images.
-Documents are sent as extracted text, while images are sent to the model as
-OpenAI-compatible multimodal `image_url` content. Herian does not truncate
-extracted attachment text or impose its own upload, expanded-HWPX, or
-per-message character cap. Browser memory, hosting request size, and upstream
-model context limits still apply.
+Herian does not truncate extracted attachment text or impose its own upload,
+expanded-HWPX, or per-message character cap. Browser memory, hosting request
+size, and upstream model context limits still apply.
 
 ## Cloudflare Image Generation
 
