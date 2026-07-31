@@ -1442,9 +1442,10 @@ const LAW_KEYWORDS = [
 ];
 
 function needsLawSearch(query) {
-  return LAW_KEYWORDS.some(k => query.includes(k))
-    || (/(?:국가유산|문화유산|문화재)/.test(query)
-      && /(?:정의|개념|의미|차이|근거|체계|개정|전환|알려)/.test(query));
+  const normalized = normalizeIntentText(query);
+  return LAW_KEYWORDS.some(k => normalized.includes(k))
+    || (/(?:국가유산|문화유산|문화재)/.test(normalized)
+      && /(?:정의|개념|의미|차이|근거|체계|개정|전환|알려)/.test(normalized));
 }
 
 const LAW_STOP_WORDS = new Set([
@@ -1487,6 +1488,7 @@ function extractArticleNumber(query) {
 }
 
 function extractLawSearchTerms(query) {
+  query = normalizeIntentText(query);
   const terms = [];
   if (/국가유산|문화유산|문화재/.test(query)) terms.push('국가유산기본법');
   const namedLaws = query.match(/[가-힣A-Za-z0-9·ㆍ\s]{2,}?(?:법|령|규칙|조례|고시|훈령|예규)(?=(?:에|의|상|에서|으로|에따라|에의해)?(?:\s|제\s*\d+조|[?.,]|$))/g) || [];
@@ -2088,7 +2090,7 @@ const HERITAGE_LEGAL_FACTS = `
 `.trim();
 
 function wantsCanonicalHeritageOverview(query) {
-  const text = userDisplayText(query);
+  const text = normalizeIntentText(query);
   if (!/국가유산/.test(text) || !/정의|개념|의미|차이|개요|무엇|뭐|알려/.test(text)) return false;
   const remainder = text
     .replace(/국가유산|문화유산|문화재|정의|개념|의미|차이|개요|무엇|뭐/g, ' ')
@@ -2130,15 +2132,15 @@ function containsKnownHeritageLawError(answer) {
 }
 
 function explicitlyRequestsWebSearch(query) {
-  return EXPLICIT_WEB_SEARCH_PATTERN.test(userDisplayText(query));
+  return EXPLICIT_WEB_SEARCH_PATTERN.test(normalizeIntentText(query));
 }
 
 function webSearchSourceProfile(query) {
-  return HERITAGE_TOPIC_PATTERN.test(userDisplayText(query)) ? 'heritage' : '';
+  return HERITAGE_TOPIC_PATTERN.test(normalizeIntentText(query)) ? 'heritage' : '';
 }
 
 function preferredOfficialDomains(query) {
-  const text = userDisplayText(query);
+  const text = normalizeIntentText(query);
   if (!/(공식|홈페이지|누리집|웹\s*사이트|URL|도메인|공고|보도자료)/i.test(text)) return [];
   return OFFICIAL_DOMAIN_RULES
     .filter(rule => rule.pattern.test(text))
@@ -2146,7 +2148,7 @@ function preferredOfficialDomains(query) {
 }
 
 function needsWebSearch(query) {
-  const q = userDisplayText(query).toLowerCase();
+  const q = normalizeIntentText(query).toLowerCase();
   return SEARCH_KEYWORDS.some(k => q.includes(k))
     || (webSearchSourceProfile(query) === 'heritage' && HERITAGE_FACT_PATTERN.test(q));
 }
@@ -2202,7 +2204,7 @@ async function performWebSearch(query, options = {}) {
           'Authorization': `Bearer ${cfg.supabaseAnonKey}`
         },
         body: JSON.stringify({
-          query: String(query || '').slice(0, 1000),
+          query: normalizeIntentText(query).slice(0, 1000),
           include_domains: preferredOfficialDomains(query),
           source_profile: webSearchSourceProfile(query)
         }),
@@ -2240,7 +2242,7 @@ const WEATHER_INTENT_PATTERN =
   /날씨|기온|체감\s*온도|온도|습도|강수|일기\s*예보|비\s*(?:와|오|올|내리)|눈\s*(?:와|오|올|내리)|바람(?:이|은|도|세기|속도|불|어때|\s|[?!.]|$)|폭염|한파|\bweather\b|\btemperature\b|\bforecast\b/i;
 
 function needsWeatherLookup(query) {
-  return WEATHER_INTENT_PATTERN.test(userDisplayText(query));
+  return WEATHER_INTENT_PATTERN.test(normalizeIntentText(query));
 }
 
 function isWeatherLocationFollowUp(query) {
@@ -2262,7 +2264,7 @@ function weatherLocationFromFollowUp(query) {
 }
 
 function weatherLocationFromQuery(query) {
-  const original = userDisplayText(query)
+  const original = normalizeIntentText(query)
     .replace(/[()[\]{}"'“”‘’]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -2929,6 +2931,90 @@ function renderGeneratedImageMessage(bodyEl, content, dataUrl) {
 
 function userDisplayText(content) {
   return String(content || '').split(/\n\n\[첨부파일: [^\]]+\]\n/, 1)[0];
+}
+
+const INTENT_TYPO_ALIASES = Object.freeze({
+  '날시': '날씨',
+  '낧씨': '날씨',
+  '검섹': '검색',
+  '검새': '검색',
+  '찿아': '찾아',
+  '차자': '찾아',
+  '조희': '조회',
+  '법율': '법률',
+  '법영': '법령',
+  '보거서': '보고서',
+  '보곳서': '보고서',
+  '번억': '번역',
+  '벙역': '번역',
+  '국가유상': '국가유산',
+  '문화유상': '문화유산',
+  '홈페이': '홈페이지',
+  '피피티': 'PPT',
+  '파워포인드': '파워포인트',
+  '프리젠테이션': '프레젠테이션',
+  '만드러': '만들어',
+  '작섬': '작성',
+  '워드파일': 'Word 파일',
+  '한글파일': '한글 파일'
+});
+
+const INTENT_CANONICAL_WORDS = Object.freeze([
+  '검색', '조회', '출처', '근거', '홈페이지', '웹사이트',
+  '법령', '법률', '규정', '조항', '시행령', '시행규칙',
+  '보고서', '계획서', '안내문', '회의자료', '번역',
+  '파워포인트', '프레젠테이션', '이미지', '그림',
+  '국가유산', '문화유산', '문화재', '국가유산청', '국가유산진흥원',
+  '기온', '온도', '습도', '강수', '일기예보'
+]);
+
+function isSingleEditApart(left, right) {
+  if (left === right) return false;
+  if (Math.abs(left.length - right.length) > 1) return false;
+  let leftIndex = 0;
+  let rightIndex = 0;
+  let edits = 0;
+  while (leftIndex < left.length && rightIndex < right.length) {
+    if (left[leftIndex] === right[rightIndex]) {
+      leftIndex += 1;
+      rightIndex += 1;
+      continue;
+    }
+    edits += 1;
+    if (edits > 1) return false;
+    if (left.length > right.length) leftIndex += 1;
+    else if (right.length > left.length) rightIndex += 1;
+    else {
+      leftIndex += 1;
+      rightIndex += 1;
+    }
+  }
+  if (leftIndex < left.length || rightIndex < right.length) edits += 1;
+  return edits === 1;
+}
+
+function normalizeIntentText(value) {
+  let normalized = userDisplayText(value).normalize('NFC');
+  Object.entries(INTENT_TYPO_ALIASES).forEach(([typo, canonical]) => {
+    normalized = normalized.split(typo).join(canonical);
+  });
+  return normalized.replace(/[가-힣A-Za-z0-9]+/g, token => {
+    if (token.length < 3) return token;
+    const lowerToken = token.toLowerCase();
+    if (INTENT_CANONICAL_WORDS.some(canonical => canonical.toLowerCase() === lowerToken)) return token;
+    const match = INTENT_CANONICAL_WORDS.find(canonical => {
+      const lowerCanonical = canonical.toLowerCase();
+      return lowerCanonical.length >= 3 && isSingleEditApart(lowerToken, lowerCanonical);
+    });
+    return match || token;
+  });
+}
+
+function intentCorrectionContext(original) {
+  const visible = userDisplayText(original).normalize('NFC');
+  const normalized = normalizeIntentText(visible);
+  if (!visible || normalized === visible) return '';
+  return `\n\n[입력 오타 보정 참고]\n- 사용자 원문은 그대로 보존한다.\n- 기능 판별을 위해 다음과 같이 보정했다: ${normalized.slice(0, 1000)}\n- 문맥과 맞지 않으면 보정 결과를 단정하지 말고 짧게 확인한다.`;
 }
 
 function renderUserMessageText(content) {
@@ -3871,7 +3957,7 @@ ${persona.instructions ? `- 추가 지시사항: ${persona.instructions}` : ''}
 }
 
 function wantsImageGeneration(value) {
-  const text = userDisplayText(value).trim();
+  const text = normalizeIntentText(value).trim();
   if (!text) return false;
 
   const drawCommand = /그려\s*(?:줘|주세요|줄래|줘요|봐|보세요)?(?:\s|[.!?,]|$)/;
@@ -3889,7 +3975,7 @@ function wantsImageGeneration(value) {
 }
 
 function wantsPresentationFile(value) {
-  const text = userDisplayText(value).trim();
+  const text = normalizeIntentText(value).trim();
   if (!text) return false;
   const presentationNoun = /(?:PPTX?|파워포인트|프레젠테이션|발표\s*자료|슬라이드)/i;
   const createCommand = /(?:만들|제작|생성|작성|구성|변환|뽑아|내려받|다운로드)/;
@@ -3897,7 +3983,7 @@ function wantsPresentationFile(value) {
 }
 
 function wantsHwpxFile(value) {
-  const text = userDisplayText(value).trim();
+  const text = normalizeIntentText(value).trim();
   if (!text) return false;
   const hwpxNoun = /(?:HWPX|한글\s*(?:파일|문서))/i;
   const createCommand = /(?:만들|제작|생성|작성|정리|변환|뽑아|내려받|다운로드)/;
@@ -3905,7 +3991,7 @@ function wantsHwpxFile(value) {
 }
 
 function wantsDocxFile(value) {
-  const text = userDisplayText(value).trim();
+  const text = normalizeIntentText(value).trim();
   if (!text) return false;
   const docxNoun = /(?:DOCX|Word|워드)(?:\s*(?:파일|문서|보고서))?/i;
   const createCommand = /(?:만들|제작|생성|작성|정리|변환|뽑아|내려받|다운로드)/;
@@ -4187,6 +4273,7 @@ async function sendMessage(options = {}) {
     if (searchCtx || lawCtx) setThinkingLabel(thinkEl, '생각 중...');
 
     let systemPrompt = getSystemPrompt(heritageCtx + lawCtx + searchCtx);
+    systemPrompt += intentCorrectionContext(text);
     if (presentationRequested) {
       systemPrompt += `\n\n${window.KhaPptxLlmParser?.PPT_JSON_SYSTEM_PROMPT || ''}`;
     }
