@@ -4,8 +4,36 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+type HeritageSource = {
+  domain: string;
+  name: string;
+  tier: '공식기관' | '1차사료' | '사전' | '보조(교차검증)';
+  priority: number;
+};
+
 const retryableStatuses = new Set([429, 500, 502, 503, 504]);
-const allowedIncludedDomains = new Set(['kh.or.kr', 'khs.go.kr']);
+const heritageSources: HeritageSource[] = [
+  { domain: 'royal.khs.go.kr', name: '국가유산청 궁능유적본부', tier: '공식기관', priority: 10 },
+  { domain: 'heritage.go.kr', name: '국가유산포털', tier: '공식기관', priority: 11 },
+  { domain: 'nrich.go.kr', name: '국립문화유산연구원', tier: '공식기관', priority: 12 },
+  { domain: 'sillok.history.go.kr', name: '조선왕조실록', tier: '1차사료', priority: 13 },
+  { domain: 'contents.history.go.kr', name: '우리역사넷', tier: '공식기관', priority: 14 },
+  { domain: 'khs.go.kr', name: '국가유산청', tier: '공식기관', priority: 15 },
+  { domain: 'kh.or.kr', name: '국가유산진흥원', tier: '공식기관', priority: 16 },
+  { domain: 'dh.aks.ac.kr', name: '위키실록사전', tier: '사전', priority: 20 },
+  { domain: 'encykorea.aks.ac.kr', name: '한국민족문화대백과사전', tier: '사전', priority: 21 },
+  { domain: 'koya-culture.com', name: '우리문화신문', tier: '보조(교차검증)', priority: 30 },
+  { domain: 'ko.wikipedia.org', name: '위키백과', tier: '보조(교차검증)', priority: 31 },
+  { domain: 'namu.wiki', name: '나무위키', tier: '보조(교차검증)', priority: 32 },
+  { domain: 'terms.naver.com', name: '네이버 지식백과', tier: '보조(교차검증)', priority: 33 },
+  { domain: 'korean.visitkorea.or.kr', name: '대한민국 구석구석', tier: '보조(교차검증)', priority: 34 },
+  { domain: 'fnnews.com', name: '파이낸셜뉴스', tier: '보조(교차검증)', priority: 35 },
+  { domain: 'museum.go.kr', name: '국립중앙박물관', tier: '보조(교차검증)', priority: 36 },
+  { domain: 'gogung.go.kr', name: '국립고궁박물관', tier: '보조(교차검증)', priority: 37 },
+  { domain: 'aks.ac.kr', name: '한국학중앙연구원', tier: '보조(교차검증)', priority: 38 },
+];
+const heritageDomains = [...new Set(heritageSources.map((source) => source.domain))];
+const allowedIncludedDomains = new Set(['kh.or.kr', 'khs.go.kr', ...heritageDomains]);
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -53,23 +81,62 @@ function safeUrl(value: unknown) {
   }
 }
 
-function normalizePayload(payload: Record<string, unknown>) {
+function heritageSourceForUrl(value: string) {
+  try {
+    const hostname = new URL(value).hostname.toLowerCase().replace(/^www\./, '');
+    return heritageSources.find((source) =>
+      hostname === source.domain || hostname.endsWith(`.${source.domain}`)
+    ) || null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeResults(payload: Record<string, unknown>) {
   const rawResults = Array.isArray(payload.results) ? payload.results : [];
-  const results = rawResults.slice(0, 8).flatMap((item) => {
+  return rawResults.slice(0, 20).flatMap((item) => {
     if (!item || typeof item !== 'object') return [];
     const result = item as Record<string, unknown>;
     const url = safeUrl(result.url);
     if (!url) return [];
+    const source = heritageSourceForUrl(url);
     return [{
       title: String(result.title || url).trim().slice(0, 300),
       url,
       content: String(result.content || '').trim().slice(0, 1200),
       score: Number.isFinite(Number(result.score)) ? Number(result.score) : null,
+      source_name: source?.name || '',
+      source_tier: source?.tier || '일반 웹',
+      source_priority: source?.priority ?? 999,
     }];
   });
+}
+
+function mergeResults(...groups: ReturnType<typeof normalizeResults>[]) {
+  const unique = new Map<string, ReturnType<typeof normalizeResults>[number]>();
+  groups.flat().forEach((result) => {
+    if (!unique.has(result.url)) unique.set(result.url, result);
+  });
+  return [...unique.values()]
+    .sort((left, right) =>
+      left.source_priority - right.source_priority
+      || (Number(right.score) || 0) - (Number(left.score) || 0)
+    )
+    .slice(0, 8);
+}
+
+function normalizedResponse(
+  payload: Record<string, unknown>,
+  results: ReturnType<typeof normalizeResults>,
+  sourceProfile = '',
+  fallbackUsed = false,
+) {
   return {
     answer: String(payload.answer || '').trim().slice(0, 2500),
     results,
+    source_profile: sourceProfile,
+    curated_result_count: results.filter((result) => result.source_priority < 999).length,
+    fallback_used: fallbackUsed,
   };
 }
 
@@ -92,6 +159,27 @@ async function requestTavily(apiKey: string, query: string, includeDomains: stri
     }),
     signal: AbortSignal.timeout(25_000),
   });
+}
+
+async function searchTavily(apiKey: string, query: string, includeDomains: string[]) {
+  let upstream = await requestTavily(apiKey, query, includeDomains);
+  if (retryableStatuses.has(upstream.status)) {
+    await upstream.body?.cancel();
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    upstream = await requestTavily(apiKey, query, includeDomains);
+  }
+  const payload = await upstream.json().catch(() => ({})) as Record<string, unknown>;
+  if (!upstream.ok) {
+    const error = new Error(String(
+      payload.detail || payload.error || '웹 검색 서비스 요청에 실패했습니다.'
+    ));
+    Object.assign(error, {
+      code: upstream.status === 429 ? 'WEB_SEARCH_LIMITED' : 'WEB_SEARCH_UPSTREAM_ERROR',
+      upstreamStatus: upstream.status,
+    });
+    throw error;
+  }
+  return payload;
 }
 
 Deno.serve(async (request) => {
@@ -124,30 +212,58 @@ Deno.serve(async (request) => {
       .filter((value: string) => allowedIncludedDomains.has(value))
       .slice(0, 2);
 
-    let upstream = await requestTavily(apiKey, query, includeDomains);
-    if (retryableStatuses.has(upstream.status)) {
-      await upstream.body?.cancel();
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      upstream = await requestTavily(apiKey, query, includeDomains);
+    const sourceProfile = body?.source_profile === 'heritage' ? 'heritage' : '';
+    if (includeDomains.length) {
+      const payload = await searchTavily(apiKey, query, includeDomains);
+      return json(normalizedResponse(
+        payload,
+        mergeResults(normalizeResults(payload)),
+        sourceProfile,
+      ));
     }
 
-    const payload = await upstream.json().catch(() => ({})) as Record<string, unknown>;
-    if (!upstream.ok) {
-      return json({
-        error: String(payload.detail || payload.error || '웹 검색 서비스 요청에 실패했습니다.'),
-        code: upstream.status === 429 ? 'WEB_SEARCH_LIMITED' : 'WEB_SEARCH_UPSTREAM_ERROR',
-        upstream_status: upstream.status,
-      }, upstream.status === 429 ? 429 : 502);
+    if (sourceProfile === 'heritage') {
+      const curatedPayload = await searchTavily(apiKey, query, heritageDomains);
+      const curatedResults = normalizeResults(curatedPayload);
+      if (curatedResults.length >= 5) {
+        return json(normalizedResponse(
+          curatedPayload,
+          mergeResults(curatedResults),
+          sourceProfile,
+        ));
+      }
+
+      const broadPayload = await searchTavily(apiKey, query, []);
+      const merged = mergeResults(curatedResults, normalizeResults(broadPayload));
+      return json(normalizedResponse(
+        {
+          ...broadPayload,
+          answer: curatedPayload.answer || broadPayload.answer || '',
+        },
+        merged,
+        sourceProfile,
+        true,
+      ));
     }
 
-    return json(normalizePayload(payload));
+    const payload = await searchTavily(apiKey, query, []);
+    return json(normalizedResponse(payload, mergeResults(normalizeResults(payload))));
   } catch (error) {
     const isTimeout = error instanceof DOMException && error.name === 'TimeoutError';
+    const upstreamStatus = Number(
+      error && typeof error === 'object' && 'upstreamStatus' in error
+        ? (error as { upstreamStatus?: number }).upstreamStatus
+        : 0
+    );
+    const errorCode = error && typeof error === 'object' && 'code' in error
+      ? String((error as { code?: string }).code || '')
+      : '';
     return json({
       error: isTimeout
         ? '웹 검색 서비스 응답 시간이 초과되었습니다.'
         : (error instanceof Error ? error.message : 'Unknown error'),
-      code: isTimeout ? 'WEB_SEARCH_TIMEOUT' : 'WEB_SEARCH_ERROR',
-    }, isTimeout ? 504 : 500);
+      code: isTimeout ? 'WEB_SEARCH_TIMEOUT' : (errorCode || 'WEB_SEARCH_ERROR'),
+      ...(upstreamStatus ? { upstream_status: upstreamStatus } : {}),
+    }, isTimeout ? 504 : (upstreamStatus === 429 ? 429 : upstreamStatus ? 502 : 500));
   }
 });

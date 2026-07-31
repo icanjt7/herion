@@ -146,6 +146,13 @@ is not included in the static GitHub Pages bundle. Add repository secrets
 `TAVILY_API` and `SUPABASE_KHA_PROJECT`; pushing the function or its deployment
 workflow configures `TAVILY_API_KEY` in Supabase and deploys the proxy.
 
+Culture and national-heritage fact questions use a curated source profile before
+the open web. The profile searches the Cultural Heritage Administration and
+Royal Palaces and Tombs sites, the National Heritage Portal and Research
+Institute, primary historical sources, specialist dictionaries, and the
+configured cross-check sources. Results are ranked by source tier, and a broad
+search is used only when the curated set returns too few relevant documents.
+
 Herian parses PDF, DOCX, PPTX, XLSX/XLS/XLSB/ODS, HWPX, and text attachments in
 the browser when the optional document service is unavailable. Spreadsheet
 parsing preserves sheet names, cell locations, formatted values, formulas,

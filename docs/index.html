@@ -1954,8 +1954,42 @@ const OFFICIAL_DOMAIN_RULES = Object.freeze([
   { pattern: /국가유산청|Korea Heritage Service/i, domain: 'khs.go.kr' },
 ]);
 
+const HERITAGE_TOPIC_PATTERN =
+  /국가유산|문화유산|문화재|궁궐|왕릉|조선왕조|실록|유적|유물|무형유산|전통문화|박물관|고궁|경복궁|창덕궁|덕수궁|창경궁|종묘/i;
+
+const HERITAGE_FACT_PATTERN =
+  /역사|유래|의미|설명|정보|사실|현황|지정|연혁|인물|건축|복원|보존|출처|근거|알려|무엇|뭐|왜|언제|어디|공식|최신|검색|조사|확인/i;
+
+const HERITAGE_SOURCE_GUIDE = `
+1차·공식 출처:
+- 국가유산청 궁능유적본부: https://royal.khs.go.kr
+- 국가유산포털: https://www.heritage.go.kr
+- 국립문화유산연구원: https://www.nrich.go.kr
+- 조선왕조실록(국사편찬위원회): https://sillok.history.go.kr
+- 우리역사넷(국사편찬위원회): https://contents.history.go.kr
+- 국가유산청: https://www.khs.go.kr
+- 국가유산진흥원: https://www.kh.or.kr/kha
+전문 사전:
+- 위키실록사전(한국학중앙연구원): https://dh.aks.ac.kr/sillokwiki
+- 한국민족문화대백과사전: https://encykorea.aks.ac.kr
+보조·교차검증 출처:
+- 우리문화신문: https://www.koya-culture.com
+- 위키백과: https://ko.wikipedia.org
+- 나무위키: https://namu.wiki
+- 네이버 지식백과: https://terms.naver.com
+- 대한민국 구석구석: https://korean.visitkorea.or.kr
+- 파이낸셜뉴스: https://www.fnnews.com
+- 국립중앙박물관: https://www.museum.go.kr
+- 국립고궁박물관: https://www.gogung.go.kr
+- 한국학중앙연구원: https://www.aks.ac.kr
+`.trim();
+
 function explicitlyRequestsWebSearch(query) {
   return EXPLICIT_WEB_SEARCH_PATTERN.test(userDisplayText(query));
+}
+
+function webSearchSourceProfile(query) {
+  return HERITAGE_TOPIC_PATTERN.test(userDisplayText(query)) ? 'heritage' : '';
 }
 
 function preferredOfficialDomains(query) {
@@ -1968,7 +2002,8 @@ function preferredOfficialDomains(query) {
 
 function needsWebSearch(query) {
   const q = userDisplayText(query).toLowerCase();
-  return SEARCH_KEYWORDS.some(k => q.includes(k));
+  return SEARCH_KEYWORDS.some(k => q.includes(k))
+    || (webSearchSourceProfile(query) === 'heritage' && HERITAGE_FACT_PATTERN.test(q));
 }
 
 function buildWebSearchContext(data) {
@@ -1982,13 +2017,21 @@ function buildWebSearchContext(data) {
 - 국가유산청 공식 홈페이지는 https://www.khs.go.kr 이고, 국가유산진흥원 공식 홈페이지는 https://www.kh.or.kr 이다.
 - 두 기관을 혼동하거나 nhrt.or.kr을 국가유산진흥원 공식 홈페이지로 안내하지 않는다.
 `;
+  if (data?.source_profile === 'heritage') {
+    context += `\n[문화유산·국가유산 출처 우선순위]\n${HERITAGE_SOURCE_GUIDE}\n`;
+    context += `- 위 1차·공식 출처와 전문 사전을 먼저 근거로 사용한다.
+- 보조 출처는 공식·1차 자료와 교차검증된 경우에만 보완적으로 사용한다.
+- 일반 웹 검색 결과는 지정 출처에서 충분한 결과를 찾지 못했을 때만 사용한다.
+`;
+  }
   if (data?.answer) context += `\n검색 요약: ${String(data.answer).slice(0, 2500)}\n`;
   if (!results.length) {
     context += '\n검색 결과: 관련 문서를 찾지 못함\n';
     return context;
   }
   results.slice(0, 8).forEach((result, index) => {
-    context += `\n[${index + 1}] ${result.title || result.url}\n`;
+    const sourceLabel = [result.source_name, result.source_tier].filter(Boolean).join(' · ');
+    context += `\n[${index + 1}] ${result.title || result.url}${sourceLabel ? ` (${sourceLabel})` : ''}\n`;
     if (result.content) context += `${String(result.content).slice(0, 1200)}\n`;
     context += `출처: ${result.url}\n`;
   });
@@ -2014,7 +2057,8 @@ async function performWebSearch(query, options = {}) {
         },
         body: JSON.stringify({
           query: String(query || '').slice(0, 1000),
-          include_domains: preferredOfficialDomains(query)
+          include_domains: preferredOfficialDomains(query),
+          source_profile: webSearchSourceProfile(query)
         }),
         signal: options.signal
       });
@@ -3374,6 +3418,13 @@ function getSystemPrompt(heritageCtx = '') {
 - 국가유산청과 국가유산진흥원을 서로 다른 기관으로 정확히 구분한다.
 - nhrt.or.kr을 국가유산진흥원 공식 홈페이지로 안내하지 않는다.
 - 이 기관에 대해 질문받으면 위 정보를 정확히 사용하며, 모르는 세부 사항은 "확인이 필요합니다"라고 명시한다.
+
+[문화유산·국가유산 기본 출처]
+${HERITAGE_SOURCE_GUIDE}
+- 문화유산·국가유산의 사실 확인이 필요한 질문은 위 목록의 1차·공식 출처를 먼저 확인하고 전문 사전으로 보완한다.
+- 보조 출처는 단독 근거로 확정하지 않고 공식·1차 자료와 교차검증한다.
+- 지정 출처에서 충분한 정보를 찾지 못한 경우에만 다른 웹사이트로 검색 범위를 넓힌다.
+- 출처 사이에 내용이 다르면 공식기관·1차 사료를 우선하고 차이를 답변에 밝힌다.
 
 [언어 지침]
 ${langLine}
