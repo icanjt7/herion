@@ -570,6 +570,31 @@
 
     .welcome-input-guide-title { font-size: 13.5px; font-weight: 750; margin-bottom: 4px; }
     .welcome-input-guide-copy { color: var(--muted); font-size: 12.5px; line-height: 1.55; }
+    .welcome-upload-cta {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-top: 11px;
+      padding: 10px 12px;
+      border: 0;
+      border-radius: 10px;
+      background: linear-gradient(105deg, #2457a6, #19715f);
+      color: #fff;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      box-shadow: 0 5px 14px rgba(36,87,166,.16);
+    }
+    .welcome-upload-cta:hover { filter: brightness(1.05); transform: translateY(-1px); }
+    .welcome-upload-cta-main { display: block; font-size: 13px; font-weight: 750; }
+    .welcome-upload-cta-sub { display: block; margin-top: 2px; color: rgba(255,255,255,.78); font-size: 10.5px; }
+    .welcome-input-guide-label {
+      margin-top: 10px;
+      color: #253d65;
+      font-size: 11.5px;
+      font-weight: 750;
+    }
     .welcome-input-guide-items {
       display: flex;
       flex-wrap: wrap;
@@ -577,12 +602,13 @@
       margin-top: 8px;
     }
     .welcome-input-guide-item {
-      padding: 3px 8px;
-      border: 1px solid rgba(36,87,166,.14);
+      padding: 4px 9px;
+      border: 1px solid rgba(36,87,166,.28);
       border-radius: 999px;
-      background: rgba(255,255,255,.8);
-      color: #44556d;
-      font-size: 11px;
+      background: #fff;
+      color: #253d65;
+      font-size: 11.5px;
+      font-weight: 650;
     }
 
     .suggestion-grid {
@@ -1026,6 +1052,7 @@
       .welcome-kicker { margin-bottom: 13px; }
       .welcome-subtitle { font-size: 14px; }
       .welcome-input-guide { padding: 13px 14px; }
+      .welcome-upload-cta { align-items: flex-start; }
       .welcome-input-guide-items { gap: 4px; }
       .file-chip { font-size: 11.5px; padding: 5px 7px; }
     }
@@ -2701,6 +2728,14 @@ function showWelcome() {
             아래 카드는 요청 예시를 입력하는 기능입니다. 카드만 선택하면 일반적인 초안이 생성될 수 있으므로,
             하단 첨부 버튼으로 기존 문서·계획서·회의자료를 넣거나 업무 조건을 함께 작성해 주세요.
           </div>
+          <button type="button" class="welcome-upload-cta" onclick="document.getElementById('fileInput').click()">
+            <span aria-hidden="true">📂</span>
+            <span>
+              <span class="welcome-upload-cta-main">아래 대화창에 파일을 업로드하고 실행해 보세요</span>
+              <span class="welcome-upload-cta-sub">여기를 클릭하면 바로 파일을 선택할 수 있습니다</span>
+            </span>
+          </button>
+          <div class="welcome-input-guide-label">권장 입력사항</div>
           <div class="welcome-input-guide-items" aria-label="권장 입력사항">
             <span class="welcome-input-guide-item">참고파일·기존 문서</span>
             <span class="welcome-input-guide-item">목적·대상</span>
