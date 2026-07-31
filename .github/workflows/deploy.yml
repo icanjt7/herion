@@ -24,10 +24,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Inject API keys
-        run: |
-          sed -i "s|YOUR_TAVILY_API_KEY|${{ secrets.TAVILY_API }}|g" docs/config.js
-
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3

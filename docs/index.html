@@ -1043,10 +1043,6 @@
         <select class="model-select" id="modelSelect">
           <option value="motif3">Motif3 300B</option>
         </select>
-        <button class="icon-btn" id="webSearchBtn" title="웹 검색 (클릭하여 켜기)" onclick="toggleWebSearch()"
-                style="font-size:15px;width:auto;padding:0 10px;gap:5px;display:flex;align-items:center;">
-          🌐 <span class="toolbar-label" id="webSearchLabel" style="font-size:12px;color:var(--muted);">웹 검색</span>
-        </button>
         <button class="icon-btn" title="한국어 맞춤법 검사" onclick="openSpellCheck()"
                 style="font-size:15px;width:auto;padding:0 10px;gap:4px;display:flex;align-items:center;">
           ✍️ <span class="toolbar-label">맞춤법</span>
@@ -1224,7 +1220,7 @@
 <script src="pptx-kha.js?v=20260731-structured-layouts"></script>
 <script src="pptx-llm-parser.js?v=20260731-structured-layouts"></script>
 <script src="docx-kha.js"></script>
-<script src="config.js"></script>
+<script src="config.js?v=20260731-web-search"></script>
 <script>
 // ─── 세션 확인 ───────────────────────────────────────────────
 const cfg  = window.HERION_CONFIG;
@@ -1917,7 +1913,6 @@ let currentConvId   = null;
 let chatHistory     = [];
 const transientGeneratedImages = new Map();
 let isStreaming     = false;
-let webSearchEnabled = false;
 let activeRequestController = null;
 let conversationSearchQuery = '';
 
@@ -1946,61 +1941,89 @@ document.addEventListener('keydown', event => {
 // ─── 웹 검색 ─────────────────────────────────────────────────
 const SEARCH_KEYWORDS = [
   '최신','현재','오늘','지금','최근','이번 달','이번 주','뉴스','통계',
-  '언제','얼마','몇 개','어디서','검색해','찾아봐','알아봐','조회',
-  'latest','current','today','recent','news','search','find','how much'
+  '언제','얼마','몇 개','어디서','검색','찾아','알아봐','조회','출처','근거','링크',
+  'latest','current','today','recent','news','search','find','look up','browse','source','how much'
 ];
 
+const EXPLICIT_WEB_SEARCH_PATTERN =
+  /(?:웹|인터넷|온라인)\s*(?:에서\s*)?(?:검색|조사|조회|찾)|검색\s*(?:해서|하여|하고|해|해줘|해주세요|해\s*봐|해봐|결과)|찾아\s*(?:봐|줘|주세요|보고)|알아\s*(?:봐|봐줘|주세요)|출처\s*(?:를\s*)?(?:찾|확인)|근거\s*(?:를\s*)?(?:찾|확인)|\b(?:search(?:\s+the)?\s+web|web\s+search|look\s+it\s+up|look\s+up|browse(?:\s+the)?\s+(?:web|internet))\b/i;
+
+function explicitlyRequestsWebSearch(query) {
+  return EXPLICIT_WEB_SEARCH_PATTERN.test(userDisplayText(query));
+}
+
 function needsWebSearch(query) {
-  const q = query.toLowerCase();
+  const q = userDisplayText(query).toLowerCase();
   return SEARCH_KEYWORDS.some(k => q.includes(k));
 }
 
-function toggleWebSearch() {
-  webSearchEnabled = !webSearchEnabled;
-  const btn   = document.getElementById('webSearchBtn');
-  const label = document.getElementById('webSearchLabel');
-  if (webSearchEnabled) {
-    btn.style.background   = '#e8f5f1';
-    btn.style.borderColor  = 'var(--accent)';
-    label.style.color      = 'var(--accent)';
-    label.textContent      = 'ON';
-    btn.title              = '웹 검색 켜짐 (클릭하여 끄기)';
-  } else {
-    btn.style.background   = '#fff';
-    btn.style.borderColor  = 'var(--line)';
-    label.style.color      = 'var(--muted)';
-    label.textContent      = '웹 검색';
-    btn.title              = '웹 검색 (클릭하여 켜기)';
+function buildWebSearchContext(data) {
+  const results = Array.isArray(data?.results) ? data.results : [];
+  let context = `\n\n[실시간 웹 검색 수행 결과]
+- 이 블록은 방금 웹 검색 API를 통해 조회한 결과다.
+- "인터넷에 접근할 수 없다", "검색할 수 없다", "실시간 정보를 확인할 수 없다"고 답하지 않는다.
+- 답변의 최신 사실은 아래 결과에 근거하고, 해당 문장 가까이에 출처 URL을 Markdown 링크로 표시한다.
+- 검색 결과에 없는 내용은 추정하지 말고, 출처 간 내용이 다르면 차이를 명시한다.
+- 관련 결과가 부족하면 검색 기능이 없다고 말하지 말고 "관련 검색 결과가 충분하지 않았다"고 정확히 설명한다.
+`;
+  if (data?.answer) context += `\n검색 요약: ${String(data.answer).slice(0, 2500)}\n`;
+  if (!results.length) {
+    context += '\n검색 결과: 관련 문서를 찾지 못함\n';
+    return context;
   }
+  results.slice(0, 8).forEach((result, index) => {
+    context += `\n[${index + 1}] ${result.title || result.url}\n`;
+    if (result.content) context += `${String(result.content).slice(0, 1200)}\n`;
+    context += `출처: ${result.url}\n`;
+  });
+  return context;
 }
 
-async function performWebSearch(query) {
-  const key = cfg?.tavilyApiKey;
-  if (!key || key === 'YOUR_TAVILY_API_KEY') return '';
-  try {
-    const resp = await fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        api_key: key,
-        query,
-        search_depth: 'basic',
-        max_results: 5,
-        include_answer: true,
-        include_raw_content: false
-      })
-    });
-    if (!resp.ok) return '';
-    const data = await resp.json();
-    let ctx = '\n\n[실시간 웹 검색 결과 — 아래 정보를 참고하여 답변하세요]\n';
-    if (data.answer) ctx += `요약: ${data.answer}\n\n`;
-    (data.results || []).slice(0, 5).forEach((r, i) => {
-      ctx += `[${i + 1}] ${r.title}\n`;
-      if (r.content) ctx += `${r.content.slice(0, 300)}\n`;
-      ctx += `출처: ${r.url}\n\n`;
-    });
-    return ctx;
-  } catch (_) { return ''; }
+async function performWebSearch(query, options = {}) {
+  if (!cfg?.webSearchProxyUrl) {
+    const error = new Error('웹 검색 서비스가 설정되지 않았습니다. 관리자에게 검색 프록시 설정을 요청해 주세요.');
+    error.code = 'WEB_SEARCH_NOT_CONFIGURED';
+    throw error;
+  }
+
+  let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const resp = await fetch(cfg.webSearchProxyUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': cfg.supabaseAnonKey,
+          'Authorization': `Bearer ${cfg.supabaseAnonKey}`
+        },
+        body: JSON.stringify({ query: String(query || '').slice(0, 1000) }),
+        signal: options.signal
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok) return buildWebSearchContext(data);
+
+      const error = new Error(data.error || `웹 검색 API 오류 ${resp.status}`);
+      error.code = data.code || 'WEB_SEARCH_API_ERROR';
+      error.status = resp.status;
+      lastError = error;
+      if (![429, 500, 502, 503, 504].includes(resp.status) || attempt > 0) throw error;
+      await new Promise(resolve => window.setTimeout(resolve, 400));
+    } catch (error) {
+      if (error?.name === 'AbortError') throw error;
+      lastError = error;
+      if (attempt > 0 || error?.status && ![429, 500, 502, 503, 504].includes(error.status)) {
+        const normalized = error instanceof Error ? error : new Error(String(error));
+        if (!normalized.code) normalized.code = 'WEB_SEARCH_CONNECTION_ERROR';
+        throw normalized;
+      }
+      await new Promise(resolve => window.setTimeout(resolve, 400));
+    }
+  }
+  const finalError = lastError instanceof Error
+    ? lastError
+    : new Error('웹 검색 요청에 실패했습니다.');
+  if (!finalError.code) finalError.code = 'WEB_SEARCH_CONNECTION_ERROR';
+  throw finalError;
 }
 
 // ─── 유틸 ────────────────────────────────────────────────────
@@ -2016,6 +2039,16 @@ function renderMd(text) {
   const clean = DOMPurify.sanitize(marked.parse(source, { gfm: true, breaks: true }));
   const template = document.createElement('template');
   template.innerHTML = clean;
+  template.content.querySelectorAll('a[href]').forEach(anchor => {
+    try {
+      const url = new URL(anchor.getAttribute('href'), window.location.href);
+      if (!['http:', 'https:'].includes(url.protocol)) return;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener noreferrer';
+    } catch (_) {
+      // DOMPurify가 허용한 비정상·상대 링크는 기존 동작을 유지합니다.
+    }
+  });
   template.content.querySelectorAll('table').forEach(table => {
     const shell = document.createElement('div');
     shell.className = 'table-output';
@@ -3608,14 +3641,14 @@ async function sendMessage(options = {}) {
     return;
   }
 
-  // 웹 검색 여부 결정: 수동 ON 또는 자동 감지
-  const shouldSearch = webSearchEnabled || needsWebSearch(text);
-  const hasSearchKey = cfg?.tavilyApiKey && cfg.tavilyApiKey !== 'YOUR_TAVILY_API_KEY';
+  // 웹 검색 여부 결정: 상단 토글 없이 사용자 요청 문장에서 자동 감지
+  const explicitSearchRequested = explicitlyRequestsWebSearch(text);
+  const shouldSearch = needsWebSearch(text);
 
   const shouldSearchLaw = needsLawSearch(text);
   const thinkLabel = shouldSearchLaw
     ? '법령 원문 조회 중...'
-    : (shouldSearch && hasSearchKey ? '🌐 웹 검색 중...' : '생각 중...');
+    : (shouldSearch ? '🌐 웹 검색 중...' : '생각 중...');
   const thinkEl = appendThinking(thinkLabel);
   const model   = document.getElementById('modelSelect')?.value || 'motif3';
 
@@ -3624,7 +3657,16 @@ async function sendMessage(options = {}) {
     // 웹검색·법령검색 병렬 실행
     const heritageCtx = searchHeritageContext(text);
     const [searchCtx, lawCtx] = await Promise.all([
-      (shouldSearch && hasSearchKey) ? performWebSearch(text) : Promise.resolve(''),
+      shouldSearch
+        ? performWebSearch(text, { signal: activeRequestController.signal }).catch(error => {
+            if (explicitSearchRequested) throw error;
+            return `\n\n[웹 검색 상태]
+- 최신성 판단을 위한 자동 웹 검색을 시도했으나 실패했다.
+- 실시간 사실을 확인한 것처럼 단정하지 말고, 검색 실패 사실과 재확인 필요성을 짧게 명시한다.
+- "검색 기능이 없다"고 표현하지 않는다. 오류: ${String(error.message || error).slice(0, 300)}
+`;
+          })
+        : Promise.resolve(''),
       shouldSearchLaw                ? searchLaw(text)        : Promise.resolve(''),
     ]);
     if (searchCtx || lawCtx) setThinkingLabel(thinkEl, '생각 중...');
@@ -3825,6 +3867,11 @@ async function sendMessage(options = {}) {
     const bodyEl = assistantBodyEl || appendMsgEl('assistant');
     if (err?.name === 'AbortError') {
       bodyEl.innerHTML = '<p style="color:var(--muted);">답변 생성을 중지했습니다.</p>';
+    } else if (/^WEB_SEARCH_/.test(String(err?.code || ''))) {
+      bodyEl.innerHTML = renderMd(
+        `웹 검색을 요청하셨지만 검색 서비스 연결에 실패했습니다. 검색하지 않은 일반 답변으로 대체하지 않았습니다.\n\n` +
+        `잠시 후 다시 요청해 주세요. 오류: ${String(err.message || err)}`
+      );
     } else {
       bodyEl.innerHTML = `<p style="color:var(--danger);">오류: ${escHtml(err.message)}</p>`;
     }

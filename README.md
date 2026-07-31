@@ -132,6 +132,20 @@ spell-check results. These values can be changed with `maxOutputTokens` and
 `spellCheckMaxOutputTokens` in `docs/config.js`; the upstream model may apply a
 lower hard limit.
 
+## Web Search Proxy
+
+Herian automatically performs a Tavily web search when the user explicitly asks
+to search, look something up, find sources, or requests current information.
+There is no toolbar toggle: search intent is detected from the request. Search
+results and source URLs are injected into the model context, and an explicit
+search request fails visibly instead of silently falling back to an unsearched
+answer.
+
+The browser calls the `web-search-api` Supabase Edge Function, so the Tavily key
+is not included in the static GitHub Pages bundle. Add repository secrets
+`TAVILY_API` and `SUPABASE_KHA_PROJECT`; pushing the function or its deployment
+workflow configures `TAVILY_API_KEY` in Supabase and deploys the proxy.
+
 Herian parses PDF, DOCX, PPTX, XLSX/XLS/XLSB/ODS, HWPX, and text attachments in
 the browser when the optional document service is unavailable. Spreadsheet
 parsing preserves sheet names, cell locations, formatted values, formulas,

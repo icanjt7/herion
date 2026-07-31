@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.image-api]
 verify_jwt = false
+
+[functions.web-search-api]
+verify_jwt = false

@@ -30,8 +30,9 @@ window.HERION_CONFIG = {
   // Docling 문서 분석·보고서 생성 서비스. 배포 전에는 빈 값으로 두면 브라우저 파서를 사용합니다.
   documentApiUrl: '',
 
-  // ─── Tavily 웹 검색 API ─────────────────────────────────────────
-  tavilyApiKey: 'YOUR_TAVILY_API_KEY',
+  // ─── Tavily 웹 검색 프록시 ───────────────────────────────────────
+  // API 키는 브라우저에 노출하지 않고 Supabase Edge Function에서 관리합니다.
+  webSearchProxyUrl: 'https://enpovkaknaxfgzanyghn.supabase.co/functions/v1/web-search-api',
 
   // ─── 국가법령정보 API (open.law.go.kr 에서 발급) ───────────────
   lawApiKey: 'YOUR_LAW_API_KEY',
