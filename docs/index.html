@@ -1942,14 +1942,28 @@ document.addEventListener('keydown', event => {
 const SEARCH_KEYWORDS = [
   '최신','현재','오늘','지금','최근','이번 달','이번 주','뉴스','통계',
   '언제','얼마','몇 개','어디서','검색','찾아','알아봐','조회','출처','근거','링크',
-  'latest','current','today','recent','news','search','find','look up','browse','source','how much'
+  '홈페이지','누리집','웹사이트','웹 사이트','url','도메인',
+  'latest','current','today','recent','news','search','find','look up','browse','source','website','homepage','how much'
 ];
 
 const EXPLICIT_WEB_SEARCH_PATTERN =
-  /(?:웹|인터넷|온라인)\s*(?:에서\s*)?(?:검색|조사|조회|찾)|검색\s*(?:해서|하여|하고|해|해줘|해주세요|해\s*봐|해봐|결과)|찾아\s*(?:봐|줘|주세요|보고)|알아\s*(?:봐|봐줘|주세요)|출처\s*(?:를\s*)?(?:찾|확인)|근거\s*(?:를\s*)?(?:찾|확인)|\b(?:search(?:\s+the)?\s+web|web\s+search|look\s+it\s+up|look\s+up|browse(?:\s+the)?\s+(?:web|internet))\b/i;
+  /(?:웹|인터넷|온라인)\s*(?:에서\s*)?(?:검색|조사|조회|찾)|검색\s*(?:해서|하여|하고|해|해줘|해주세요|해\s*봐|해봐|결과)|찾아\s*(?:봐|줘|주세요|보고)|알아\s*(?:봐|봐줘|주세요)|출처\s*(?:를\s*)?(?:찾|확인)|근거\s*(?:를\s*)?(?:찾|확인)|(?:홈페이지|누리집|웹\s*사이트|공식\s*사이트|URL|도메인)(?:\s*주소)?(?:를|은|이|가)?\s*(?:알려|찾|확인|어디|뭐|무엇)|\b(?:search(?:\s+the)?\s+web|web\s+search|look\s+it\s+up|look\s+up|browse(?:\s+the)?\s+(?:web|internet)|official\s+(?:website|homepage))\b/i;
+
+const OFFICIAL_DOMAIN_RULES = Object.freeze([
+  { pattern: /국가유산진흥원|Korea Heritage Agency/i, domain: 'kh.or.kr' },
+  { pattern: /국가유산청|Korea Heritage Service/i, domain: 'khs.go.kr' },
+]);
 
 function explicitlyRequestsWebSearch(query) {
   return EXPLICIT_WEB_SEARCH_PATTERN.test(userDisplayText(query));
+}
+
+function preferredOfficialDomains(query) {
+  const text = userDisplayText(query);
+  if (!/(공식|홈페이지|누리집|웹\s*사이트|URL|도메인|공고|보도자료)/i.test(text)) return [];
+  return OFFICIAL_DOMAIN_RULES
+    .filter(rule => rule.pattern.test(text))
+    .map(rule => rule.domain);
 }
 
 function needsWebSearch(query) {
@@ -1965,6 +1979,8 @@ function buildWebSearchContext(data) {
 - 답변의 최신 사실은 아래 결과에 근거하고, 해당 문장 가까이에 출처 URL을 Markdown 링크로 표시한다.
 - 검색 결과에 없는 내용은 추정하지 말고, 출처 간 내용이 다르면 차이를 명시한다.
 - 관련 결과가 부족하면 검색 기능이 없다고 말하지 말고 "관련 검색 결과가 충분하지 않았다"고 정확히 설명한다.
+- 국가유산청 공식 홈페이지는 https://www.khs.go.kr 이고, 국가유산진흥원 공식 홈페이지는 https://www.kh.or.kr 이다.
+- 두 기관을 혼동하거나 nhrt.or.kr을 국가유산진흥원 공식 홈페이지로 안내하지 않는다.
 `;
   if (data?.answer) context += `\n검색 요약: ${String(data.answer).slice(0, 2500)}\n`;
   if (!results.length) {
@@ -1996,7 +2012,10 @@ async function performWebSearch(query, options = {}) {
           'apikey': cfg.supabaseAnonKey,
           'Authorization': `Bearer ${cfg.supabaseAnonKey}`
         },
-        body: JSON.stringify({ query: String(query || '').slice(0, 1000) }),
+        body: JSON.stringify({
+          query: String(query || '').slice(0, 1000),
+          include_domains: preferredOfficialDomains(query)
+        }),
         signal: options.signal
       });
       const data = await resp.json().catch(() => ({}));
@@ -3350,6 +3369,10 @@ function getSystemPrompt(heritageCtx = '') {
 - 설립: 1980년 4월 1일
 - 소관: 국가유산청 산하 기타 공공기관
 - 역할: 국가유산의 보존·활용·진흥을 지원하는 전문 공공기관
+- 국가유산청 공식 홈페이지: https://www.khs.go.kr
+- 국가유산진흥원 공식 홈페이지: https://www.kh.or.kr
+- 국가유산청과 국가유산진흥원을 서로 다른 기관으로 정확히 구분한다.
+- nhrt.or.kr을 국가유산진흥원 공식 홈페이지로 안내하지 않는다.
 - 이 기관에 대해 질문받으면 위 정보를 정확히 사용하며, 모르는 세부 사항은 "확인이 필요합니다"라고 명시한다.
 
 [언어 지침]

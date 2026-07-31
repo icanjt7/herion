@@ -5,6 +5,7 @@ const corsHeaders = {
 };
 
 const retryableStatuses = new Set([429, 500, 502, 503, 504]);
+const allowedIncludedDomains = new Set(['kh.or.kr', 'khs.go.kr']);
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -72,7 +73,7 @@ function normalizePayload(payload: Record<string, unknown>) {
   };
 }
 
-async function requestTavily(apiKey: string, query: string) {
+async function requestTavily(apiKey: string, query: string, includeDomains: string[]) {
   return fetch('https://api.tavily.com/search', {
     method: 'POST',
     headers: {
@@ -87,6 +88,7 @@ async function requestTavily(apiKey: string, query: string) {
       include_answer: 'advanced',
       include_raw_content: false,
       include_images: false,
+      ...(includeDomains.length ? { include_domains: includeDomains } : {}),
     }),
     signal: AbortSignal.timeout(25_000),
   });
@@ -117,11 +119,16 @@ Deno.serve(async (request) => {
       }, 400);
     }
 
-    let upstream = await requestTavily(apiKey, query);
+    const includeDomains = (Array.isArray(body?.include_domains) ? body.include_domains : [])
+      .map((value: unknown) => String(value || '').trim().toLowerCase())
+      .filter((value: string) => allowedIncludedDomains.has(value))
+      .slice(0, 2);
+
+    let upstream = await requestTavily(apiKey, query, includeDomains);
     if (retryableStatuses.has(upstream.status)) {
       await upstream.body?.cancel();
       await new Promise((resolve) => setTimeout(resolve, 500));
-      upstream = await requestTavily(apiKey, query);
+      upstream = await requestTavily(apiKey, query, includeDomains);
     }
 
     const payload = await upstream.json().catch(() => ({})) as Record<string, unknown>;
