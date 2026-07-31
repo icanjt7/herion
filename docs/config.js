@@ -34,6 +34,9 @@ window.HERION_CONFIG = {
   // API 키는 브라우저에 노출하지 않고 Supabase Edge Function에서 관리합니다.
   webSearchProxyUrl: 'https://enpovkaknaxfgzanyghn.supabase.co/functions/v1/web-search-api',
 
+  // ─── Open-Meteo 날씨 프록시 ────────────────────────────────────
+  weatherApiProxyUrl: 'https://enpovkaknaxfgzanyghn.supabase.co/functions/v1/weather-api',
+
   // ─── 국가법령정보 API (open.law.go.kr 에서 발급) ───────────────
   lawApiKey: 'YOUR_LAW_API_KEY',
   lawApiProxyUrl: 'https://enpovkaknaxfgzanyghn.supabase.co/functions/v1/law-api'

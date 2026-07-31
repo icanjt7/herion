@@ -1220,7 +1220,7 @@
 <script src="pptx-kha.js?v=20260731-structured-layouts"></script>
 <script src="pptx-llm-parser.js?v=20260731-structured-layouts"></script>
 <script src="docx-kha.js"></script>
-<script src="config.js?v=20260731-web-search"></script>
+<script src="config.js?v=20260731-weather"></script>
 <script>
 // ─── 세션 확인 ───────────────────────────────────────────────
 const cfg  = window.HERION_CONFIG;
@@ -2086,6 +2086,143 @@ async function performWebSearch(query, options = {}) {
     ? lastError
     : new Error('웹 검색 요청에 실패했습니다.');
   if (!finalError.code) finalError.code = 'WEB_SEARCH_CONNECTION_ERROR';
+  throw finalError;
+}
+
+// ─── 실시간 날씨 조회 ─────────────────────────────────────────
+const WEATHER_INTENT_PATTERN =
+  /날씨|기온|체감\s*온도|온도|습도|강수|일기\s*예보|비\s*(?:와|오|올|내리)|눈\s*(?:와|오|올|내리)|바람(?:이|은|도|세기|속도|불|어때|\s|[?!.]|$)|폭염|한파|\bweather\b|\btemperature\b|\bforecast\b/i;
+
+function needsWeatherLookup(query) {
+  return WEATHER_INTENT_PATTERN.test(userDisplayText(query));
+}
+
+function weatherLocationFromQuery(query) {
+  const original = userDisplayText(query)
+    .replace(/[()[\]{}"'“”‘’]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!original) return '';
+
+  const weatherTerm = /(?:날씨|기온|체감\s*온도|온도|습도|강수(?:량|확률)?|일기\s*예보|비\s*(?:와|오|올|내리)|눈\s*(?:와|오|올|내리)|바람|\bweather\b|\btemperature\b|\bforecast\b)/i;
+  const match = original.match(weatherTerm);
+  if (!match || match.index === undefined) return '';
+
+  let candidate = original.slice(0, match.index);
+  if (!candidate.trim()) {
+    candidate = original.slice(match.index + match[0].length)
+      .replace(/^(?:도|은|는|이|가|을|를|에|에서|검색(?:해서|해)?|조회(?:해서|해)?|알려(?:줘|주세요)?|어때)\s*/i, '');
+  }
+
+  candidate = candidate
+    .replace(/^\s*(?:in|for|at)\s+/i, '')
+    .replace(/\b(?:today|tomorrow|tonight|this week|weekend)\b/gi, ' ')
+    .replace(/(?:오늘|현재|지금|내일|모레|이번\s*주|주말|아침|오전|오후|저녁|밤)/g, ' ')
+    .replace(/(?:웹|인터넷|온라인)\s*(?:에서)?/g, ' ')
+    .replace(/(?:검색|조사|조회|확인|찾아|알아봐|알려|말해)(?:해서|하여|하고|해|줘|주세요|봐|볼래)?/g, ' ')
+    .replace(/(?:어때|어떻게\s*돼|어떻습니까|궁금해|부탁해)/g, ' ')
+    .replace(/(?:의|에서|에는|은|는|이|가|을|를)\s*$/g, '')
+    .replace(/[?!.。,，~:;]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!candidate || candidate.length > 80) return '';
+  if (/^(?:여기|내\s*지역|우리\s*동네|근처|지역|국내|전국|한국|대한민국)$/i.test(candidate)) return '';
+  return candidate;
+}
+
+function weatherValue(value, suffix = '') {
+  return value === null || value === undefined || value === ''
+    ? '확인되지 않음'
+    : `${value}${suffix}`;
+}
+
+function buildWeatherContext(data) {
+  const place = data?.location || {};
+  const current = data?.current || {};
+  const today = data?.today || {};
+  const placeName = [place.name, place.admin1, place.country]
+    .filter((value, index, values) => value && values.indexOf(value) === index)
+    .join(', ');
+  let context = `\n\n[실시간 날씨 조회 결과]
+- 이 블록은 방금 전용 날씨 API로 조회한 현재·예보 데이터다.
+- "날씨를 검색할 수 없다", "실시간 정보에 접근할 수 없다"고 답하지 않는다.
+- 현재 상태와 예보를 구분하고, 조회 지역과 기준 시각을 답변에 명시한다.
+- 온도는 °C, 강수량은 mm, 풍속은 km/h 단위로 표시한다.
+- 데이터에 없는 값은 추정하지 않는다.
+- 출처는 Open-Meteo이며 답변 끝에 https://open-meteo.com/ 링크를 표시한다.
+
+조회 지역: ${placeName || place.query || '확인되지 않음'}
+현지 시간대: ${place.timezone || '확인되지 않음'}
+조회 기준 시각: ${current.time || '확인되지 않음'}
+현재 날씨: ${current.weather_text || '확인되지 않음'}
+현재 기온: ${weatherValue(current.temperature, '°C')}
+체감 온도: ${weatherValue(current.apparent_temperature, '°C')}
+습도: ${weatherValue(current.humidity, '%')}
+현재 강수량: ${weatherValue(current.precipitation, 'mm')}
+현재 시간대 강수 확률: ${weatherValue(current.precipitation_probability, '%')}
+구름량: ${weatherValue(current.cloud_cover, '%')}
+풍속: ${weatherValue(current.wind_speed, 'km/h')}
+돌풍: ${weatherValue(current.wind_gusts, 'km/h')}
+오늘 최저/최고: ${weatherValue(today.min_temperature, '°C')} / ${weatherValue(today.max_temperature, '°C')}
+오늘 최대 강수 확률: ${weatherValue(today.precipitation_probability, '%')}
+`;
+  if (place.geocoding_source) {
+    context += `지명 좌표 출처: ${place.geocoding_source} (${place.geocoding_source_url})\n`;
+  }
+  const daily = Array.isArray(data?.daily) ? data.daily : [];
+  if (daily.length) {
+    context += '\n3일 예보:\n';
+    daily.forEach((day) => {
+      context += `- ${day.date}: ${day.weather_text}, 최저 ${weatherValue(day.min_temperature, '°C')}, 최고 ${weatherValue(day.max_temperature, '°C')}, 강수 확률 ${weatherValue(day.precipitation_probability, '%')}\n`;
+    });
+  }
+  context += '출처: https://open-meteo.com/\n';
+  return context;
+}
+
+async function performWeatherLookup(location, options = {}) {
+  if (!cfg?.weatherApiProxyUrl) {
+    const error = new Error('날씨 조회 서비스가 설정되지 않았습니다.');
+    error.code = 'WEATHER_NOT_CONFIGURED';
+    throw error;
+  }
+
+  let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch(cfg.weatherApiProxyUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': cfg.supabaseAnonKey,
+          'Authorization': `Bearer ${cfg.supabaseAnonKey}`
+        },
+        body: JSON.stringify({ location }),
+        signal: options.signal
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) return buildWeatherContext(data);
+
+      const error = new Error(data.error || `날씨 조회 API 오류 ${response.status}`);
+      error.code = data.code || 'WEATHER_API_ERROR';
+      error.status = response.status;
+      lastError = error;
+      if (![429, 500, 502, 503, 504].includes(response.status) || attempt > 0) throw error;
+      await new Promise(resolve => window.setTimeout(resolve, 400));
+    } catch (error) {
+      if (error?.name === 'AbortError') throw error;
+      lastError = error;
+      if (attempt > 0 || error?.status && ![429, 500, 502, 503, 504].includes(error.status)) {
+        const normalized = error instanceof Error ? error : new Error(String(error));
+        if (!normalized.code) normalized.code = 'WEATHER_CONNECTION_ERROR';
+        throw normalized;
+      }
+      await new Promise(resolve => window.setTimeout(resolve, 400));
+    }
+  }
+  const finalError = lastError instanceof Error ? lastError : new Error('날씨 조회에 실패했습니다.');
+  if (!finalError.code) finalError.code = 'WEATHER_CONNECTION_ERROR';
   throw finalError;
 }
 
@@ -3456,6 +3593,12 @@ ${langLine}
 - API 조회 실패 또는 관련 조문 미확인 시 구체적인 법적 결론을 내리지 않고 재확인이 필요하다고 명시한다.
 - 법률 자문이나 최종 유권해석으로 표현하지 않는다.
 
+[날씨 답변 원칙]
+- 날씨 질문은 제공된 실시간 날씨 조회 결과를 사용한다.
+- 현재 기온, 체감 온도, 습도, 강수 확률, 바람, 당일 최저·최고 기온을 확인 가능한 범위에서 간결하게 제시한다.
+- 현재 관측값과 향후 예보를 구분하고, 지역·기준 시각·출처를 명시한다.
+- 사용자가 지역을 말하지 않은 경우 임의의 지역을 가정하지 않는다.
+
 [주요 지원 업무]
 안내문·설명문 작성, 번역(한↔영), 보고서 상세 분석·검토·작성, Q&A 자료 제작`;
 
@@ -3715,22 +3858,37 @@ async function sendMessage(options = {}) {
     return;
   }
 
+  const weatherRequested = needsWeatherLookup(text);
+  const weatherLocation = weatherRequested ? weatherLocationFromQuery(text) : '';
+  if (weatherRequested && !weatherLocation && !fileText) {
+    const clarification = '어느 지역의 날씨를 확인할까요? 시·군·구 또는 도시 이름을 알려주세요. 예: 서울, 부산광역시, 제주도';
+    const bodyEl = appendMsgEl('assistant');
+    bodyEl.innerHTML = renderMd(clarification);
+    chatHistory.push({ role: 'assistant', content: clarification });
+    activeRequestController = null;
+    setGenerationState(false);
+    persistCurrentConversation();
+    renderSidebar();
+    textarea.focus();
+    return;
+  }
+
   // 웹 검색 여부 결정: 상단 토글 없이 사용자 요청 문장에서 자동 감지
   const explicitSearchRequested = explicitlyRequestsWebSearch(text);
-  const shouldSearch = needsWebSearch(text);
+  const shouldSearch = needsWebSearch(text) && (!weatherRequested || explicitSearchRequested);
 
   const shouldSearchLaw = needsLawSearch(text);
   const thinkLabel = shouldSearchLaw
     ? '법령 원문 조회 중...'
-    : (shouldSearch ? '🌐 웹 검색 중...' : '생각 중...');
+    : (weatherRequested ? '날씨 확인 중...' : (shouldSearch ? '🌐 웹 검색 중...' : '생각 중...'));
   const thinkEl = appendThinking(thinkLabel);
   const model   = document.getElementById('modelSelect')?.value || 'motif3';
 
   let assistantBodyEl = null;
   try {
-    // 웹검색·법령검색 병렬 실행
+    // 웹검색·법령검색·날씨 조회 병렬 실행
     const heritageCtx = searchHeritageContext(text);
-    const [searchCtx, lawCtx] = await Promise.all([
+    const [searchCtx, lawCtx, weatherCtx] = await Promise.all([
       shouldSearch
         ? performWebSearch(text, { signal: activeRequestController.signal }).catch(error => {
             if (explicitSearchRequested) throw error;
@@ -3742,10 +3900,11 @@ async function sendMessage(options = {}) {
           })
         : Promise.resolve(''),
       shouldSearchLaw                ? searchLaw(text)        : Promise.resolve(''),
+      weatherRequested               ? performWeatherLookup(weatherLocation, { signal: activeRequestController.signal }) : Promise.resolve(''),
     ]);
-    if (searchCtx || lawCtx) setThinkingLabel(thinkEl, '생각 중...');
+    if (searchCtx || lawCtx || weatherCtx) setThinkingLabel(thinkEl, '생각 중...');
 
-    let systemPrompt = getSystemPrompt(heritageCtx + lawCtx + searchCtx);
+    let systemPrompt = getSystemPrompt(heritageCtx + lawCtx + searchCtx + weatherCtx);
     if (presentationRequested) {
       systemPrompt += `\n\n${window.KhaPptxLlmParser?.PPT_JSON_SYSTEM_PROMPT || ''}`;
     }
@@ -3853,6 +4012,22 @@ async function sendMessage(options = {}) {
       }
     }
 
+    if (weatherCtx) {
+      const sourceDiv = document.createElement('div');
+      sourceDiv.style.cssText = 'margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;';
+      sourceDiv.innerHTML = `
+        <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer"
+          style="font-size:11px;border:1px solid var(--line);border-radius:999px;
+                 padding:3px 9px;color:var(--muted);text-decoration:none;background:#fff;">
+          날씨 데이터 · Open-Meteo</a>
+        ${weatherCtx.includes('OpenStreetMap Nominatim') ? `
+        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer"
+          style="font-size:11px;border:1px solid var(--line);border-radius:999px;
+                 padding:3px 9px;color:var(--muted);text-decoration:none;background:#fff;">
+          지명 데이터 · OpenStreetMap</a>` : ''}`;
+      assistantBodyEl.appendChild(sourceDiv);
+    }
+
     chatHistory.push({ role: 'assistant', content: displayContent });
 
     if (presentationRequested && !result.stopped) {
@@ -3945,6 +4120,11 @@ async function sendMessage(options = {}) {
       bodyEl.innerHTML = renderMd(
         `웹 검색을 요청하셨지만 검색 서비스 연결에 실패했습니다. 검색하지 않은 일반 답변으로 대체하지 않았습니다.\n\n` +
         `잠시 후 다시 요청해 주세요. 오류: ${String(err.message || err)}`
+      );
+    } else if (/^WEATHER_/.test(String(err?.code || ''))) {
+      bodyEl.innerHTML = renderMd(
+        `날씨 조회 서비스 연결에 실패해 현재 기온을 확인하지 못했습니다. 확인하지 않은 값으로 답변하지 않았습니다.\n\n` +
+        `지역명을 확인한 뒤 잠시 후 다시 요청해 주세요. 오류: ${String(err.message || err)}`
       );
     } else {
       bodyEl.innerHTML = `<p style="color:var(--danger);">오류: ${escHtml(err.message)}</p>`;

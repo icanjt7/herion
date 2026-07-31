@@ -1,0 +1,218 @@
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+const retryableStatuses = new Set([429, 500, 502, 503, 504]);
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      ...corsHeaders,
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
+function weatherText(code: number) {
+  if (code === 0) return '맑음';
+  if (code === 1) return '대체로 맑음';
+  if (code === 2) return '구름 조금';
+  if (code === 3) return '흐림';
+  if (code === 45 || code === 48) return '안개';
+  if ([51, 53, 55].includes(code)) return '이슬비';
+  if ([56, 57].includes(code)) return '어는 이슬비';
+  if ([61, 63, 65].includes(code)) return '비';
+  if ([66, 67].includes(code)) return '어는 비';
+  if ([71, 73, 75].includes(code)) return '눈';
+  if (code === 77) return '싸락눈';
+  if ([80, 81, 82].includes(code)) return '소나기';
+  if ([85, 86].includes(code)) return '눈 소나기';
+  if (code === 95) return '뇌우';
+  if ([96, 99].includes(code)) return '우박을 동반한 뇌우';
+  return '확인 필요';
+}
+
+async function fetchJson(url: URL, init: RequestInit = {}) {
+  let lastResponse: Response | null = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const response = await fetch(url, { ...init, signal: AbortSignal.timeout(15_000) });
+    lastResponse = response;
+    if (response.ok) return await response.json() as Record<string, unknown>;
+    if (!retryableStatuses.has(response.status) || attempt > 0) break;
+    await response.body?.cancel();
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+  const payload = await lastResponse?.json().catch(() => ({})) as Record<string, unknown>;
+  const error = new Error(String(payload?.reason || payload?.error || '날씨 제공 서비스 요청에 실패했습니다.'));
+  Object.assign(error, { upstreamStatus: lastResponse?.status || 502 });
+  throw error;
+}
+
+function numberOrNull(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function itemAt(value: unknown, index: number) {
+  return Array.isArray(value) ? value[index] : null;
+}
+
+Deno.serve(async (request) => {
+  if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+
+  try {
+    const body = await request.json();
+    const location = typeof body?.location === 'string' ? body.location.trim() : '';
+    if (location.length < 2 || location.length > 120) {
+      return json({ error: '지역명은 2자 이상 120자 이하여야 합니다.', code: 'WEATHER_INVALID_LOCATION' }, 400);
+    }
+
+    const geocodingUrl = new URL('https://geocoding-api.open-meteo.com/v1/search');
+    geocodingUrl.searchParams.set('name', location);
+    geocodingUrl.searchParams.set('count', '5');
+    geocodingUrl.searchParams.set('language', 'ko');
+    geocodingUrl.searchParams.set('format', 'json');
+    const geocoding = await fetchJson(geocodingUrl);
+    const candidates = Array.isArray(geocoding.results) ? geocoding.results : [];
+    const koreanQuery = /[가-힣]/.test(location);
+    let place = (
+      koreanQuery
+        ? candidates.find((candidate: unknown) =>
+            String((candidate as Record<string, unknown>)?.country_code || '').toUpperCase() === 'KR'
+          ) || candidates[0]
+        : candidates[0]
+    ) as Record<string, unknown> | undefined;
+    let geocodingSource = 'Open-Meteo Geocoding';
+    let geocodingSourceUrl = 'https://open-meteo.com/en/docs/geocoding-api';
+
+    // Open-Meteo 지명 검색은 한글 표기를 찾지 못하는 경우가 있어
+    // 사용자 요청 단위로만 OpenStreetMap Nominatim을 보조 지오코더로 사용한다.
+    if (!place) {
+      const nominatimUrl = new URL('https://nominatim.openstreetmap.org/search');
+      nominatimUrl.searchParams.set('q', location);
+      nominatimUrl.searchParams.set('format', 'jsonv2');
+      nominatimUrl.searchParams.set('limit', '5');
+      nominatimUrl.searchParams.set('addressdetails', '1');
+      nominatimUrl.searchParams.set('accept-language', 'ko');
+      const nominatim = await fetchJson(nominatimUrl, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Herian-Weather/1.0 (https://herian.kh.or.kr)',
+        },
+      });
+      const osmCandidates = Array.isArray(nominatim) ? nominatim : [];
+      const osmPlace = osmCandidates[0] as Record<string, unknown> | undefined;
+      if (osmPlace) {
+        const address = (osmPlace.address || {}) as Record<string, unknown>;
+        place = {
+          name: address.city || address.town || address.village || address.municipality
+            || address.county || osmPlace.name || location,
+          admin1: address.state || address.province || '',
+          country: address.country || '',
+          country_code: address.country_code || '',
+          latitude: osmPlace.lat,
+          longitude: osmPlace.lon,
+        };
+        geocodingSource = 'OpenStreetMap Nominatim';
+        geocodingSourceUrl = 'https://www.openstreetmap.org/copyright';
+      }
+    }
+
+    if (!place) {
+      return json({
+        error: `'${location}' 지역을 찾지 못했습니다. 시·군·구 또는 도시 이름으로 다시 입력해 주세요.`,
+        code: 'WEATHER_LOCATION_NOT_FOUND',
+      }, 404);
+    }
+    const latitude = numberOrNull(place.latitude);
+    const longitude = numberOrNull(place.longitude);
+    if (latitude === null || longitude === null) {
+      return json({ error: '조회 지역의 좌표를 확인할 수 없습니다.', code: 'WEATHER_LOCATION_INVALID' }, 502);
+    }
+
+    const forecastUrl = new URL('https://api.open-meteo.com/v1/forecast');
+    forecastUrl.searchParams.set('latitude', String(latitude));
+    forecastUrl.searchParams.set('longitude', String(longitude));
+    forecastUrl.searchParams.set(
+      'current',
+      'temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,snowfall,weather_code,cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m',
+    );
+    forecastUrl.searchParams.set('hourly', 'precipitation_probability');
+    forecastUrl.searchParams.set(
+      'daily',
+      'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,sunrise,sunset',
+    );
+    forecastUrl.searchParams.set('timezone', 'auto');
+    forecastUrl.searchParams.set('forecast_days', '3');
+    const forecast = await fetchJson(forecastUrl);
+
+    const current = (forecast.current || {}) as Record<string, unknown>;
+    const hourly = (forecast.hourly || {}) as Record<string, unknown>;
+    const daily = (forecast.daily || {}) as Record<string, unknown>;
+    const hourlyTimes = Array.isArray(hourly.time) ? hourly.time.map(String) : [];
+    const currentTime = String(current.time || '');
+    const currentHour = currentTime.slice(0, 13);
+    const hourlyIndex = hourlyTimes.findIndex((time) => time.slice(0, 13) === currentHour);
+    const currentCode = Number(current.weather_code);
+    const dailyTimes = Array.isArray(daily.time) ? daily.time : [];
+    const dailyItems = dailyTimes.slice(0, 3).map((date, index) => {
+      const code = Number(itemAt(daily.weather_code, index));
+      return {
+        date: String(date),
+        weather_code: Number.isFinite(code) ? code : null,
+        weather_text: Number.isFinite(code) ? weatherText(code) : '확인 필요',
+        min_temperature: numberOrNull(itemAt(daily.temperature_2m_min, index)),
+        max_temperature: numberOrNull(itemAt(daily.temperature_2m_max, index)),
+        precipitation_probability: numberOrNull(itemAt(daily.precipitation_probability_max, index)),
+        precipitation_sum: numberOrNull(itemAt(daily.precipitation_sum, index)),
+        sunrise: String(itemAt(daily.sunrise, index) || ''),
+        sunset: String(itemAt(daily.sunset, index) || ''),
+      };
+    });
+
+    return json({
+      location: {
+        query: location,
+        name: String(place.name || location),
+        admin1: String(place.admin1 || ''),
+        country: String(place.country || ''),
+        latitude,
+        longitude,
+        timezone: String(forecast.timezone || place.timezone || ''),
+        geocoding_source: geocodingSource,
+        geocoding_source_url: geocodingSourceUrl,
+      },
+      current: {
+        time: currentTime,
+        temperature: numberOrNull(current.temperature_2m),
+        apparent_temperature: numberOrNull(current.apparent_temperature),
+        humidity: numberOrNull(current.relative_humidity_2m),
+        precipitation_probability: numberOrNull(itemAt(hourly.precipitation_probability, hourlyIndex)),
+        precipitation: numberOrNull(current.precipitation),
+        rain: numberOrNull(current.rain),
+        snowfall: numberOrNull(current.snowfall),
+        weather_code: Number.isFinite(currentCode) ? currentCode : null,
+        weather_text: Number.isFinite(currentCode) ? weatherText(currentCode) : '확인 필요',
+        cloud_cover: numberOrNull(current.cloud_cover),
+        wind_speed: numberOrNull(current.wind_speed_10m),
+        wind_direction: numberOrNull(current.wind_direction_10m),
+        wind_gusts: numberOrNull(current.wind_gusts_10m),
+      },
+      today: dailyItems[0] || null,
+      daily: dailyItems,
+      source: 'Open-Meteo',
+      source_url: 'https://open-meteo.com/',
+    });
+  } catch (error) {
+    return json({
+      error: error instanceof Error ? error.message : '날씨 조회 중 오류가 발생했습니다.',
+      code: 'WEATHER_UPSTREAM_ERROR',
+    }, Number((error as { upstreamStatus?: number })?.upstreamStatus) || 502);
+  }
+});

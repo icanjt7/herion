@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.web-search-api]
 verify_jwt = false
+
+[functions.weather-api]
+verify_jwt = false
