@@ -161,8 +161,13 @@ automatically without adding a toolbar menu. The browser calls the
 retrieves current conditions plus a three-day forecast from Open-Meteo. Answers
 can include the current and apparent temperature, humidity, precipitation
 probability, wind, and the day's minimum and maximum temperature with the local
-observation time and source link. If no location is supplied, Herian asks for a
-city or district instead of assuming one.
+observation time and source link.
+
+Weather data is rendered directly from the normalized API response instead of
+being rewritten by the chat model, preventing false "real-time information is
+unavailable" replies. A request with no place, such as `날씨`, returns a
+12-region Republic of Korea overview. Service timestamps use `Asia/Seoul`, and
+Seoul is the configured reference/default location.
 
 Open-Meteo Geocoding is used first. When it cannot resolve a Korean-language
 place name, the proxy uses OpenStreetMap Nominatim as a user-triggered fallback

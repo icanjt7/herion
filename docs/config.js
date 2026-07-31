@@ -7,6 +7,9 @@ window.HERION_CONFIG = {
   supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVucG92a2FrbmF4Zmd6YW55Z2huIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5NTk5MDEsImV4cCI6MjA5NjUzNTkwMX0.cY3q4Nf9Ppe80eLeD__tgGeAKIZSK6uReW9amQZbmpo',
 
   allowedDomain: 'kh.or.kr',
+  serviceLocale: 'ko-KR',
+  serviceTimeZone: 'Asia/Seoul',
+  defaultWeatherLocation: '서울',
   bootstrapUsers: [
     {
       email: 't@kh.or.kr',

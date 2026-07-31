@@ -5,6 +5,20 @@ const corsHeaders = {
 };
 
 const retryableStatuses = new Set([429, 500, 502, 503, 504]);
+const koreaWeatherPoints = [
+  { name: '서울', latitude: 37.5665, longitude: 126.9780 },
+  { name: '인천', latitude: 37.4563, longitude: 126.7052 },
+  { name: '수원·경기', latitude: 37.2636, longitude: 127.0286 },
+  { name: '춘천·강원', latitude: 37.8813, longitude: 127.7298 },
+  { name: '강릉', latitude: 37.7519, longitude: 128.8761 },
+  { name: '대전·충청', latitude: 36.3504, longitude: 127.3845 },
+  { name: '전주·전북', latitude: 35.8242, longitude: 127.1480 },
+  { name: '광주·전남', latitude: 35.1595, longitude: 126.8526 },
+  { name: '대구·경북', latitude: 35.8714, longitude: 128.6014 },
+  { name: '부산·경남', latitude: 35.1796, longitude: 129.0756 },
+  { name: '울산', latitude: 35.5384, longitude: 129.3114 },
+  { name: '제주', latitude: 33.4996, longitude: 126.5312 },
+];
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -62,12 +76,72 @@ function itemAt(value: unknown, index: number) {
   return Array.isArray(value) ? value[index] : null;
 }
 
+async function koreaNationwideWeather() {
+  const forecastUrl = new URL('https://api.open-meteo.com/v1/forecast');
+  forecastUrl.searchParams.set('latitude', koreaWeatherPoints.map((point) => point.latitude).join(','));
+  forecastUrl.searchParams.set('longitude', koreaWeatherPoints.map((point) => point.longitude).join(','));
+  forecastUrl.searchParams.set(
+    'current',
+    'temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m',
+  );
+  forecastUrl.searchParams.set(
+    'daily',
+    'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max',
+  );
+  forecastUrl.searchParams.set('timezone', 'Asia/Seoul');
+  forecastUrl.searchParams.set('forecast_days', '1');
+  const payload = await fetchJson(forecastUrl);
+  const forecasts = Array.isArray(payload) ? payload : [payload];
+
+  const regions = koreaWeatherPoints.map((point, index) => {
+    const forecast = (forecasts[index] || {}) as Record<string, unknown>;
+    const current = (forecast.current || {}) as Record<string, unknown>;
+    const daily = (forecast.daily || {}) as Record<string, unknown>;
+    const currentCode = numberOrNull(current.weather_code);
+    const dailyCode = numberOrNull(itemAt(daily.weather_code, 0));
+    return {
+      name: point.name,
+      current: {
+        time: String(current.time || ''),
+        temperature: numberOrNull(current.temperature_2m),
+        apparent_temperature: numberOrNull(current.apparent_temperature),
+        humidity: numberOrNull(current.relative_humidity_2m),
+        weather_code: currentCode,
+        weather_text: currentCode === null ? '확인 필요' : weatherText(currentCode),
+        wind_speed: numberOrNull(current.wind_speed_10m),
+      },
+      today: {
+        date: String(itemAt(daily.time, 0) || ''),
+        weather_code: dailyCode,
+        weather_text: dailyCode === null ? '확인 필요' : weatherText(dailyCode),
+        min_temperature: numberOrNull(itemAt(daily.temperature_2m_min, 0)),
+        max_temperature: numberOrNull(itemAt(daily.temperature_2m_max, 0)),
+        precipitation_probability: numberOrNull(itemAt(daily.precipitation_probability_max, 0)),
+      },
+    };
+  });
+
+  return {
+    scope: 'korea',
+    timezone: 'Asia/Seoul',
+    reference_location: '서울',
+    current_time: regions[0]?.current.time || '',
+    regions,
+    source: 'Open-Meteo',
+    source_url: 'https://open-meteo.com/',
+  };
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   try {
     const body = await request.json();
+    if (body?.scope === 'korea') {
+      return json(await koreaNationwideWeather());
+    }
+
     const location = typeof body?.location === 'string' ? body.location.trim() : '';
     if (location.length < 2 || location.length > 120) {
       return json({ error: '지역명은 2자 이상 120자 이하여야 합니다.', code: 'WEATHER_INVALID_LOCATION' }, 400);

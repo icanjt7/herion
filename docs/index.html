@@ -1220,7 +1220,7 @@
 <script src="pptx-kha.js?v=20260731-structured-layouts"></script>
 <script src="pptx-llm-parser.js?v=20260731-structured-layouts"></script>
 <script src="docx-kha.js"></script>
-<script src="config.js?v=20260731-weather"></script>
+<script src="config.js?v=20260731-weather-v2"></script>
 <script>
 // ─── 세션 확인 ───────────────────────────────────────────────
 const cfg  = window.HERION_CONFIG;
@@ -2137,48 +2137,68 @@ function weatherValue(value, suffix = '') {
     : `${value}${suffix}`;
 }
 
-function buildWeatherContext(data) {
+function weatherMarkdownCell(value) {
+  return String(value ?? '').replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ').trim();
+}
+
+function weatherResponseMarkdown(data) {
+  if (data?.scope === 'korea') {
+    const regions = Array.isArray(data.regions) ? data.regions : [];
+    let markdown = `## 대한민국 전국 날씨\n\n`;
+    markdown += `기준 시각: **${weatherMarkdownCell(String(data.current_time || '').replace('T', ' '))}** `;
+    markdown += `(${weatherMarkdownCell(data.timezone || 'Asia/Seoul')}, 기준 위치 서울)\n\n`;
+    markdown += '| 지역 | 현재 | 체감 | 상태 | 습도 | 오늘 최저/최고 | 강수확률 | 바람 |\n';
+    markdown += '|---|---:|---:|---|---:|---:|---:|---:|\n';
+    regions.forEach((region) => {
+      const current = region.current || {};
+      const today = region.today || {};
+      markdown += `| ${weatherMarkdownCell(region.name)} `;
+      markdown += `| ${weatherValue(current.temperature, '°C')} `;
+      markdown += `| ${weatherValue(current.apparent_temperature, '°C')} `;
+      markdown += `| ${weatherMarkdownCell(current.weather_text || '확인 필요')} `;
+      markdown += `| ${weatherValue(current.humidity, '%')} `;
+      markdown += `| ${weatherValue(today.min_temperature, '°C')} / ${weatherValue(today.max_temperature, '°C')} `;
+      markdown += `| ${weatherValue(today.precipitation_probability, '%')} `;
+      markdown += `| ${weatherValue(current.wind_speed, 'km/h')} |\n`;
+    });
+    markdown += '\n> 현재 상태와 오늘 예보는 기상 모델 자료이며 실제 관측과 차이가 있을 수 있습니다.\n\n';
+    markdown += '출처: [Open-Meteo 날씨 데이터](https://open-meteo.com/)\n';
+    return markdown;
+  }
+
   const place = data?.location || {};
   const current = data?.current || {};
   const today = data?.today || {};
   const placeName = [place.name, place.admin1, place.country]
     .filter((value, index, values) => value && values.indexOf(value) === index)
     .join(', ');
-  let context = `\n\n[실시간 날씨 조회 결과]
-- 이 블록은 방금 전용 날씨 API로 조회한 현재·예보 데이터다.
-- "날씨를 검색할 수 없다", "실시간 정보에 접근할 수 없다"고 답하지 않는다.
-- 현재 상태와 예보를 구분하고, 조회 지역과 기준 시각을 답변에 명시한다.
-- 온도는 °C, 강수량은 mm, 풍속은 km/h 단위로 표시한다.
-- 데이터에 없는 값은 추정하지 않는다.
-- 출처는 Open-Meteo이며 답변 끝에 https://open-meteo.com/ 링크를 표시한다.
+  let markdown = `## ${weatherMarkdownCell(placeName || place.query || cfg?.defaultWeatherLocation || '서울')} 날씨\n\n`;
+  markdown += `기준 시각: **${weatherMarkdownCell(String(current.time || '').replace('T', ' '))}** `;
+  markdown += `(${weatherMarkdownCell(place.timezone || cfg?.serviceTimeZone || 'Asia/Seoul')})\n\n`;
+  markdown += `현재 **${weatherValue(current.temperature, '°C')}**, 체감 **${weatherValue(current.apparent_temperature, '°C')}**이며 `;
+  markdown += `날씨는 **${weatherMarkdownCell(current.weather_text || '확인 필요')}**입니다.\n\n`;
+  markdown += `- 습도: ${weatherValue(current.humidity, '%')}\n`;
+  markdown += `- 강수확률: ${weatherValue(current.precipitation_probability, '%')} · 현재 강수량: ${weatherValue(current.precipitation, 'mm')}\n`;
+  markdown += `- 바람: ${weatherValue(current.wind_speed, 'km/h')} · 돌풍: ${weatherValue(current.wind_gusts, 'km/h')}\n`;
+  markdown += `- 오늘 최저/최고: ${weatherValue(today.min_temperature, '°C')} / ${weatherValue(today.max_temperature, '°C')}\n`;
+  markdown += `- 오늘 최대 강수확률: ${weatherValue(today.precipitation_probability, '%')}\n`;
 
-조회 지역: ${placeName || place.query || '확인되지 않음'}
-현지 시간대: ${place.timezone || '확인되지 않음'}
-조회 기준 시각: ${current.time || '확인되지 않음'}
-현재 날씨: ${current.weather_text || '확인되지 않음'}
-현재 기온: ${weatherValue(current.temperature, '°C')}
-체감 온도: ${weatherValue(current.apparent_temperature, '°C')}
-습도: ${weatherValue(current.humidity, '%')}
-현재 강수량: ${weatherValue(current.precipitation, 'mm')}
-현재 시간대 강수 확률: ${weatherValue(current.precipitation_probability, '%')}
-구름량: ${weatherValue(current.cloud_cover, '%')}
-풍속: ${weatherValue(current.wind_speed, 'km/h')}
-돌풍: ${weatherValue(current.wind_gusts, 'km/h')}
-오늘 최저/최고: ${weatherValue(today.min_temperature, '°C')} / ${weatherValue(today.max_temperature, '°C')}
-오늘 최대 강수 확률: ${weatherValue(today.precipitation_probability, '%')}
-`;
-  if (place.geocoding_source) {
-    context += `지명 좌표 출처: ${place.geocoding_source} (${place.geocoding_source_url})\n`;
-  }
   const daily = Array.isArray(data?.daily) ? data.daily : [];
   if (daily.length) {
-    context += '\n3일 예보:\n';
+    markdown += '\n| 날짜 | 날씨 | 최저 | 최고 | 강수확률 |\n';
+    markdown += '|---|---|---:|---:|---:|\n';
     daily.forEach((day) => {
-      context += `- ${day.date}: ${day.weather_text}, 최저 ${weatherValue(day.min_temperature, '°C')}, 최고 ${weatherValue(day.max_temperature, '°C')}, 강수 확률 ${weatherValue(day.precipitation_probability, '%')}\n`;
+      markdown += `| ${weatherMarkdownCell(day.date)} | ${weatherMarkdownCell(day.weather_text)} `;
+      markdown += `| ${weatherValue(day.min_temperature, '°C')} | ${weatherValue(day.max_temperature, '°C')} `;
+      markdown += `| ${weatherValue(day.precipitation_probability, '%')} |\n`;
     });
   }
-  context += '출처: https://open-meteo.com/\n';
-  return context;
+  markdown += '\n> 현재 상태와 예보는 기상 모델 자료이며 실제 관측과 차이가 있을 수 있습니다.\n\n';
+  markdown += '출처: [Open-Meteo 날씨 데이터](https://open-meteo.com/)';
+  if (place.geocoding_source === 'OpenStreetMap Nominatim') {
+    markdown += ' · [지명 데이터 © OpenStreetMap contributors](https://www.openstreetmap.org/copyright)';
+  }
+  return markdown;
 }
 
 async function performWeatherLookup(location, options = {}) {
@@ -2198,11 +2218,14 @@ async function performWeatherLookup(location, options = {}) {
           'apikey': cfg.supabaseAnonKey,
           'Authorization': `Bearer ${cfg.supabaseAnonKey}`
         },
-        body: JSON.stringify({ location }),
+        body: JSON.stringify({
+          location: location || cfg?.defaultWeatherLocation || '서울',
+          scope: options.scope === 'korea' ? 'korea' : undefined
+        }),
         signal: options.signal
       });
       const data = await response.json().catch(() => ({}));
-      if (response.ok) return buildWeatherContext(data);
+      if (response.ok) return data;
 
       const error = new Error(data.error || `날씨 조회 API 오류 ${response.status}`);
       error.code = data.code || 'WEATHER_API_ERROR';
@@ -2463,6 +2486,21 @@ function sidebarConversationItem(conversation, snippet = '') {
     </div>`;
 }
 
+function serviceDayNumber(timestamp = Date.now()) {
+  try {
+    const parts = new Intl.DateTimeFormat(cfg?.serviceLocale || 'ko-KR', {
+      timeZone: cfg?.serviceTimeZone || 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(new Date(timestamp));
+    const value = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return Math.floor(Date.UTC(Number(value.year), Number(value.month) - 1, Number(value.day)) / 86400000);
+  } catch (_) {
+    return Math.floor(new Date(timestamp).setHours(0, 0, 0, 0) / 86400000);
+  }
+}
+
 function renderSidebar() {
   const convs = getConvs().sort((a, b) => b.updatedAt - a.updatedAt);
   const normalizedQuery = normalizeConversationSearch(conversationSearchQuery);
@@ -2482,13 +2520,15 @@ function renderSidebar() {
   }
 
   conversationSearchSummary.textContent = convs.length ? `저장된 대화 ${convs.length}건 · Ctrl+K로 검색` : '';
-  const todayStart = new Date().setHours(0, 0, 0, 0);
-  const weekStart  = todayStart - 6 * 86400000;
+  const todayNumber = serviceDayNumber();
 
   const groups = [
-    { label: '오늘',    items: convs.filter(c => c.updatedAt >= todayStart) },
-    { label: '이번 주', items: convs.filter(c => c.updatedAt >= weekStart && c.updatedAt < todayStart) },
-    { label: '이전',    items: convs.filter(c => c.updatedAt < weekStart) },
+    { label: '오늘',    items: convs.filter(c => serviceDayNumber(c.updatedAt) === todayNumber) },
+    { label: '이번 주', items: convs.filter(c => {
+      const age = todayNumber - serviceDayNumber(c.updatedAt);
+      return age >= 1 && age <= 6;
+    }) },
+    { label: '이전',    items: convs.filter(c => todayNumber - serviceDayNumber(c.updatedAt) > 6) },
   ];
 
   convList.innerHTML = groups
@@ -2613,7 +2653,11 @@ function loadConversation(id) {
 // ─── 메시지 DOM 추가 ─────────────────────────────────────────
 function appendMsgEl(role) {
   const isAI  = role === 'assistant';
-  const now   = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+  const now   = new Date().toLocaleTimeString(cfg?.serviceLocale || 'ko-KR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: cfg?.serviceTimeZone || 'Asia/Seoul'
+  });
   const avatar = isAI ? 'H' : (user?.name?.[0]?.toUpperCase() || 'U');
   const name   = isAI ? 'Herian' : (user?.name || '사용자');
 
@@ -3860,35 +3904,57 @@ async function sendMessage(options = {}) {
 
   const weatherRequested = needsWeatherLookup(text);
   const weatherLocation = weatherRequested ? weatherLocationFromQuery(text) : '';
-  if (weatherRequested && !weatherLocation && !fileText) {
-    const clarification = '어느 지역의 날씨를 확인할까요? 시·군·구 또는 도시 이름을 알려주세요. 예: 서울, 부산광역시, 제주도';
-    const bodyEl = appendMsgEl('assistant');
-    bodyEl.innerHTML = renderMd(clarification);
-    chatHistory.push({ role: 'assistant', content: clarification });
-    activeRequestController = null;
-    setGenerationState(false);
-    persistCurrentConversation();
-    renderSidebar();
-    textarea.focus();
+  if (weatherRequested && !fileText) {
+    const nationwideWeather = !weatherLocation || /전국\s*(?:의)?\s*날씨|전국\s*기온/i.test(userDisplayText(text));
+    const thinkEl = appendThinking(nationwideWeather ? '대한민국 전국 날씨 확인 중...' : `${weatherLocation} 날씨 확인 중...`);
+    try {
+      const weatherData = await performWeatherLookup(
+        weatherLocation || cfg?.defaultWeatherLocation || '서울',
+        { scope: nationwideWeather ? 'korea' : '', signal: activeRequestController.signal }
+      );
+      const weatherAnswer = weatherResponseMarkdown(weatherData);
+      thinkEl.remove();
+      const bodyEl = appendMsgEl('assistant');
+      bodyEl.innerHTML = renderMd(weatherAnswer);
+      addMessageActions(bodyEl, weatherAnswer);
+      chatHistory.push({ role: 'assistant', content: weatherAnswer });
+      persistCurrentConversation();
+      renderSidebar();
+    } catch (error) {
+      thinkEl.remove();
+      const bodyEl = appendMsgEl('assistant');
+      if (error?.name === 'AbortError') {
+        bodyEl.innerHTML = '<p style="color:var(--muted);">날씨 조회를 중지했습니다.</p>';
+      } else {
+        bodyEl.innerHTML = renderMd(
+          `날씨 전용 데이터 조회에 실패했습니다. 확인하지 않은 값으로 답변하지 않았습니다.\n\n` +
+          `잠시 후 다시 요청해 주세요. 오류: ${String(error.message || error)}`
+        );
+      }
+    } finally {
+      activeRequestController = null;
+      setGenerationState(false);
+      textarea.focus();
+    }
     return;
   }
 
   // 웹 검색 여부 결정: 상단 토글 없이 사용자 요청 문장에서 자동 감지
   const explicitSearchRequested = explicitlyRequestsWebSearch(text);
-  const shouldSearch = needsWebSearch(text) && (!weatherRequested || explicitSearchRequested);
+  const shouldSearch = needsWebSearch(text);
 
   const shouldSearchLaw = needsLawSearch(text);
   const thinkLabel = shouldSearchLaw
     ? '법령 원문 조회 중...'
-    : (weatherRequested ? '날씨 확인 중...' : (shouldSearch ? '🌐 웹 검색 중...' : '생각 중...'));
+    : (shouldSearch ? '🌐 웹 검색 중...' : '생각 중...');
   const thinkEl = appendThinking(thinkLabel);
   const model   = document.getElementById('modelSelect')?.value || 'motif3';
 
   let assistantBodyEl = null;
   try {
-    // 웹검색·법령검색·날씨 조회 병렬 실행
+    // 웹검색·법령검색 병렬 실행
     const heritageCtx = searchHeritageContext(text);
-    const [searchCtx, lawCtx, weatherCtx] = await Promise.all([
+    const [searchCtx, lawCtx] = await Promise.all([
       shouldSearch
         ? performWebSearch(text, { signal: activeRequestController.signal }).catch(error => {
             if (explicitSearchRequested) throw error;
@@ -3900,11 +3966,10 @@ async function sendMessage(options = {}) {
           })
         : Promise.resolve(''),
       shouldSearchLaw                ? searchLaw(text)        : Promise.resolve(''),
-      weatherRequested               ? performWeatherLookup(weatherLocation, { signal: activeRequestController.signal }) : Promise.resolve(''),
     ]);
-    if (searchCtx || lawCtx || weatherCtx) setThinkingLabel(thinkEl, '생각 중...');
+    if (searchCtx || lawCtx) setThinkingLabel(thinkEl, '생각 중...');
 
-    let systemPrompt = getSystemPrompt(heritageCtx + lawCtx + searchCtx + weatherCtx);
+    let systemPrompt = getSystemPrompt(heritageCtx + lawCtx + searchCtx);
     if (presentationRequested) {
       systemPrompt += `\n\n${window.KhaPptxLlmParser?.PPT_JSON_SYSTEM_PROMPT || ''}`;
     }
@@ -4012,22 +4077,6 @@ async function sendMessage(options = {}) {
       }
     }
 
-    if (weatherCtx) {
-      const sourceDiv = document.createElement('div');
-      sourceDiv.style.cssText = 'margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;';
-      sourceDiv.innerHTML = `
-        <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer"
-          style="font-size:11px;border:1px solid var(--line);border-radius:999px;
-                 padding:3px 9px;color:var(--muted);text-decoration:none;background:#fff;">
-          날씨 데이터 · Open-Meteo</a>
-        ${weatherCtx.includes('OpenStreetMap Nominatim') ? `
-        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer"
-          style="font-size:11px;border:1px solid var(--line);border-radius:999px;
-                 padding:3px 9px;color:var(--muted);text-decoration:none;background:#fff;">
-          지명 데이터 · OpenStreetMap</a>` : ''}`;
-      assistantBodyEl.appendChild(sourceDiv);
-    }
-
     chatHistory.push({ role: 'assistant', content: displayContent });
 
     if (presentationRequested && !result.stopped) {
@@ -4120,11 +4169,6 @@ async function sendMessage(options = {}) {
       bodyEl.innerHTML = renderMd(
         `웹 검색을 요청하셨지만 검색 서비스 연결에 실패했습니다. 검색하지 않은 일반 답변으로 대체하지 않았습니다.\n\n` +
         `잠시 후 다시 요청해 주세요. 오류: ${String(err.message || err)}`
-      );
-    } else if (/^WEATHER_/.test(String(err?.code || ''))) {
-      bodyEl.innerHTML = renderMd(
-        `날씨 조회 서비스 연결에 실패해 현재 기온을 확인하지 못했습니다. 확인하지 않은 값으로 답변하지 않았습니다.\n\n` +
-        `지역명을 확인한 뒤 잠시 후 다시 요청해 주세요. 오류: ${String(err.message || err)}`
       );
     } else {
       bodyEl.innerHTML = `<p style="color:var(--danger);">오류: ${escHtml(err.message)}</p>`;
