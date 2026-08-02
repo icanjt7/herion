@@ -1,3 +1,5 @@
+import { buildRagContext } from './rag.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -122,9 +124,23 @@ Deno.serve(async (request) => {
       }, 400);
     }
 
+    let messages = body.messages as Array<{ role: string; content: string }>;
+    try {
+      const ragContext = await buildRagContext(body.rag_query);
+      if (ragContext) {
+        const systemIndex = messages.findIndex((message) => message.role === 'system');
+        messages = messages.map((message, index) => index === systemIndex
+          ? { ...message, content: `${message.content}${ragContext}` }
+          : message);
+        if (systemIndex < 0) messages = [{ role: 'system', content: ragContext.trim() }, ...messages];
+      }
+    } catch (error) {
+      console.error('RAG retrieval failed:', error instanceof Error ? error.message : error);
+    }
+
     const payload: Record<string, unknown> = {
       model: 'motif3',
-      messages: body.messages,
+      messages,
       stream: body.stream === true,
       max_tokens: body.max_tokens ?? 16384,
       temperature: body.temperature ?? 0.6,
@@ -153,7 +169,7 @@ Deno.serve(async (request) => {
 
     if (body.stream === true && shouldRetry(upstream)) {
       await upstream.body?.cancel();
-      const fallbackPayload = { ...payload, stream: false };
+      const fallbackPayload: Record<string, unknown> = { ...payload, stream: false };
       delete fallbackPayload.stream_options;
       const fallback = await requestUpstream(fallbackPayload);
       if (fallback.ok) {

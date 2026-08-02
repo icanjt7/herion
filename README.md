@@ -132,6 +132,32 @@ spell-check results. These values can be changed with `maxOutputTokens` and
 `spellCheckMaxOutputTokens` in `docs/config.js`; the upstream model may apply a
 lower hard limit.
 
+## Internal guideline RAG
+
+Normal chat requests also search the National Heritage Agency's internal
+guidelines and work-processing standards revised on 2026-07-30. The encrypted
+corpus contains 1,654 semantic chunks from 62 documents. Retrieval combines
+document-title, section-title, and body-term relevance, limits repeated chunks
+from the same document, and injects only the top matching passages into the
+Motif3 system context. Answers are instructed to identify supporting passages
+as `[내부 지침: 문서명 · 조항/구분]` and to request departmental confirmation
+when the retrieved text is insufficient.
+
+The plaintext corpus is never placed in `docs/` or committed to the public
+repository. Rebuild the encrypted function asset with:
+
+```bash
+node scripts/build-rag-corpus.mjs \
+  --input /secure/path/05_rag_chunks.json \
+  --key-file /secure/path/rag-data-key.txt
+```
+
+`rag-data-key.txt` must contain a base64-encoded 32-byte AES key. Store the same
+value in the GitHub Actions secret `RAG_DATA_KEY`. OpenAI embeddings in the
+source package are currently null; the deployed retrieval is therefore sparse
+RAG and can be upgraded to hybrid vector retrieval later without changing the
+chunk IDs.
+
 ## Web Search Proxy
 
 Herian automatically performs a Tavily web search when the user explicitly asks
