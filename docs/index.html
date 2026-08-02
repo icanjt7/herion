@@ -2259,7 +2259,7 @@ async function performWebSearch(query, options = {}) {
 
 // ─── 실시간 날씨 조회 ─────────────────────────────────────────
 const WEATHER_INTENT_PATTERN =
-  /날씨|기온|체감\s*온도|온도|습도|강수|일기\s*예보|비\s*(?:와|오|올|내리)|눈\s*(?:와|오|올|내리)|바람(?:이|은|도|세기|속도|불|어때|\s|[?!.]|$)|폭염|한파|\bweather\b|\btemperature\b|\bforecast\b/i;
+  /날씨|기온|체감\s*온도|온도|습도|강수|일기\s*예보|(?<![가-힣])비(?:가)?\s*(?:와|오|올|내리|내려)|(?<![가-힣])눈(?:이)?\s*(?:와|오|올|내리|내려)|바람(?:이|은|도|세기|속도|불|어때|\s|[?!.]|$)|폭염|한파|\bweather\b|\btemperature\b|\bforecast\b/i;
 
 function needsWeatherLookup(query) {
   return WEATHER_INTENT_PATTERN.test(normalizeIntentText(query));
@@ -2290,7 +2290,7 @@ function weatherLocationFromQuery(query) {
     .trim();
   if (!original) return '';
 
-  const weatherTerm = /(?:날씨|기온|체감\s*온도|온도|습도|강수(?:량|확률)?|일기\s*예보|비\s*(?:와|오|올|내리)|눈\s*(?:와|오|올|내리)|바람|\bweather\b|\btemperature\b|\bforecast\b)/i;
+  const weatherTerm = /(?:날씨|기온|체감\s*온도|온도|습도|강수(?:량|확률)?|일기\s*예보|(?<![가-힣])비(?:가)?\s*(?:와|오|올|내리|내려)|(?<![가-힣])눈(?:이)?\s*(?:와|오|올|내리|내려)|바람|\bweather\b|\btemperature\b|\bforecast\b)/i;
   const match = original.match(weatherTerm);
   if (!match || match.index === undefined) return '';
 
