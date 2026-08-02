@@ -66,7 +66,6 @@ function isValidCardNumber(candidate: string) {
 function containsSensitiveData(value: string) {
   if (/\b\d{6}\s*[- ]?\s*[1-8]\d{6}\b/.test(value)) return true;
   if (/\b01[016789](?:[-.\s]?\d){7,8}\b/.test(value)) return true;
-  if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(value)) return true;
   if (/\b[MSROD]\d{8}\b/i.test(value)) return true;
   if (/계좌(?:\s*번호)?\s*[:：]?\s*\d(?:[-\s]?\d){8,15}/.test(value)) return true;
   return (value.match(/(?:\d[ -]?){13,19}/g) || []).some(isValidCardNumber);

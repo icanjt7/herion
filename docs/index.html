@@ -1173,7 +1173,7 @@
         </div>
         <div class="composer-hint">
           <span class="hint-files">파일을 끌어 놓거나 붙여넣을 수 있고, “그려줘”는 이미지, “PPT 만들어줘”는 발표자료를 생성합니다. Shift+Enter로 줄바꿈합니다.</span>
-          <span class="hint-privacy">&nbsp;·&nbsp; 주민번호·연락처 등 개인정보는 입력하지 마세요.</span>
+          <span class="hint-privacy">&nbsp;·&nbsp; 주민번호·연락처 등 개인정보는 입력하지 마세요. 업무상 필요한 이메일 주소는 허용됩니다.</span>
           <span class="hint-secondary">&nbsp;·&nbsp; 문의: AI미디어센터 AI데이터팀
           &nbsp;·&nbsp; <a href="admin.html" style="color:inherit;">관리자</a></span>
         </div>
@@ -1349,7 +1349,6 @@ function detectSensitiveData(value) {
   const detected = new Set();
   if (/\b\d{6}\s*[- ]?\s*[1-8]\d{6}\b/.test(text)) detected.add('주민·외국인등록번호');
   if (/\b01[016789](?:[-.\s]?\d){7,8}\b/.test(text)) detected.add('휴대전화번호');
-  if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(text)) detected.add('이메일 주소');
   if (/\b[MSROD]\d{8}\b/i.test(text)) detected.add('여권번호');
   if (/계좌(?:\s*번호)?\s*[:：]?\s*\d(?:[-\s]?\d){8,15}/.test(text)) detected.add('계좌번호');
   const cardCandidates = text.match(/(?:\d[ -]?){13,19}/g) || [];
@@ -2756,6 +2755,7 @@ function showWelcome() {
           <div class="welcome-privacy-notice" role="alert">
             <strong>⚠ 개인정보가 포함된 파일은 업로드하지 마세요.</strong>
             개인정보가 없는 일반 업무자료는 서비스가 임의로 공개 게시하지 않으며, 파일을 올려 분석할 수 있습니다.
+            업무 수행에 필요한 이메일 주소는 포함할 수 있습니다.
             단, 비밀·대외비 자료는 기관 보안기준을 먼저 확인해 주세요.
           </div>
           <div class="welcome-input-guide-label">권장 입력사항</div>

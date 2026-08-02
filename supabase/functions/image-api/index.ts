@@ -38,7 +38,6 @@ function detectSensitiveData(value: string) {
   const detected = new Set<string>();
   if (/\b\d{6}\s*[- ]?\s*[1-8]\d{6}\b/.test(value)) detected.add('주민·외국인등록번호');
   if (/\b01[016789](?:[-.\s]?\d){7,8}\b/.test(value)) detected.add('휴대전화번호');
-  if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(value)) detected.add('이메일 주소');
   if (/\b[MSROD]\d{8}\b/i.test(value)) detected.add('여권번호');
   if (/계좌(?:\s*번호)?\s*[:：]?\s*\d(?:[-\s]?\d){8,15}/.test(value)) detected.add('계좌번호');
   const cardCandidates = value.match(/(?:\d[ -]?){13,19}/g) || [];

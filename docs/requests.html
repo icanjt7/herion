@@ -40,7 +40,7 @@
         <label>분류<select class="field" id="requestCategory" required><option>기능 개선</option><option>신규 기능</option><option>오류 신고</option><option>문서·보고서</option><option>기타</option></select></label>
         <label>중요도<select class="field" id="requestPriority" required><option>보통</option><option>높음</option><option>긴급</option></select></label>
         <label class="full">제목<input class="field" id="requestTitle" minlength="2" maxlength="120" required placeholder="필요한 개선사항을 한 문장으로 적어주세요"></label>
-        <label class="full">상세 내용<textarea id="requestContent" minlength="5" maxlength="10000" required placeholder="현재 상황, 문제점, 희망 결과, 참고사항을 적어주세요."></textarea><span class="form-help">주민번호·연락처·개인 이메일 등 개인정보는 입력하지 마세요.</span></label>
+        <label class="full">상세 내용<textarea id="requestContent" minlength="5" maxlength="10000" required placeholder="현재 상황, 문제점, 희망 결과, 참고사항을 적어주세요."></textarea><span class="form-help">주민번호·연락처 등 개인정보는 입력하지 마세요. 업무상 필요한 이메일 주소는 허용됩니다.</span></label>
       </div>
       <div class="ai-panel"><div><strong>✦ AI 작성 도우미</strong><span>현재 메모를 명확한 요구사항 문서로 다듬고 빠진 항목을 보완합니다.</span></div><button class="ai-btn" id="aiAssistBtn" type="button" onclick="assistWriting()">AI로 다듬기</button></div>
       <div class="form-status" id="formStatus"></div><div class="dialog-actions"><button class="ghost-btn" type="button" onclick="closeWriteDialog()">취소</button><button class="primary-btn" id="submitBtn" type="submit">등록하기</button></div>
@@ -213,7 +213,6 @@
       const found = [];
       if (/\b\d{6}\s*[- ]?\s*[1-8]\d{6}\b/.test(value)) found.push('주민·외국인등록번호');
       if (/\b01[016789](?:[-.\s]?\d){7,8}\b/.test(value)) found.push('휴대전화번호');
-      if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(value)) found.push('이메일 주소');
       if (/\b[MSROD]\d{8}\b/i.test(value)) found.push('여권번호');
       return found;
     }
