@@ -135,8 +135,10 @@ lower hard limit.
 ## Internal guideline RAG
 
 Normal chat requests also search the National Heritage Agency's internal
-guidelines and work-processing standards revised on 2026-07-30. The encrypted
-corpus contains 1,654 semantic chunks from 62 documents. Retrieval combines
+articles, regulations, detailed rules, guidelines, and work-processing
+standards compiled on 2026-07-29 and 2026-07-30. The encrypted corpus contains
+2,934 unique semantic chunks from 99 documents; 28 repeated chunks in the
+source packages are removed during the build. Retrieval combines
 document-title, section-title, and body-term relevance, limits repeated chunks
 from the same document, and injects only the top matching passages into the
 Motif3 system context. Answers are instructed to identify supporting passages
@@ -148,7 +150,8 @@ repository. Rebuild the encrypted function asset with:
 
 ```bash
 node scripts/build-rag-corpus.mjs \
-  --input /secure/path/05_rag_chunks.json \
+  --input /secure/path/guidelines/05_rag_chunks.json \
+  --input /secure/path/internal-rules/05_rag_chunks.json \
   --key-file /secure/path/rag-data-key.txt
 ```
 
