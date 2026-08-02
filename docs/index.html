@@ -2052,7 +2052,18 @@ const HERITAGE_TOPIC_PATTERN =
   /국가유산|문화유산|문화재|궁궐|왕릉|조선왕조|실록|유적|유물|무형유산|전통문화|박물관|고궁|경복궁|창덕궁|덕수궁|창경궁|종묘/i;
 
 const HERITAGE_FACT_PATTERN =
-  /역사|유래|의미|설명|정보|사실|현황|지정|연혁|인물|건축|복원|보존|출처|근거|알려|무엇|뭐|왜|언제|어디|공식|최신|검색|조사|확인/i;
+  /역사|유래|의미|설명|정보|사실|현황|지정|연혁|인물|건축|복원|보존|조직|부서|담당업무|소속기관|출처|근거|알려|무엇|뭐|왜|언제|어디|공식|최신|검색|조사|확인/i;
+
+const ORGANIZATION_INFO_PATTERN =
+  /조직(?:도|안내|구성)?|부서(?:안내|구성|목록)?|담당\s*(?:부서|업무)|소속기관|어느\s*(?:부서|팀)|무슨\s*(?:부서|팀)/i;
+
+function organizationSourceProfile(query) {
+  const text = normalizeIntentText(query);
+  if (!ORGANIZATION_INFO_PATTERN.test(text)) return '';
+  if (/국가유산진흥원|진흥원|Korea Heritage Agency/i.test(text)) return 'kha';
+  if (/국가유산청|문화재청|Korea Heritage Service/i.test(text)) return 'khs';
+  return '';
+}
 
 const HERITAGE_SOURCE_GUIDE = `
 1차·공식 출처:
@@ -2063,7 +2074,9 @@ const HERITAGE_SOURCE_GUIDE = `
 - 조선왕조실록(국사편찬위원회): https://sillok.history.go.kr
 - 우리역사넷(국사편찬위원회): https://contents.history.go.kr
 - 국가유산청: https://www.khs.go.kr
+- 국가유산청 조직안내: https://www.khs.go.kr/html/HtmlPage.do?pg=/introduce/organization_info.jsp&mn=NS_05_05_01
 - 국가유산진흥원: https://www.kh.or.kr/kha
+- 국가유산진흥원 부서안내: https://www.kh.or.kr/org/chf/menu/410
 전문 사전:
 - 위키실록사전(한국학중앙연구원): https://dh.aks.ac.kr/sillokwiki
 - 한국민족문화대백과사전: https://encykorea.aks.ac.kr
@@ -2140,7 +2153,8 @@ function webSearchSourceProfile(query) {
 
 function preferredOfficialDomains(query) {
   const text = normalizeIntentText(query);
-  if (!/(공식|홈페이지|누리집|웹\s*사이트|URL|도메인|공고|보도자료)/i.test(text)) return [];
+  if (!organizationSourceProfile(text)
+      && !/(공식|홈페이지|누리집|웹\s*사이트|URL|도메인|공고|보도자료)/i.test(text)) return [];
   return OFFICIAL_DOMAIN_RULES
     .filter(rule => rule.pattern.test(text))
     .map(rule => rule.domain);
@@ -2148,7 +2162,8 @@ function preferredOfficialDomains(query) {
 
 function needsWebSearch(query) {
   const q = normalizeIntentText(query).toLowerCase();
-  return SEARCH_KEYWORDS.some(k => q.includes(k))
+  return Boolean(organizationSourceProfile(query))
+    || SEARCH_KEYWORDS.some(k => q.includes(k))
     || (webSearchSourceProfile(query) === 'heritage' && HERITAGE_FACT_PATTERN.test(q));
 }
 
@@ -2161,6 +2176,8 @@ function buildWebSearchContext(data) {
 - 검색 결과에 없는 내용은 추정하지 말고, 출처 간 내용이 다르면 차이를 명시한다.
 - 관련 결과가 부족하면 검색 기능이 없다고 말하지 말고 "관련 검색 결과가 충분하지 않았다"고 정확히 설명한다.
 - 국가유산청 공식 홈페이지는 https://www.khs.go.kr 이고, 국가유산진흥원 공식 홈페이지는 https://www.kh.or.kr 이다.
+- 국가유산진흥원 조직·부서는 https://www.kh.or.kr/org/chf/menu/410 을 우선한다.
+- 국가유산청 조직·부서는 https://www.khs.go.kr/html/HtmlPage.do?pg=/introduce/organization_info.jsp&mn=NS_05_05_01 을 우선한다.
 - 두 기관을 혼동하거나 nhrt.or.kr을 국가유산진흥원 공식 홈페이지로 안내하지 않는다.
 `;
   if (data?.source_profile === 'heritage') {
@@ -2179,7 +2196,10 @@ function buildWebSearchContext(data) {
   results.slice(0, 8).forEach((result, index) => {
     const sourceLabel = [result.source_name, result.source_tier].filter(Boolean).join(' · ');
     context += `\n[${index + 1}] ${result.title || result.url}${sourceLabel ? ` (${sourceLabel})` : ''}\n`;
-    if (result.content) context += `${String(result.content).slice(0, 1200)}\n`;
+    if (result.content) {
+      const contentLimit = result.source_kind === 'official_organization' ? 10000 : 1200;
+      context += `${String(result.content).slice(0, contentLimit)}\n`;
+    }
     context += `출처: ${result.url}\n`;
   });
   return context;
@@ -2205,7 +2225,8 @@ async function performWebSearch(query, options = {}) {
         body: JSON.stringify({
           query: normalizeIntentText(query).slice(0, 1000),
           include_domains: preferredOfficialDomains(query),
-          source_profile: webSearchSourceProfile(query)
+          source_profile: webSearchSourceProfile(query),
+          organization_profile: organizationSourceProfile(query)
         }),
         signal: options.signal
       });

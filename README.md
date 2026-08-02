@@ -182,6 +182,12 @@ Institute, primary historical sources, specialist dictionaries, and the
 configured cross-check sources. Results are ranked by source tier, and a broad
 search is used only when the curated set returns too few relevant documents.
 
+Organization and department questions bypass the general search index and read
+the official organization pages directly: the Korea Heritage Agency department
+guide at `https://www.kh.or.kr/org/chf/menu/410` and the Korea Heritage Service
+organization guide at its `organization_info.jsp` page. The two institutions
+use separate routing profiles so their departments are not mixed.
+
 ## Weather Lookup
 
 Weather questions such as `서울 오늘 날씨` and `부산 내일 기온` are detected

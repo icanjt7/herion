@@ -1,3 +1,9 @@
+import {
+  fetchOrganizationText,
+  ORGANIZATION_PAGES,
+  type OrganizationProfile,
+} from './organization-sources.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -139,6 +145,24 @@ function normalizedResponse(
   };
 }
 
+function isOrganizationProfile(value: unknown): value is OrganizationProfile {
+  return value === 'kha' || value === 'khs';
+}
+
+async function officialOrganizationResult(profile: OrganizationProfile) {
+  const page = ORGANIZATION_PAGES[profile];
+  return {
+    title: page.name,
+    url: page.url,
+    content: await fetchOrganizationText(profile),
+    score: 1,
+    source_name: profile === 'kha' ? '국가유산진흥원' : '국가유산청',
+    source_tier: '공식기관',
+    source_priority: 1,
+    source_kind: 'official_organization',
+  };
+}
+
 async function requestTavily(apiKey: string, query: string, includeDomains: string[]) {
   return fetch('https://api.tavily.com/search', {
     method: 'POST',
@@ -212,6 +236,27 @@ Deno.serve(async (request) => {
       .slice(0, 2);
 
     const sourceProfile = body?.source_profile === 'heritage' ? 'heritage' : '';
+    const requestedOrganizationProfile: unknown = body?.organization_profile;
+    const organizationProfile: OrganizationProfile | '' = isOrganizationProfile(requestedOrganizationProfile)
+      ? requestedOrganizationProfile
+      : '';
+    if (organizationProfile) {
+      try {
+        const officialResult = await officialOrganizationResult(organizationProfile);
+        return json({
+          answer: '',
+          results: [officialResult],
+          source_profile: 'organization',
+          organization_profile: organizationProfile,
+          curated_result_count: 1,
+          fallback_used: false,
+        });
+      } catch (_) {
+        const page = ORGANIZATION_PAGES[organizationProfile];
+        const payload = await searchTavily(apiKey, `${query} ${page.url}`, [new URL(page.url).hostname.replace(/^www\./, '')]);
+        return json(normalizedResponse(payload, mergeResults(normalizeResults(payload)), 'organization', true));
+      }
+    }
     if (includeDomains.length) {
       const payload = await searchTavily(apiKey, query, includeDomains);
       return json(normalizedResponse(
