@@ -1,4 +1,4 @@
-name: Deploy Requirement Comments Database
+name: Deploy Requirement Board Database
 
 on:
   workflow_dispatch:
@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/deploy-request-comments-db.yml'
       - 'supabase/migrations/20260803070000_user_request_comments.sql'
+      - 'supabase/migrations/20260803080000_user_request_owner_mutations.sql'
 
 jobs:
   migrate:
@@ -19,17 +20,21 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_KHA_PROJECT }}
         run: test -n "$SUPABASE_ACCESS_TOKEN"
 
-      - name: Apply requirement comments migration
+      - name: Apply requirement board migrations
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_KHA_PROJECT }}
           SUPABASE_PROJECT_REF: enpovkaknaxfgzanyghn
         run: |
-          jq -Rs '{ query: ., read_only: false }' \
+          for migration in \
             supabase/migrations/20260803070000_user_request_comments.sql \
-            > "$RUNNER_TEMP/request-comments-migration.json"
-          curl --fail-with-body --silent --show-error \
-            --request POST \
-            --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-            --header "Content-Type: application/json" \
-            --data-binary "@$RUNNER_TEMP/request-comments-migration.json" \
-            "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query"
+            supabase/migrations/20260803080000_user_request_owner_mutations.sql
+          do
+            jq -Rs '{ query: ., read_only: false }' "$migration" \
+              > "$RUNNER_TEMP/requirement-board-migration.json"
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+              --header "Content-Type: application/json" \
+              --data-binary "@$RUNNER_TEMP/requirement-board-migration.json" \
+              "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query"
+          done

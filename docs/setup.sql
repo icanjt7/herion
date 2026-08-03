@@ -145,6 +145,20 @@ drop policy if exists "요구사항 상태 변경" on public.user_requests;
 create policy "요구사항 상태 변경" on public.user_requests
   for update using (true) with check (true);
 
+drop policy if exists "요구사항 삭제" on public.user_requests;
+create policy "요구사항 삭제" on public.user_requests
+  for delete using (true);
+
+drop policy if exists "임시 요구사항 수정" on public.chat_logs;
+create policy "임시 요구사항 수정" on public.chat_logs
+  for update
+  using (model = 'user_request')
+  with check (model = 'user_request');
+
+drop policy if exists "임시 요구사항 삭제" on public.chat_logs;
+create policy "임시 요구사항 삭제" on public.chat_logs
+  for delete using (model = 'user_request');
+
 -- 요구사항 게시글 답글
 create table if not exists public.user_request_comments (
   id          uuid primary key default gen_random_uuid(),

@@ -251,6 +251,8 @@ temporary posts into `user_requests` without changing their IDs.
 Apply `supabase/migrations/20260803070000_user_request_comments.sql` to add
 threaded replies to requirement posts. Before that table is available, replies
 are stored centrally in `chat_logs` and are migrated without changing their IDs.
+The post author can also edit or delete their own requirement from its detail dialog;
+deleting a dedicated-table post cascades to its replies.
 
 For an existing deployment, run
 `supabase/migrations/20260716150000_chat_log_answer_excerpt.sql` to store up to
