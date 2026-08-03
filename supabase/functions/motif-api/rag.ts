@@ -55,10 +55,22 @@ export function namedRuleTitleBoost(title: string, queryText: string) {
 }
 
 export function unitTypeQueryBoost(unitType: string | undefined, queryText: string) {
-  if (unitType === 'qa' && /[?？]|어떻게|가능|되나요|할 수|언제|얼마|몇\s|문의/.test(queryText)) return 9;
+  if (unitType === 'qa' && /어떻게|가능|되나요|할 수|언제|얼마|몇\s|문의/.test(queryText)) return 9;
   if (unitType === 'form' && /양식|신청서|보고서|서약서|확인서|체크리스트|계산기/.test(queryText)) return 11;
   if (unitType === 'related_regulation' && /규정|근거|조항/.test(queryText)) return 7;
   return 0;
+}
+
+export function isTravelExpenseNonPaymentQuestion(queryText: string) {
+  const mentionsTravelExpense = /(?:출장비|여비)/.test(queryText)
+    && /(?:출장|근무지\s*내|근무지내)/.test(queryText);
+  const asksNonPayment = /못\s*받|받지\s*못|안\s*(?:나오|주|지급)|미지급|지급\s*(?:제한|제외|되지|하지)|없는\s*경우/.test(queryText);
+  return mentionsTravelExpense && asksNonPayment;
+}
+
+export function expandRagQueryText(queryText: string) {
+  if (!isTravelExpenseNonPaymentQuestion(queryText)) return queryText;
+  return `${queryText}\n근무지 내 국내출장 여비 지급 제한 미지급 운전업무 담당 직원 직무 수행 차량 운전 여행거리 편도 1km 이내 근거리 출장 출장 처리 필수`;
 }
 
 const STOP_WORDS = new Set([
@@ -210,9 +222,11 @@ function scoreChunk(
 }
 
 export async function buildRagContext(query: unknown) {
-  const queryText = typeof query === 'string' ? query.trim().slice(0, 2000) : '';
+  const rawQueryText = typeof query === 'string' ? query.trim().slice(0, 1600) : '';
+  const queryText = expandRagQueryText(rawQueryText).slice(0, 2000);
   const queryTokens = tokenize(queryText);
-  const namedRuleTerms = extractNamedRuleTerms(queryText);
+  const namedRuleTerms = extractNamedRuleTerms(rawQueryText);
+  const asksTravelExpenseNonPayment = isTravelExpenseNonPaymentQuestion(rawQueryText);
   if (!queryText || queryTokens.length === 0) return '';
 
   const { chunks, documentFrequency } = await loadIndex();
@@ -240,7 +254,7 @@ export async function buildRagContext(query: unknown) {
   if (!selected.length) return '';
 
   const matchedDocuments = [...new Set(selected.map(item => item.chunk.document_title))];
-  const asksAvailability = /(?:확인|조회|검색|수록|보유|있(?:나|어|음|는지)|알고)/.test(queryText);
+  const asksAvailability = /(?:확인|조회|검색|수록|보유|있(?:나|어|음|는지)|알고)/.test(rawQueryText);
   let context = `\n\n[국가유산진흥원 내부 지침 RAG 검색 결과]\n`;
   const sourceRevisions = [...new Set(CORPORA.flatMap(corpus => corpus.metadata.sourceRevisions))];
   context += `- 기준 자료: 국가유산진흥원 내부 규정·편람 컬렉션(${sourceRevisions.join(', ')})\n`;
@@ -255,6 +269,9 @@ export async function buildRagContext(query: unknown) {
   }
   if (namedRuleTerms.length) {
     context += `- 사용자가 특정 지침·규정·편람명을 명시했다. 해당 문서를 최우선 근거로 삼고, 대상 업무 해당 여부는 조문·별표·편람 문언을 근거로 '명시적으로 포함', '해석상 포함', '추가 확인 필요'를 구분해 답한다. 일반적인 상식만으로 결론 내리지 않는다.\n`;
+  }
+  if (asksTravelExpenseNonPayment) {
+    context += `- 사용자는 출장비·여비가 실제로 지급되지 않는 경우 전체를 묻고 있다. 검색된 '여비 지급 제한' 항목의 각 사유를 빠짐없이 열거하고, 여비가 미지급이어도 출장 처리가 필요한지 함께 설명한다. 근무지내 출장의 정의나 적용 범위를 벗어나 다른 출장 여비 기준이 적용되는 경우를 '여비 미지급'으로 잘못 분류하지 않는다.\n`;
   }
   selected.forEach(({ chunk }, index) => {
     const line = chunk.source_line_start
