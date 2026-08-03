@@ -2359,7 +2359,11 @@ function weatherValue(value, suffix = '') {
 }
 
 function weatherMarkdownCell(value) {
-  return String(value ?? '').replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ').trim();
+  return String(value ?? '')
+    .replace(/\|/g, '\\|')
+    .replace(/~/g, '\\~')
+    .replace(/[\r\n]+/g, ' ')
+    .trim();
 }
 
 function weatherResponseMarkdown(data) {
@@ -3096,6 +3100,19 @@ function normalizeIntentText(value) {
     });
     return match || token;
   });
+}
+
+function buildRagQuery(messages, currentText) {
+  const normalizedCurrent = normalizeIntentText(userDisplayText(currentText)).trim();
+  const isFollowUp = /(?:다시|재검토|앞서|이전|방금|그\s*(?:내용|답변|지침|규정)|이\s*(?:내용|답변|지침|규정)|그것|이것)/.test(normalizedCurrent);
+  if (!isFollowUp) return normalizedCurrent.slice(0, 2000);
+
+  const recentUserMessages = messages
+    .filter(message => message.role === 'user')
+    .map(message => normalizeIntentText(userDisplayText(message.content)).trim())
+    .filter(Boolean)
+    .slice(-3);
+  return [...new Set(recentUserMessages)].join('\n').slice(-2000);
 }
 
 function intentCorrectionContext(original) {
@@ -4400,7 +4417,7 @@ async function sendMessage(options = {}) {
     const resp = await fetchMotifCompletion({
         model,
         messages: [{ role: 'system', content: systemPrompt }, ...requestHistory],
-        rag_query: normalizeIntentText(text),
+        rag_query: buildRagQuery(requestHistory, text),
         stream: true,
         max_tokens: Number(cfg?.maxOutputTokens) || 16384,
         temperature: 0.6
