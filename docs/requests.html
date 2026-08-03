@@ -19,6 +19,7 @@
     dialog{border:0;border-radius:16px;box-shadow:0 24px 80px rgba(17,29,46,.24)}dialog::backdrop{background:rgba(18,26,37,.48);backdrop-filter:blur(2px)}#writeDialog{width:min(720px,calc(100vw - 28px));max-height:min(90vh,820px)}#detailDialog{width:min(680px,calc(100vw - 28px));max-height:min(88vh,760px)}.dialog-inner{display:grid;gap:17px;padding:24px;overflow-y:auto;max-height:inherit}.dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.dialog-head h2{font-size:20px}.dialog-head p{margin-top:5px;color:var(--muted);font-size:12px;line-height:1.5}.close-btn{width:36px;height:36px;flex:0 0 auto;border:0;border-radius:8px;background:#eef2f6;color:var(--muted)}
     .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}label{display:grid;gap:6px;color:#465465;font-size:12px;font-weight:650}label.full{grid-column:1/-1}textarea{width:100%;min-height:230px;resize:vertical;border:1px solid var(--line);border-radius:9px;padding:12px;outline:none;color:var(--text);font-size:14px;line-height:1.65}.form-help{color:var(--muted);font-size:11px;font-weight:400;line-height:1.5}
     .ai-panel{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid #cbd8ee;border-radius:10px;background:linear-gradient(135deg,#f3f7ff,#f6fbf9)}.ai-panel strong{display:block;color:#314e7b;font-size:12.5px}.ai-panel span{display:block;margin-top:3px;color:var(--muted);font-size:11px}.form-status{display:none;padding:10px 12px;border-radius:8px;font-size:12px;line-height:1.5}.form-status.error{display:block;background:#fff1f0;color:var(--danger)}.form-status.success{display:block;background:var(--soft);color:var(--accent-dark)}.dialog-actions{justify-content:flex-end;gap:8px}.detail-content{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.75}.detail-author{padding-top:13px;border-top:1px solid var(--line);color:var(--muted);font-size:11.5px}.admin-status{display:none;grid-template-columns:1fr auto;gap:8px;padding-top:12px;border-top:1px solid var(--line)}
+    .comments-section{display:grid;gap:12px;padding-top:15px;border-top:1px solid var(--line)}.comments-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.comments-head h3{font-size:15px}.comments-count{color:var(--muted);font-size:11.5px}.comment-list{display:grid;gap:8px}.comment{padding:12px 13px;border:1px solid var(--line);border-radius:10px;background:#f8fafb}.comment-author{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--muted);font-size:11px}.comment-author strong{color:#344254;font-size:12px}.comment-content{margin-top:7px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.65}.comment-empty{padding:18px 12px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);font-size:12px;text-align:center}.comment-form{display:grid;gap:8px}.comment-form textarea{min-height:88px;max-height:220px}.comment-form-actions{display:flex;align-items:center;justify-content:space-between;gap:10px}.comment-form .form-status{flex:1}.comment-form-help{color:var(--muted);font-size:10.5px;line-height:1.4}
     @media(max-width:760px){.topbar{padding-inline:12px}.brand-sub,.user-chip{display:none}.page{width:min(100% - 24px,1160px);padding-top:28px}.hero{grid-template-columns:1fr;gap:18px}.toolbar{grid-template-columns:1fr 1fr}.toolbar .search{grid-column:1/-1}.request-card{grid-template-columns:1fr;gap:9px;padding:16px}.card-side{text-align:left}}
     @media(max-width:520px){.top-actions .ghost-btn{width:40px;padding:0;font-size:0}.top-actions .ghost-btn::before{content:"←";font-size:18px}.toolbar{grid-template-columns:1fr}.toolbar .search{grid-column:auto}.toolbar .primary-btn{min-height:44px}.form-grid{grid-template-columns:1fr}label.full{grid-column:auto}.dialog-inner{padding:18px 15px max(18px,env(safe-area-inset-bottom))}.ai-panel{align-items:stretch;flex-direction:column}.ai-btn{min-height:42px}.dialog-actions .ghost-btn,.dialog-actions .primary-btn{flex:1}.admin-status{grid-template-columns:1fr}}
   </style>
@@ -47,7 +48,7 @@
     </form>
   </dialog>
   <dialog id="detailDialog">
-    <div class="dialog-inner"><div class="dialog-head"><div><div class="card-meta" id="detailMeta"></div><h2 id="detailTitle"></h2></div><button class="close-btn" type="button" onclick="closeDetailDialog()" aria-label="닫기">✕</button></div><div class="detail-content" id="detailContent"></div><div class="detail-author" id="detailAuthor"></div><div class="admin-status" id="adminStatusPanel"><select class="field" id="adminStatusSelect"><option>접수</option><option>검토중</option><option>반영예정</option><option>완료</option></select><button class="primary-btn" type="button" onclick="updateRequestStatus()">상태 변경</button></div></div>
+    <div class="dialog-inner"><div class="dialog-head"><div><div class="card-meta" id="detailMeta"></div><h2 id="detailTitle"></h2></div><button class="close-btn" type="button" onclick="closeDetailDialog()" aria-label="닫기">✕</button></div><div class="detail-content" id="detailContent"></div><div class="detail-author" id="detailAuthor"></div><div class="admin-status" id="adminStatusPanel"><select class="field" id="adminStatusSelect"><option>접수</option><option>검토중</option><option>반영예정</option><option>완료</option></select><button class="primary-btn" type="button" onclick="updateRequestStatus()">상태 변경</button></div><section class="comments-section" aria-labelledby="commentsTitle"><div class="comments-head"><h3 id="commentsTitle">답글</h3><span class="comments-count" id="commentsCount">0개</span></div><div class="comment-list" id="commentList" aria-live="polite"><div class="comment-empty">답글을 불러오는 중입니다…</div></div><form class="comment-form" id="commentForm"><textarea id="commentContent" minlength="1" maxlength="3000" required placeholder="검토 결과나 추가 의견을 답글로 남겨주세요."></textarea><span class="comment-form-help">주민번호·연락처 등 개인정보는 입력하지 마세요.</span><div class="comment-form-actions"><div class="form-status" id="commentStatus"></div><button class="primary-btn" id="commentSubmitBtn" type="submit">답글 등록</button></div></form></section></div>
   </dialog>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="config.js"></script>
@@ -66,6 +67,8 @@
     let requests = [];
     let selectedRequest = null;
     let storageMode = 'user_requests';
+    let commentStorageMode = 'user_request_comments';
+    let commentLoadSequence = 0;
 
     function escHtml(value) {
       return String(value == null ? '' : value)
@@ -89,6 +92,10 @@
 
     function badge(value, kind) {
       return '<span class="badge ' + (kind || '') + '-' + escHtml(value) + '">' + escHtml(value) + '</span>';
+    }
+
+    function isMissingTable(error, tableName) {
+      return error && (error.code === '42P01' || String(error.message || '').includes(tableName));
     }
 
     async function loadRequests() {
@@ -348,6 +355,83 @@
       button.textContent = '등록하기';
     });
 
+    function setCommentStatus(message, type) {
+      const status = document.getElementById('commentStatus');
+      status.textContent = message;
+      status.className = 'form-status' + (message ? ' ' + (type || 'error') : '');
+    }
+
+    function renderComments(comments) {
+      const list = document.getElementById('commentList');
+      document.getElementById('commentsCount').textContent = comments.length.toLocaleString() + '개';
+      if (!comments.length) {
+        list.innerHTML = '<div class="comment-empty">아직 등록된 답글이 없습니다. 첫 답글을 남겨주세요.</div>';
+        return;
+      }
+      list.innerHTML = comments.map(function(comment) {
+        const author = comment.user_name || comment.user_email || '사용자';
+        return '<article class="comment"><div class="comment-author"><strong>' + escHtml(author) +
+          (comment.department ? ' · ' + escHtml(comment.department) : '') +
+          '</strong><time>' + escHtml(formatDate(comment.created_at)) + '</time></div>' +
+          '<div class="comment-content">' + escHtml(comment.content) + '</div></article>';
+      }).join('');
+    }
+
+    async function loadComments(requestId) {
+      const sequence = ++commentLoadSequence;
+      document.getElementById('commentList').innerHTML = '<div class="comment-empty">답글을 불러오는 중입니다…</div>';
+      document.getElementById('commentsCount').textContent = '–';
+      if (!sb) {
+        renderComments([]);
+        return;
+      }
+
+      let comments = [];
+      const result = storageMode === 'chat_logs'
+        ? { data: null, error: { code: '42P01', message: 'Use chat_logs fallback for temporary request posts.' } }
+        : await sb.from('user_request_comments')
+            .select('*')
+            .eq('request_id', requestId)
+            .order('created_at', { ascending: true });
+      if (!result.error) {
+        commentStorageMode = 'user_request_comments';
+        comments = result.data || [];
+      } else if (isMissingTable(result.error, 'user_request_comments')) {
+        commentStorageMode = 'chat_logs';
+        const fallback = await sb.from('chat_logs')
+          .select('id,user_email,user_name,question,created_at')
+          .eq('model', 'user_request_comment')
+          .order('created_at', { ascending: true });
+        if (fallback.error) {
+          if (sequence === commentLoadSequence) {
+            document.getElementById('commentList').innerHTML = '<div class="comment-empty">답글을 불러오지 못했습니다.</div>';
+          }
+          return;
+        }
+        comments = (fallback.data || []).map(function(row) {
+          let saved = {};
+          try { saved = JSON.parse(row.question || '{}'); } catch (_) {}
+          return {
+            id: row.id,
+            request_id: saved.request_id || '',
+            content: saved.content || '',
+            user_email: row.user_email,
+            user_name: row.user_name || '',
+            department: saved.department || '',
+            created_at: row.created_at
+          };
+        }).filter(function(comment) { return comment.request_id === requestId; });
+      } else {
+        if (sequence === commentLoadSequence) {
+          document.getElementById('commentList').innerHTML = '<div class="comment-empty">답글을 불러오지 못했습니다.</div>';
+        }
+        return;
+      }
+      if (sequence === commentLoadSequence && selectedRequest && selectedRequest.id === requestId) {
+        renderComments(comments);
+      }
+    }
+
     function openDetailDialog(id) {
       selectedRequest = requests.find(function(item) { return item.id === id; });
       if (!selectedRequest) return;
@@ -363,12 +447,80 @@
       document.getElementById('adminStatusPanel').style.display =
         user && user.role === 'admin' ? 'grid' : 'none';
       document.getElementById('adminStatusSelect').value = selectedRequest.status;
+      document.getElementById('commentForm').reset();
+      setCommentStatus('');
       document.getElementById('detailDialog').showModal();
+      loadComments(selectedRequest.id);
     }
 
     function closeDetailDialog() {
+      commentLoadSequence += 1;
       document.getElementById('detailDialog').close();
     }
+
+    document.getElementById('commentForm').addEventListener('submit', async function(event) {
+      event.preventDefault();
+      if (!selectedRequest || !sb) {
+        setCommentStatus('답글을 등록할 수 없습니다. 잠시 후 다시 시도해 주세요.');
+        return;
+      }
+      const requestId = selectedRequest.id;
+      const content = document.getElementById('commentContent').value.trim();
+      if (!content) {
+        setCommentStatus('답글 내용을 입력해 주세요.');
+        return;
+      }
+      const sensitive = detectSensitiveData(content);
+      if (sensitive.length) {
+        setCommentStatus('개인정보(' + sensitive.join(', ') + ')를 삭제한 뒤 등록해 주세요.');
+        return;
+      }
+      const button = document.getElementById('commentSubmitBtn');
+      button.disabled = true;
+      button.textContent = '등록 중…';
+      setCommentStatus('');
+      const payload = {
+        request_id: requestId,
+        content: content,
+        user_email: user.email,
+        user_name: user.name,
+        department: user.department || ''
+      };
+      let result = commentStorageMode === 'chat_logs'
+        ? await sb.from('chat_logs').insert({
+            user_email: user.email,
+            user_name: user.name,
+            model: 'user_request_comment',
+            question: JSON.stringify({
+              request_id: payload.request_id,
+              content: payload.content,
+              department: payload.department
+            })
+          })
+        : await sb.from('user_request_comments').insert(payload);
+      if (commentStorageMode !== 'chat_logs' && isMissingTable(result.error, 'user_request_comments')) {
+        commentStorageMode = 'chat_logs';
+        result = await sb.from('chat_logs').insert({
+          user_email: user.email,
+          user_name: user.name,
+          model: 'user_request_comment',
+          question: JSON.stringify({
+            request_id: payload.request_id,
+            content: payload.content,
+            department: payload.department
+          })
+        });
+      }
+      if (result.error) {
+        setCommentStatus('답글 등록 실패: ' + result.error.message);
+      } else {
+        document.getElementById('commentForm').reset();
+        setCommentStatus('답글을 등록했습니다.', 'success');
+        await loadComments(requestId);
+      }
+      button.disabled = false;
+      button.textContent = '답글 등록';
+    });
 
     async function updateRequestStatus() {
       if (!user || user.role !== 'admin' || !selectedRequest || !sb) return;
