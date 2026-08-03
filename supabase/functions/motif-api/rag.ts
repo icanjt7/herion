@@ -15,12 +15,36 @@ type RagChunk = {
 };
 
 type IndexedChunk = RagChunk & {
+  normalizedTitle: string;
   titleTokens: Set<string>;
   chapterTokens: Set<string>;
   sectionTokens: Set<string>;
   termCounts: Map<string, number>;
   textLength: number;
 };
+
+const NAMED_RULE_SUFFIXES = '지침|규정|규칙|요령|기준|세칙|내규';
+
+function normalizeForMatch(value: string) {
+  return value.normalize('NFC').toLowerCase().replace(/[^가-힣a-z0-9]/g, '');
+}
+
+export function extractNamedRuleTerms(value: string) {
+  const terms = new Set<string>();
+  const pattern = new RegExp(`([가-힣a-z0-9]{2,30})\\s*(${NAMED_RULE_SUFFIXES})`, 'gi');
+  for (const match of value.normalize('NFC').matchAll(pattern)) {
+    const term = normalizeForMatch(`${match[1]}${match[2]}`);
+    if (term.length >= 4) terms.add(term);
+  }
+  return [...terms];
+}
+
+export function namedRuleTitleBoost(title: string, queryText: string) {
+  const normalizedTitle = normalizeForMatch(title);
+  return extractNamedRuleTerms(queryText)
+    .filter(term => normalizedTitle.includes(term))
+    .length * 80;
+}
 
 const STOP_WORDS = new Set([
   '그리고', '그러나', '대한', '관한', '따른', '있는', '하는', '해주세요', '알려주세요',
@@ -88,6 +112,7 @@ async function loadIndex() {
       for (const token of unique) documentFrequency.set(token, (documentFrequency.get(token) || 0) + 1);
       return {
         ...chunk,
+        normalizedTitle: normalizeForMatch(chunk.document_title),
         titleTokens,
         chapterTokens,
         sectionTokens,
@@ -105,11 +130,13 @@ async function loadIndex() {
 
 function scoreChunk(
   chunk: IndexedChunk,
+  queryText: string,
   queryTokens: string[],
   documentFrequency: Map<string, number>,
   totalChunks: number,
 ) {
-  let score = 0;
+  const titleBoost = namedRuleTitleBoost(chunk.normalizedTitle, queryText);
+  let score = titleBoost;
   let matched = 0;
   for (const token of queryTokens) {
     const frequency = documentFrequency.get(token) || 0;
@@ -124,21 +151,22 @@ function scoreChunk(
       score += weight * idf;
     }
   }
-  if (!matched || (queryTokens.length >= 3 && matched < 2)) return 0;
+  if ((!matched || (queryTokens.length >= 3 && matched < 2)) && titleBoost === 0) return 0;
   const coverage = matched / queryTokens.length;
   return score * (0.55 + coverage) / Math.sqrt(Math.max(1, chunk.textLength / 320));
 }
 
 export async function buildRagContext(query: unknown) {
-  const queryText = typeof query === 'string' ? query.trim().slice(0, 1000) : '';
+  const queryText = typeof query === 'string' ? query.trim().slice(0, 2000) : '';
   const queryTokens = tokenize(queryText);
+  const namedRuleTerms = extractNamedRuleTerms(queryText);
   if (!queryText || queryTokens.length === 0) return '';
 
   const { chunks, documentFrequency } = await loadIndex();
   const ranked = chunks
     .map((chunk) => ({
       chunk,
-      score: scoreChunk(chunk, queryTokens, documentFrequency, chunks.length),
+      score: scoreChunk(chunk, queryText, queryTokens, documentFrequency, chunks.length),
     }))
     .filter((item) => item.score >= 1.4)
     .sort((left, right) => right.score - left.score);
@@ -170,6 +198,9 @@ export async function buildRagContext(query: unknown) {
   context += `- 홈페이지나 담당 부서 확인은 최신 개정 여부를 재확인하는 보조 절차로만 안내하며, 검색된 내부 자료의 존재를 부정하는 근거로 사용하지 않는다.\n`;
   if (asksAvailability) {
     context += `- 사용자는 규정의 확인·수록 여부를 묻고 있다. 먼저 "내부 RAG 자료에서 확인됩니다"라고 명확히 답하고, 수록 문서명과 기준 시점, 검색된 관련 조항을 안내한다.\n`;
+  }
+  if (namedRuleTerms.length) {
+    context += `- 사용자가 특정 지침·규정명을 명시했다. 해당 문서를 최우선 근거로 삼고, 대상 업무 해당 여부는 조문·별표 문언을 근거로 '명시적으로 포함', '해석상 포함', '추가 확인 필요'를 구분해 답한다. 일반적인 계약 상식만으로 결론 내리지 않는다.\n`;
   }
   selected.forEach(({ chunk }, index) => {
     const line = chunk.source_line_start
