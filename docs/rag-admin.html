@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>RAG·청크 관리 | Herian</title>
+  <style>
+    :root{--nav:#172536;--accent:#16685f;--accent2:#2457a7;--bg:#f4f6f8;--line:#dce2e8;--muted:#667382;--danger:#b42318}
+    *{box-sizing:border-box}body{margin:0;font-family:Pretendard,"Noto Sans KR",sans-serif;color:#17212b;background:var(--bg)}
+    .layout{display:flex;min-height:100vh}aside{width:224px;background:var(--nav);color:#fff;padding:22px 14px;display:flex;flex-direction:column;position:fixed;inset:0 auto 0 0;z-index:20}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:750;font-size:20px;padding:0 9px 20px}.mark{width:31px;height:31px;border-radius:9px;background:#fff;color:var(--accent);display:grid;place-items:center}
+    .section{font-size:10px;text-transform:uppercase;color:#7f91a5;padding:12px 9px 5px;letter-spacing:.06em}.nav{display:flex;align-items:center;gap:9px;color:#c4cdd8;text-decoration:none;padding:10px;border-radius:7px;font-size:13.5px}.nav:hover,.nav.active{background:#ffffff1a;color:#fff}
+    .aside-bottom{margin-top:auto;border-top:1px solid #ffffff1a;padding-top:12px;font-size:12px;color:#9da9b6}.aside-bottom strong{display:block;color:#d5dbe2;margin-bottom:3px}.logout{border:0;background:none;color:#9da9b6;padding:8px 0;cursor:pointer}
+    main{margin-left:224px;width:calc(100% - 224px);min-height:100vh;padding:28px 32px 96px}.top{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:20px}.top h1{font-size:25px;margin:0 0 7px}.top p{margin:0;color:var(--muted);font-size:13px}.btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:650}.btn.primary{color:#fff;background:var(--accent);border-color:var(--accent)}.btn.danger{color:var(--danger)}
+    .notice{background:#edf5f3;border:1px solid #cfe5e0;border-radius:10px;padding:12px 15px;margin-bottom:16px;font-size:13px;line-height:1.55}.toolbar{display:grid;grid-template-columns:minmax(260px,1fr) minmax(210px,320px) auto;gap:10px;background:#fff;padding:14px;border:1px solid var(--line);border-radius:11px;margin-bottom:14px}.control{border:1px solid #cfd7df;border-radius:8px;padding:10px 11px;font:inherit;background:#fff;min-width:0}.status{font-size:12px;color:var(--muted);padding:8px 2px}
+    .list{display:grid;gap:10px}.card{background:#fff;border:1px solid var(--line);border-radius:11px;padding:15px;display:grid;grid-template-columns:1fr auto;gap:12px;cursor:pointer}.card:hover{border-color:#91aaa6;box-shadow:0 2px 8px #1b2b3b0c}.title{font-weight:750;margin-bottom:5px}.path,.meta{color:var(--muted);font-size:12px}.excerpt{font-size:13px;line-height:1.55;margin-top:9px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap}.badge{display:inline-block;border-radius:999px;padding:3px 8px;font-size:11px;margin-left:5px;background:#e8eef8;color:#2457a7}.badge.edit{background:#fff1d6;color:#8a5700}.badge.off{background:#feeceb;color:var(--danger)}
+    .empty{background:#fff;border:1px solid var(--line);border-radius:11px;padding:60px 20px;text-align:center;color:var(--muted)}.pagination-wrap{position:fixed;left:224px;right:0;bottom:0;background:#fffc;border-top:1px solid var(--line);backdrop-filter:blur(10px);padding:12px 32px;z-index:10}.pagination{display:flex;align-items:center;justify-content:center;gap:5px}.page-btn{min-width:35px;height:34px;border:1px solid var(--line);background:#fff;border-radius:7px;cursor:pointer}.page-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}.page-btn:disabled{opacity:.4;cursor:default}
+    dialog{border:0;border-radius:13px;padding:0;width:min(860px,calc(100vw - 30px));max-height:92vh;box-shadow:0 20px 70px #0004}dialog::backdrop{background:#14233499}.modal-head{display:flex;justify-content:space-between;align-items:center;padding:18px 21px;border-bottom:1px solid var(--line)}.modal-head h2{font-size:18px;margin:0}.close{font-size:23px;border:0;background:none;cursor:pointer}.form{padding:18px 21px;overflow:auto;max-height:calc(92vh - 130px)}.grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}.field{display:grid;gap:6px}.field.full{grid-column:1/-1}.field label{font-size:12px;font-weight:700}.field input,.field textarea,.field select{width:100%;border:1px solid #cfd7df;border-radius:7px;padding:9px 10px;font:inherit}.field textarea{min-height:250px;resize:vertical;line-height:1.55}.check{display:flex;align-items:center;gap:7px;font-size:13px}.modal-foot{display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--line);padding:14px 21px}.right{display:flex;gap:8px}.toast{position:fixed;right:22px;bottom:72px;background:#172536;color:#fff;padding:11px 15px;border-radius:8px;display:none;z-index:50;font-size:13px}
+    @media(max-width:760px){aside{display:none}main{margin-left:0;width:100%;padding:20px 14px 90px}.toolbar{grid-template-columns:1fr}.pagination-wrap{left:0;padding:10px}.grid{grid-template-columns:1fr}.field.full{grid-column:auto}.card{grid-template-columns:1fr}.top{align-items:center}}
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside>
+    <div class="brand"><div class="mark">H</div><span>Herian</span></div>
+    <div class="section">서비스</div>
+    <a class="nav" href="index.html">💬 채팅으로 이동</a>
+    <a class="nav" href="requests.html">📮 요구사항 게시판</a>
+    <div class="section">관리자</div>
+    <a class="nav" href="admin.html">📊 관리자 대시보드</a>
+    <a class="nav active" href="rag-admin.html">🧠 RAG·청크 관리</a>
+    <div class="aside-bottom"><strong id="adminName">관리자</strong><span id="adminEmail"></span><button class="logout" onclick="logout()">로그아웃</button></div>
+  </aside>
+  <main>
+    <div class="top"><div><h1>RAG·청크 관리</h1><p>현재 등록된 내부 지식 청크를 검색하고 수정합니다.</p></div><div class="right"><a class="btn" href="admin.html" style="text-decoration:none;color:inherit">← 관리자</a><button class="btn primary" onclick="openNew()">+ 새 청크</button></div></div>
+    <div class="notice">암호화된 원본은 보존됩니다. 기존 청크를 저장하면 해당 ID의 운영 수정본이 생성되어 AI 검색에 우선 적용되며, 언제든 원본으로 복원할 수 있습니다.</div>
+    <div class="toolbar">
+      <input id="search" class="control" placeholder="문서명, 조항, 본문 또는 청크 ID 검색">
+      <select id="document" class="control"><option value="">전체 문서</option></select>
+      <button class="btn" onclick="load(1)">검색</button>
+    </div>
+    <div id="status" class="status">불러오는 중...</div>
+    <div id="list" class="list"></div>
+  </main>
+</div>
+<div class="pagination-wrap"><div id="pagination" class="pagination"></div></div>
+
+<dialog id="editor">
+  <div class="modal-head"><h2 id="editorTitle">청크 수정</h2><button class="close" onclick="editor.close()" aria-label="닫기">×</button></div>
+  <form id="form" onsubmit="save(event)">
+    <div class="form"><div class="grid">
+      <div class="field full"><label>문서명 *</label><input name="document_title" maxlength="300" required></div>
+      <div class="field"><label>장/대분류</label><input name="chapter_title" maxlength="500"></div>
+      <div class="field"><label>절/소분류</label><input name="section_title" maxlength="500"></div>
+      <div class="field"><label>자료 유형</label><input name="unit_type" maxlength="80" placeholder="qa, paragraph, form 등"></div>
+      <div class="field"><label>담당 부서</label><input name="department" maxlength="200"></div>
+      <div class="field"><label>컬렉션</label><input name="collection" maxlength="120"></div>
+      <div class="field"><label>개정 기준</label><input name="revision_basis" maxlength="500"></div>
+      <div class="field full"><label>원본 파일</label><input name="source_file" maxlength="500"></div>
+      <div class="field"><label>원문 시작 행</label><input name="source_line_start" type="number" min="1"></div>
+      <div class="field"><label>원문 종료 행</label><input name="source_line_end" type="number" min="1"></div>
+      <div class="field full"><label>관련 규정 (쉼표 또는 줄바꿈 구분)</label><input name="related_regulations"></div>
+      <div class="field full"><label>청크 본문 *</label><textarea name="text" maxlength="20000" required></textarea></div>
+      <div class="field full"><label class="check"><input name="is_active" type="checkbox" checked> AI 검색에 사용</label></div>
+    </div></div>
+    <div class="modal-foot"><button id="restoreBtn" type="button" class="btn danger" onclick="restoreCurrent()" style="visibility:hidden">원본으로 복원</button><div class="right"><button type="button" class="btn" onclick="editor.close()">취소</button><button id="saveBtn" class="btn primary">저장</button></div></div>
+  </form>
+</dialog>
+<div id="toast" class="toast"></div>
+<script src="config.js"></script>
+<script>
+  const user = JSON.parse(sessionStorage.getItem('herion_user') || 'null');
+  if (!user) location.href = 'login.html'; else if (user.role !== 'admin') location.href = 'index.html';
+  document.getElementById('adminName').textContent = user?.name || '관리자';
+  document.getElementById('adminEmail').textContent = user?.email || '';
+  const apiUrl = window.HERION_CONFIG?.ragAdminApiUrl;
+  const editor = document.getElementById('editor');
+  const form = document.getElementById('form');
+  let state = { page:1, total_pages:1, items:[], current:null, documentsLoaded:false };
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  function logout(){sessionStorage.removeItem('herion_user');location.href='login.html'}
+  function notify(message){const el=document.getElementById('toast');el.textContent=message;el.style.display='block';setTimeout(()=>el.style.display='none',2600)}
+  async function api(path='', options={}){
+    const response=await fetch(apiUrl+path,{...options,headers:{'Content-Type':'application/json','x-herian-admin-email':user.email,...(options.headers||{})}});
+    const body=await response.json().catch(()=>({}));
+    if(!response.ok) throw new Error(body.error||`요청 실패 (${response.status})`);
+    return body;
+  }
+  async function load(page=1){
+    if(!apiUrl){document.getElementById('status').textContent='RAG 관리 API 설정이 필요합니다.';return}
+    document.getElementById('status').textContent='불러오는 중...';
+    try{
+      const params=new URLSearchParams({q:document.getElementById('search').value.trim(),document:document.getElementById('document').value,page:String(page),page_size:'20'});
+      const data=await api('?'+params);
+      state={...state,...data};
+      if(!state.documentsLoaded){const select=document.getElementById('document');data.documents.forEach(name=>select.insertAdjacentHTML('beforeend',`<option value="${esc(name)}">${esc(name)}</option>`));state.documentsLoaded=true}
+      render();
+    }catch(error){document.getElementById('status').textContent=error.message;document.getElementById('list').innerHTML='<div class="empty">목록을 불러오지 못했습니다.</div>'}
+  }
+  function render(){
+    document.getElementById('status').textContent=`총 ${state.total.toLocaleString()}개 · ${state.page}/${state.total_pages} 페이지`;
+    document.getElementById('list').innerHTML=state.items.length?state.items.map((item,index)=>`<article class="card" onclick="openEdit(${index})"><div><div class="title">${esc(item.document_title)}${item.is_override?'<span class="badge edit">수정본</span>':''}${!item.is_active?'<span class="badge off">미사용</span>':''}</div><div class="path">${esc([item.chapter_title,item.section_title].filter(Boolean).join(' › ')||'분류 없음')}</div><div class="excerpt">${esc(item.text)}</div><div class="meta">${esc(item.id)}${item.updated_by_email?' · '+esc(item.updated_by_email):''}</div></div><button class="btn" type="button">수정</button></article>`).join(''):'<div class="empty">검색 결과가 없습니다.</div>';
+    renderPages();
+  }
+  function renderPages(){
+    const root=document.getElementById('pagination'), pages=[];let start=Math.max(1,state.page-2),end=Math.min(state.total_pages,start+4);start=Math.max(1,end-4);
+    pages.push(`<button class="page-btn" ${state.page===1?'disabled':''} onclick="load(${state.page-1})">‹</button>`);
+    if(start>1)pages.push(`<button class="page-btn" onclick="load(1)">1</button>${start>2?'<span>…</span>':''}`);
+    for(let p=start;p<=end;p++)pages.push(`<button class="page-btn ${p===state.page?'active':''}" onclick="load(${p})">${p}</button>`);
+    if(end<state.total_pages)pages.push(`${end<state.total_pages-1?'<span>…</span>':''}<button class="page-btn" onclick="load(${state.total_pages})">${state.total_pages}</button>`);
+    pages.push(`<button class="page-btn" ${state.page===state.total_pages?'disabled':''} onclick="load(${state.page+1})">›</button>`);root.innerHTML=pages.join('');
+  }
+  function fill(item){
+    ['document_title','chapter_title','section_title','unit_type','department','collection','revision_basis','text','source_file','source_line_start','source_line_end'].forEach(name=>form.elements[name].value=item?.[name]||'');
+    form.elements.related_regulations.value=(item?.related_regulations||[]).join(', ');form.elements.is_active.checked=item?.is_active!==false;
+  }
+  function openEdit(index){state.current=state.items[index];fill(state.current);document.getElementById('editorTitle').textContent='등록 청크 수정';document.getElementById('restoreBtn').style.visibility=state.current.override_id?'visible':'hidden';document.getElementById('restoreBtn').textContent=state.current.base_chunk_id?'원본으로 복원':'추가 청크 삭제';editor.showModal()}
+  function openNew(){state.current=null;fill({collection:'admin-overlay',is_active:true});document.getElementById('editorTitle').textContent='새 청크 추가';document.getElementById('restoreBtn').style.visibility='hidden';editor.showModal()}
+  async function save(event){
+    event.preventDefault();const button=document.getElementById('saveBtn');button.disabled=true;
+    try{const values=Object.fromEntries(new FormData(form));const payload={action:'save',...values,is_active:form.elements.is_active.checked,related_regulations:values.related_regulations,base_chunk_id:state.current?.base_chunk_id||null,override_id:state.current?.override_id||null};await api('',{method:'POST',body:JSON.stringify(payload)});editor.close();notify('청크가 저장되어 AI 검색에 반영됩니다.');await load(state.page)}catch(error){alert(error.message)}finally{button.disabled=false}
+  }
+  async function restoreCurrent(){if(!state.current?.override_id)return;const label=state.current.base_chunk_id?'원본으로 복원':'추가 청크 삭제';if(!confirm(`${label}하시겠습니까? 변경 이력은 보존됩니다.`))return;try{await api('',{method:'POST',body:JSON.stringify({action:'restore',override_id:state.current.override_id})});editor.close();notify(label+'했습니다.');await load(state.page)}catch(error){alert(error.message)}}
+  let timer;document.getElementById('search').addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(()=>load(1),350)});document.getElementById('search').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();load(1)}});document.getElementById('document').addEventListener('change',()=>load(1));
+  load();
+</script>
+</body>
+</html>

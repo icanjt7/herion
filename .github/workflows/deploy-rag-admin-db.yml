@@ -1,0 +1,33 @@
+name: Deploy RAG Admin Database
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-rag-admin-db.yml'
+      - 'supabase/migrations/20260803100000_rag_chunk_overrides.sql'
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Supabase access token
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_KHA_PROJECT }}
+        run: test -n "$SUPABASE_ACCESS_TOKEN"
+      - name: Apply RAG admin migration
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_KHA_PROJECT }}
+          SUPABASE_PROJECT_REF: enpovkaknaxfgzanyghn
+        run: |
+          jq -Rs '{ query: ., read_only: false }' \
+            supabase/migrations/20260803100000_rag_chunk_overrides.sql \
+            > "$RUNNER_TEMP/rag-admin-migration.json"
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data-binary "@$RUNNER_TEMP/rag-admin-migration.json" \
+            "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query"
