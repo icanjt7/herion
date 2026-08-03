@@ -9,19 +9,36 @@ const corsHeaders = {
 const retryableStatuses = new Set([429, 500, 502, 503, 504]);
 const kmaMidtermBaseUrl = 'https://apis.data.go.kr/1360000/MidFcstInfoService';
 const koreaWeatherPoints = [
-  { name: '서울', latitude: 37.5665, longitude: 126.9780 },
-  { name: '인천', latitude: 37.4563, longitude: 126.7052 },
-  { name: '수원·경기', latitude: 37.2636, longitude: 127.0286 },
-  { name: '춘천·강원', latitude: 37.8813, longitude: 127.7298 },
-  { name: '강릉', latitude: 37.7519, longitude: 128.8761 },
-  { name: '대전·충청', latitude: 36.3504, longitude: 127.3845 },
-  { name: '전주·전북', latitude: 35.8242, longitude: 127.1480 },
-  { name: '광주·전남', latitude: 35.1595, longitude: 126.8526 },
-  { name: '대구·경북', latitude: 35.8714, longitude: 128.6014 },
-  { name: '부산·경남', latitude: 35.1796, longitude: 129.0756 },
-  { name: '울산', latitude: 35.5384, longitude: 129.3114 },
-  { name: '제주', latitude: 33.4996, longitude: 126.5312 },
+  { name: '서울', aliases: ['서울'], admin1: '서울특별시', latitude: 37.5665, longitude: 126.9780 },
+  { name: '인천', aliases: ['인천'], admin1: '인천광역시', latitude: 37.4563, longitude: 126.7052 },
+  { name: '수원·경기', aliases: ['수원', '경기'], admin1: '경기도', latitude: 37.2636, longitude: 127.0286 },
+  { name: '춘천·강원', aliases: ['춘천'], admin1: '강원특별자치도', latitude: 37.8813, longitude: 127.7298 },
+  { name: '강릉', aliases: ['강릉'], admin1: '강원특별자치도', latitude: 37.7519, longitude: 128.8761 },
+  { name: '대전·충청', aliases: ['대전', '세종', '충청'], admin1: '대전광역시', latitude: 36.3504, longitude: 127.3845 },
+  { name: '전주·전북', aliases: ['전주', '전북'], admin1: '전북특별자치도', latitude: 35.8242, longitude: 127.1480 },
+  { name: '광주·전남', aliases: ['광주', '전남'], admin1: '광주광역시', latitude: 35.1595, longitude: 126.8526 },
+  { name: '대구·경북', aliases: ['대구', '경북'], admin1: '대구광역시', latitude: 35.8714, longitude: 128.6014 },
+  { name: '부산·경남', aliases: ['부산', '경남'], admin1: '부산광역시', latitude: 35.1796, longitude: 129.0756 },
+  { name: '울산', aliases: ['울산'], admin1: '울산광역시', latitude: 35.5384, longitude: 129.3114 },
+  { name: '제주', aliases: ['제주'], admin1: '제주특별자치도', latitude: 33.4996, longitude: 126.5312 },
 ];
+
+function knownKoreanPlace(query: string) {
+  const normalized = query.replace(/\s+/g, '');
+  const point = koreaWeatherPoints.find((candidate) =>
+    candidate.aliases.some((alias) => normalized.includes(alias))
+  );
+  return point
+    ? {
+      name: point.name.split('·')[0],
+      admin1: point.admin1,
+      country: '대한민국',
+      country_code: 'KR',
+      latitude: point.latitude,
+      longitude: point.longitude,
+    }
+    : null;
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -294,23 +311,29 @@ Deno.serve(async (request) => {
       return json({ error: '지역명은 2자 이상 120자 이하여야 합니다.', code: 'WEATHER_INVALID_LOCATION' }, 400);
     }
 
-    const geocodingUrl = new URL('https://geocoding-api.open-meteo.com/v1/search');
-    geocodingUrl.searchParams.set('name', location);
-    geocodingUrl.searchParams.set('count', '5');
-    geocodingUrl.searchParams.set('language', 'ko');
-    geocodingUrl.searchParams.set('format', 'json');
-    const geocoding = await fetchJson(geocodingUrl);
-    const candidates = Array.isArray(geocoding.results) ? geocoding.results : [];
-    const koreanQuery = /[가-힣]/.test(location);
-    let place = (
-      koreanQuery
-        ? candidates.find((candidate: unknown) =>
-            String((candidate as Record<string, unknown>)?.country_code || '').toUpperCase() === 'KR'
-          ) || candidates[0]
-        : candidates[0]
-    ) as Record<string, unknown> | undefined;
-    let geocodingSource = 'Open-Meteo Geocoding';
-    let geocodingSourceUrl = 'https://open-meteo.com/en/docs/geocoding-api';
+    let place = knownKoreanPlace(location) as Record<string, unknown> | null | undefined;
+    let geocodingSource = place ? '기상청 예보구역 기준 위치' : 'Open-Meteo Geocoding';
+    let geocodingSourceUrl = place
+      ? 'https://www.data.go.kr/data/15059468/openapi.do'
+      : 'https://open-meteo.com/en/docs/geocoding-api';
+
+    if (!place) {
+      const geocodingUrl = new URL('https://geocoding-api.open-meteo.com/v1/search');
+      geocodingUrl.searchParams.set('name', location);
+      geocodingUrl.searchParams.set('count', '5');
+      geocodingUrl.searchParams.set('language', 'ko');
+      geocodingUrl.searchParams.set('format', 'json');
+      const geocoding = await fetchJson(geocodingUrl);
+      const candidates = Array.isArray(geocoding.results) ? geocoding.results : [];
+      const koreanQuery = /[가-힣]/.test(location);
+      place = (
+        koreanQuery
+          ? candidates.find((candidate: unknown) =>
+              String((candidate as Record<string, unknown>)?.country_code || '').toUpperCase() === 'KR'
+            ) || candidates[0]
+          : candidates[0]
+      ) as Record<string, unknown> | undefined;
+    }
 
     // Open-Meteo 지명 검색은 한글 표기를 찾지 못하는 경우가 있어
     // 사용자 요청 단위로만 OpenStreetMap Nominatim을 보조 지오코더로 사용한다.
