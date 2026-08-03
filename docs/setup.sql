@@ -145,6 +145,50 @@ drop policy if exists "요구사항 상태 변경" on public.user_requests;
 create policy "요구사항 상태 변경" on public.user_requests
   for update using (true) with check (true);
 
+-- 요구사항 게시글 답글
+create table if not exists public.user_request_comments (
+  id          uuid primary key default gen_random_uuid(),
+  request_id  uuid not null references public.user_requests(id) on delete cascade,
+  content     text not null check (char_length(content) between 1 and 3000),
+  user_email  text not null,
+  user_name   text not null,
+  department  text not null default '',
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+create index if not exists user_request_comments_request_created_idx
+  on public.user_request_comments (request_id, created_at);
+
+insert into public.user_request_comments (
+  id, request_id, content, user_email, user_name, department, created_at, updated_at
+)
+select
+  log.id,
+  request.id,
+  log.question::jsonb ->> 'content',
+  log.user_email,
+  coalesce(log.user_name, ''),
+  coalesce(log.question::jsonb ->> 'department', ''),
+  log.created_at,
+  log.created_at
+from public.chat_logs as log
+join public.user_requests as request
+  on request.id::text = log.question::jsonb ->> 'request_id'
+where log.model = 'user_request_comment'
+  and char_length(coalesce(log.question::jsonb ->> 'content', '')) between 1 and 3000
+on conflict (id) do nothing;
+
+alter table public.user_request_comments enable row level security;
+
+drop policy if exists "요구사항 답글 조회" on public.user_request_comments;
+create policy "요구사항 답글 조회" on public.user_request_comments
+  for select using (true);
+
+drop policy if exists "요구사항 답글 등록" on public.user_request_comments;
+create policy "요구사항 답글 등록" on public.user_request_comments
+  for insert with check (true);
+
 -- ─── 관리자 대시보드 운영 이력 ──────────────────────────────
 create table if not exists public.admin_dashboard_records (
   id               uuid primary key default gen_random_uuid(),
