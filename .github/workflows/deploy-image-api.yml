@@ -8,6 +8,7 @@ on:
       - '.github/workflows/deploy-image-api.yml'
       - 'supabase/config.toml'
       - 'supabase/functions/image-api/**'
+      - 'supabase/functions/_shared/sensitive-data.ts'
 
 jobs:
   deploy:
@@ -28,6 +29,10 @@ jobs:
           test -n "$SUPABASE_ACCESS_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
           test -n "$CLOUDFLARE_API_TOKEN"
+          if [[ ! "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]]; then
+            echo "CLOUDFLARE_ACCOUNT_ID must be the 32-character Account ID from Workers AI, not an email address."
+            exit 1
+          fi
 
       - name: Configure Cloudflare image API secrets
         env:

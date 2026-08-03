@@ -1,4 +1,5 @@
 import { buildRagContext } from './rag.ts';
+import { detectSensitiveData } from '../_shared/sensitive-data.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,34 +27,6 @@ function validMessages(value: unknown): value is Array<{ role: string; content: 
     allowedRoles.has(String((message as Record<string, unknown>).role)) &&
     typeof (message as Record<string, unknown>).content === 'string'
   );
-}
-
-function isValidCardNumber(candidate: string) {
-  const digits = candidate.replace(/\D/g, '');
-  if (digits.length < 13 || digits.length > 19 || /^(\d)\1+$/.test(digits)) return false;
-  let sum = 0;
-  let doubleDigit = false;
-  for (let i = digits.length - 1; i >= 0; i--) {
-    let digit = Number(digits[i]);
-    if (doubleDigit) {
-      digit *= 2;
-      if (digit > 9) digit -= 9;
-    }
-    sum += digit;
-    doubleDigit = !doubleDigit;
-  }
-  return sum % 10 === 0;
-}
-
-function detectSensitiveData(value: string) {
-  const detected = new Set<string>();
-  if (/\b\d{6}\s*[- ]?\s*[1-8]\d{6}\b/.test(value)) detected.add('주민·외국인등록번호');
-  if (/\b01[016789](?:[-.\s]?\d){7,8}\b/.test(value)) detected.add('휴대전화번호');
-  if (/\b[MSROD]\d{8}\b/i.test(value)) detected.add('여권번호');
-  if (/계좌(?:\s*번호)?\s*[:：]?\s*\d(?:[-\s]?\d){8,15}/.test(value)) detected.add('계좌번호');
-  const cardCandidates = value.match(/(?:\d[ -]?){13,19}/g) || [];
-  if (cardCandidates.some(isValidCardNumber)) detected.add('카드번호');
-  return [...detected];
 }
 
 function shouldRetry(response: Response) {
@@ -111,8 +84,9 @@ Deno.serve(async (request) => {
       return json({ error: 'A valid text messages array is required' }, 400);
     }
 
+    const requestMessages = body.messages as Array<{ role: string; content: string }>;
     const sensitiveTypes = new Set<string>();
-    for (const message of body.messages) {
+    for (const message of requestMessages.filter((message) => message.role === 'user')) {
       for (const type of detectSensitiveData(message.content)) sensitiveTypes.add(type);
     }
     if (sensitiveTypes.size > 0) {
@@ -123,7 +97,7 @@ Deno.serve(async (request) => {
       }, 400);
     }
 
-    let messages = body.messages as Array<{ role: string; content: string }>;
+    let messages = requestMessages;
     try {
       const ragContext = await buildRagContext(body.rag_query);
       if (ragContext) {

@@ -1,3 +1,5 @@
+import { resolveMidtermRegion } from './midterm-regions.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -5,6 +7,7 @@ const corsHeaders = {
 };
 
 const retryableStatuses = new Set([429, 500, 502, 503, 504]);
+const kmaMidtermBaseUrl = 'https://apis.data.go.kr/1360000/MidFcstInfoService';
 const koreaWeatherPoints = [
   { name: '서울', latitude: 37.5665, longitude: 126.9780 },
   { name: '인천', latitude: 37.4563, longitude: 126.7052 },
@@ -76,7 +79,149 @@ function itemAt(value: unknown, index: number) {
   return Array.isArray(value) ? value[index] : null;
 }
 
-async function koreaNationwideWeather() {
+function dateInSeoul(value: Date) {
+  return new Date(value.getTime() + 9 * 60 * 60 * 1000);
+}
+
+function kmaTimestamp(value: Date) {
+  const seoul = dateInSeoul(value);
+  const pad = (number: number) => String(number).padStart(2, '0');
+  return `${seoul.getUTCFullYear()}${pad(seoul.getUTCMonth() + 1)}${pad(seoul.getUTCDate())}${pad(seoul.getUTCHours())}00`;
+}
+
+function kmaIssueCandidates(now = new Date()) {
+  const seoul = dateInSeoul(now);
+  const hour = seoul.getUTCHours();
+  const issueHour = hour >= 18 ? 18 : (hour >= 6 ? 6 : -6);
+  const latestUtc = new Date(Date.UTC(
+    seoul.getUTCFullYear(),
+    seoul.getUTCMonth(),
+    seoul.getUTCDate(),
+    issueHour - 9,
+  ));
+  return [0, 1, 2].map((index) => kmaTimestamp(new Date(latestUtc.getTime() - index * 12 * 60 * 60 * 1000)));
+}
+
+function normalizedServiceKey(value: string) {
+  try {
+    return decodeURIComponent(value.trim());
+  } catch {
+    return value.trim();
+  }
+}
+
+function kmaItem(payload: Record<string, unknown>) {
+  const response = (payload.response || {}) as Record<string, unknown>;
+  const header = (response.header || {}) as Record<string, unknown>;
+  const body = (response.body || {}) as Record<string, unknown>;
+  const items = (body.items || {}) as Record<string, unknown>;
+  const rawItem = items.item;
+  const item = Array.isArray(rawItem) ? rawItem[0] : rawItem;
+  const resultCode = String(header.resultCode ?? '');
+  return {
+    item: item && typeof item === 'object' ? item as Record<string, unknown> : null,
+    normal: ['0', '00'].includes(resultCode),
+    resultCode,
+    resultMessage: String(header.resultMsg || ''),
+  };
+}
+
+async function fetchKmaItem(apiKey: string, endpoint: string, regionId: string, idParameter = 'regId') {
+  let lastMessage = '';
+  for (const tmFc of kmaIssueCandidates()) {
+    const url = new URL(`${kmaMidtermBaseUrl}/${endpoint}`);
+    url.searchParams.set('serviceKey', normalizedServiceKey(apiKey));
+    url.searchParams.set('numOfRows', '10');
+    url.searchParams.set('pageNo', '1');
+    url.searchParams.set('dataType', 'JSON');
+    url.searchParams.set(idParameter, regionId);
+    url.searchParams.set('tmFc', tmFc);
+    try {
+      const payload = await fetchJson(url);
+      const result = kmaItem(payload);
+      if (result.normal && result.item) return { item: result.item, tmFc };
+      lastMessage = `${result.resultCode} ${result.resultMessage}`.trim();
+    } catch (error) {
+      lastMessage = error instanceof Error ? error.message : '기상청 중기예보 조회 실패';
+    }
+  }
+  throw new Error(lastMessage || '기상청 최신 중기예보 자료를 찾지 못했습니다.');
+}
+
+async function kmaMidtermOutlook(apiKey: string) {
+  const forecast = await fetchKmaItem(apiKey, 'getMidFcst', '108', 'stnId');
+  return {
+    issued_at: forecast.tmFc,
+    text: String(forecast.item.wfSv || '').trim(),
+    source: '기상청 중기예보 조회서비스',
+    source_url: 'https://www.data.go.kr/data/15059468/openapi.do',
+  };
+}
+
+function isoDateAfterIssue(tmFc: string, days: number) {
+  const year = Number(tmFc.slice(0, 4));
+  const month = Number(tmFc.slice(4, 6));
+  const day = Number(tmFc.slice(6, 8));
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return date.toISOString().slice(0, 10);
+}
+
+async function kmaMidtermForecast(apiKey: string, location: string, place: Record<string, unknown>) {
+  const region = resolveMidtermRegion(location, place.name, place.admin1);
+  if (!region) return null;
+  const [land, temperature] = await Promise.all([
+    fetchKmaItem(apiKey, 'getMidLandFcst', region.landCode),
+    fetchKmaItem(apiKey, 'getMidTa', region.temperatureCode),
+  ]);
+  const issuedAt = temperature.tmFc || land.tmFc;
+  const daily = [];
+  for (let day = 4; day <= 10; day += 1) {
+    const weatherAm = day <= 7 ? String(land.item[`wf${day}Am`] || '') : String(land.item[`wf${day}`] || '');
+    const weatherPm = day <= 7 ? String(land.item[`wf${day}Pm`] || '') : '';
+    const rainAm = day <= 7 ? numberOrNull(land.item[`rnSt${day}Am`]) : numberOrNull(land.item[`rnSt${day}`]);
+    const rainPm = day <= 7 ? numberOrNull(land.item[`rnSt${day}Pm`]) : null;
+    const minTemperature = numberOrNull(temperature.item[`taMin${day}`]);
+    const maxTemperature = numberOrNull(temperature.item[`taMax${day}`]);
+    const rainValues = [rainAm, rainPm].filter((value): value is number => value !== null);
+    if (!weatherAm && !weatherPm && minTemperature === null && maxTemperature === null) continue;
+    daily.push({
+      date: isoDateAfterIssue(issuedAt, day),
+      weather_text: weatherPm && weatherPm !== weatherAm ? `${weatherAm} / ${weatherPm}` : (weatherAm || weatherPm),
+      weather_am: weatherAm,
+      weather_pm: weatherPm,
+      min_temperature: minTemperature,
+      max_temperature: maxTemperature,
+      precipitation_probability: rainValues.length ? Math.max(...rainValues) : null,
+      precipitation_probability_am: rainAm,
+      precipitation_probability_pm: rainPm,
+    });
+  }
+  return {
+    region_name: region.name,
+    land_region_code: region.landCode,
+    temperature_region_code: region.temperatureCode,
+    issued_at: issuedAt,
+    daily,
+    source: '기상청 중기예보 조회서비스',
+    source_url: 'https://www.data.go.kr/data/15059468/openapi.do',
+  };
+}
+
+function openMeteoMidtermFallback(dailyItems: Array<Record<string, unknown>>) {
+  return {
+    region_name: '',
+    issued_at: '',
+    daily: dailyItems.slice(4, 11),
+    source: 'Open-Meteo',
+    source_url: 'https://open-meteo.com/',
+    fallback_used: true,
+  };
+}
+
+async function koreaNationwideWeather(kmaApiKey = '') {
+  const kmaOutlookPromise = kmaApiKey
+    ? kmaMidtermOutlook(kmaApiKey).catch(() => null)
+    : Promise.resolve(null);
   const forecastUrl = new URL('https://api.open-meteo.com/v1/forecast');
   forecastUrl.searchParams.set('latitude', koreaWeatherPoints.map((point) => point.latitude).join(','));
   forecastUrl.searchParams.set('longitude', koreaWeatherPoints.map((point) => point.longitude).join(','));
@@ -127,6 +272,7 @@ async function koreaNationwideWeather() {
     reference_location: '서울',
     current_time: regions[0]?.current.time || '',
     regions,
+    midterm_outlook: await kmaOutlookPromise,
     source: 'Open-Meteo',
     source_url: 'https://open-meteo.com/',
   };
@@ -138,8 +284,9 @@ Deno.serve(async (request) => {
 
   try {
     const body = await request.json();
+    const kmaApiKey = Deno.env.get('MIDFCSTINFOSERVICE')?.trim() || '';
     if (body?.scope === 'korea') {
-      return json(await koreaNationwideWeather());
+      return json(await koreaNationwideWeather(kmaApiKey));
     }
 
     const location = typeof body?.location === 'string' ? body.location.trim() : '';
@@ -210,6 +357,10 @@ Deno.serve(async (request) => {
       return json({ error: '조회 지역의 좌표를 확인할 수 없습니다.', code: 'WEATHER_LOCATION_INVALID' }, 502);
     }
 
+    const kmaForecastPromise = kmaApiKey
+      ? kmaMidtermForecast(kmaApiKey, location, place).catch(() => null)
+      : Promise.resolve(null);
+
     const forecastUrl = new URL('https://api.open-meteo.com/v1/forecast');
     forecastUrl.searchParams.set('latitude', String(latitude));
     forecastUrl.searchParams.set('longitude', String(longitude));
@@ -223,7 +374,8 @@ Deno.serve(async (request) => {
       'weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,sunrise,sunset',
     );
     forecastUrl.searchParams.set('timezone', 'auto');
-    forecastUrl.searchParams.set('forecast_days', '3');
+    // 4~10일 기상청 조회 실패 시에만 사용할 보조 자료까지 한 번에 받는다.
+    forecastUrl.searchParams.set('forecast_days', '11');
     const forecast = await fetchJson(forecastUrl);
 
     const current = (forecast.current || {}) as Record<string, unknown>;
@@ -235,7 +387,7 @@ Deno.serve(async (request) => {
     const hourlyIndex = hourlyTimes.findIndex((time) => time.slice(0, 13) === currentHour);
     const currentCode = Number(current.weather_code);
     const dailyTimes = Array.isArray(daily.time) ? daily.time : [];
-    const dailyItems = dailyTimes.slice(0, 3).map((date, index) => {
+    const dailyItems = dailyTimes.slice(0, 11).map((date, index) => {
       const code = Number(itemAt(daily.weather_code, index));
       return {
         date: String(date),
@@ -250,6 +402,7 @@ Deno.serve(async (request) => {
       };
     });
 
+    const kmaMidterm = await kmaForecastPromise;
     return json({
       location: {
         query: location,
@@ -279,7 +432,8 @@ Deno.serve(async (request) => {
         wind_gusts: numberOrNull(current.wind_gusts_10m),
       },
       today: dailyItems[0] || null,
-      daily: dailyItems,
+      daily: dailyItems.slice(0, 3),
+      midterm: kmaMidterm?.daily.length ? kmaMidterm : openMeteoMidtermFallback(dailyItems),
       source: 'Open-Meteo',
       source_url: 'https://open-meteo.com/',
     });

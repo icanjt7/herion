@@ -1,3 +1,5 @@
+import { detectSensitiveData } from '../_shared/sensitive-data.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -5,6 +7,8 @@ const corsHeaders = {
 };
 
 const defaultModel = '@cf/black-forest-labs/flux-1-schnell';
+const accountIdPattern = /^[a-f0-9]{32}$/i;
+const modelPattern = /^@cf\/[a-z0-9._-]+\/[a-z0-9._-]+$/i;
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -17,34 +21,6 @@ function json(body: unknown, status = 200) {
   });
 }
 
-function isValidCardNumber(candidate: string) {
-  const digits = candidate.replace(/\D/g, '');
-  if (digits.length < 13 || digits.length > 19 || /^(\d)\1+$/.test(digits)) return false;
-  let sum = 0;
-  let doubleDigit = false;
-  for (let i = digits.length - 1; i >= 0; i--) {
-    let digit = Number(digits[i]);
-    if (doubleDigit) {
-      digit *= 2;
-      if (digit > 9) digit -= 9;
-    }
-    sum += digit;
-    doubleDigit = !doubleDigit;
-  }
-  return sum % 10 === 0;
-}
-
-function detectSensitiveData(value: string) {
-  const detected = new Set<string>();
-  if (/\b\d{6}\s*[- ]?\s*[1-8]\d{6}\b/.test(value)) detected.add('주민·외국인등록번호');
-  if (/\b01[016789](?:[-.\s]?\d){7,8}\b/.test(value)) detected.add('휴대전화번호');
-  if (/\b[MSROD]\d{8}\b/i.test(value)) detected.add('여권번호');
-  if (/계좌(?:\s*번호)?\s*[:：]?\s*\d(?:[-\s]?\d){8,15}/.test(value)) detected.add('계좌번호');
-  const cardCandidates = value.match(/(?:\d[ -]?){13,19}/g) || [];
-  if (cardCandidates.some(isValidCardNumber)) detected.add('카드번호');
-  return [...detected];
-}
-
 function cloudflareErrors(payload: Record<string, unknown>) {
   return Array.isArray(payload.errors)
     ? payload.errors.filter(error => error && typeof error === 'object') as Array<Record<string, unknown>>
@@ -53,6 +29,15 @@ function cloudflareErrors(payload: Record<string, unknown>) {
 
 function isDailyLimitError(status: number, payload: Record<string, unknown>) {
   return status === 429 && cloudflareErrors(payload).some(error => Number(error.code) === 3036);
+}
+
+function isCloudflareConfigurationError(status: number, payload: Record<string, unknown>) {
+  if (![400, 401, 403, 404].includes(status)) return false;
+  return cloudflareErrors(payload).some((error) => {
+    const code = Number(error.code);
+    const message = String(error.message || '');
+    return code === 7003 || /could not route|object identifier is invalid|authentication/i.test(message);
+  });
 }
 
 function imageDataUrl(value: string) {
@@ -66,13 +51,25 @@ Deno.serve(async (request) => {
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   try {
-    const accountId = Deno.env.get('CLOUDFLARE_ACCOUNT_ID');
+    const accountId = Deno.env.get('CLOUDFLARE_ACCOUNT_ID')?.trim();
     const apiToken = Deno.env.get('CLOUDFLARE_API_TOKEN');
-    const model = Deno.env.get('CLOUDFLARE_IMAGE_MODEL') || defaultModel;
+    const model = Deno.env.get('CLOUDFLARE_IMAGE_MODEL')?.trim() || defaultModel;
     if (!accountId || !apiToken) {
       return json({
         error: 'Cloudflare 이미지 생성 설정이 완료되지 않았습니다.',
         code: 'IMAGE_API_NOT_CONFIGURED',
+      }, 503);
+    }
+    if (!accountIdPattern.test(accountId)) {
+      return json({
+        error: 'Cloudflare Account ID 설정이 올바르지 않습니다. Workers AI의 32자리 Account ID를 확인해 주세요.',
+        code: 'INVALID_CLOUDFLARE_ACCOUNT_ID',
+      }, 503);
+    }
+    if (!modelPattern.test(model)) {
+      return json({
+        error: 'Cloudflare 이미지 모델 설정이 올바르지 않습니다.',
+        code: 'INVALID_CLOUDFLARE_IMAGE_MODEL',
       }, 503);
     }
 
@@ -121,12 +118,18 @@ Deno.serve(async (request) => {
         code: 'DAILY_LIMIT_EXHAUSTED',
       }, 429);
     }
+    if (isCloudflareConfigurationError(upstream.status, payload)) {
+      return json({
+        error: 'Cloudflare 이미지 생성 연결 설정을 확인해 주세요. Account ID와 API Token이 같은 계정의 값이어야 합니다.',
+        code: 'CLOUDFLARE_CONFIGURATION_ERROR',
+      }, 503);
+    }
     if (!upstream.ok || payload.success === false) {
       const errors = cloudflareErrors(payload);
-      const message = errors.map(error => String(error.message || '')).filter(Boolean).join(' / ');
       return json({
-        error: message || 'Cloudflare 이미지 생성 요청에 실패했습니다.',
+        error: 'Cloudflare 이미지 생성 요청에 실패했습니다.',
         code: upstream.status === 429 ? 'IMAGE_GENERATION_UNAVAILABLE' : 'CLOUDFLARE_API_ERROR',
+        upstream_codes: errors.map(error => Number(error.code)).filter(Number.isFinite),
       }, upstream.status || 502);
     }
 

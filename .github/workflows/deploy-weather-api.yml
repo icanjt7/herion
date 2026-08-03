@@ -22,7 +22,19 @@ jobs:
       - name: Validate deployment secret
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_KHA_PROJECT }}
-        run: test -n "$SUPABASE_ACCESS_TOKEN"
+          MIDFCSTINFOSERVICE: ${{ secrets.MIDFCSTINFOSERVICE }}
+        run: |
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          test -n "$MIDFCSTINFOSERVICE"
+
+      - name: Configure KMA mid-term forecast secret
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_KHA_PROJECT }}
+          MIDFCSTINFOSERVICE: ${{ secrets.MIDFCSTINFOSERVICE }}
+        run: |
+          supabase secrets set \
+            MIDFCSTINFOSERVICE="$MIDFCSTINFOSERVICE" \
+            --project-ref enpovkaknaxfgzanyghn
 
       - name: Deploy weather API function
         env:

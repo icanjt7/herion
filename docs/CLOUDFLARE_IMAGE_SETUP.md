@@ -22,6 +22,7 @@ Herian은 별도 이미지 생성 버튼 없이 다음과 같은 문장을 입�
 Workers AI의 **Use REST API** 화면에서 **Account ID**를 복사합니다.
 
 - 이 값은 계정 식별자입니다.
+- 영문 소문자와 숫자로 된 32자리 값입니다. 로그인 이메일 주소를 입력하면 안 됩니다.
 - API Token과 서로 다른 값입니다.
 
 ## 3. API Token 만들기
@@ -75,6 +76,7 @@ Cloudflare 무료 한도는 매일 00:00 UTC, 한국시간으로 오전 9시에 
 ## 문제 해결
 
 - **설정이 완료되지 않았다는 오류:** GitHub Secret 두 개의 이름과 값, 배포 워크플로 성공 여부를 확인합니다.
+- **Account ID가 올바르지 않다는 오류:** 이메일 주소가 아니라 Workers AI의 **Use REST API** 화면에 표시된 32자리 Account ID를 `CLOUDFLARE_ACCOUNT_ID`에 등록합니다.
 - **Cloudflare 인증 오류:** API Token을 새로 만들고 `CLOUDFLARE_API_TOKEN`을 교체한 뒤 워크플로를 다시 실행합니다.
 - **이미지가 생성되지 않음:** Cloudflare Workers AI 대시보드에서 사용량과 오류를 확인합니다.
 - **일반 문서 요청이 이미지로 처리됨:** `보고서`, `문서`, `표`, `파일`처럼 원하는 산출물 종류를 문장에 명시합니다.

@@ -193,7 +193,10 @@ use separate routing profiles so their departments are not mixed.
 Weather questions such as `서울 오늘 날씨` and `부산 내일 기온` are detected
 automatically without adding a toolbar menu. The browser calls the
 `weather-api` Supabase Edge Function, which geocodes the requested place and
-retrieves current conditions plus a three-day forecast from Open-Meteo. Answers
+retrieves current conditions plus a three-day forecast from Open-Meteo. For
+days 4 through 10, the proxy prioritizes the Korea Meteorological
+Administration Mid-term Forecast API (`getMidLandFcst` + `getMidTa`) and uses
+Open-Meteo only when the official mid-term data is unavailable. Answers
 can include the current and apparent temperature, humidity, precipitation
 probability, wind, and the day's minimum and maximum temperature with the local
 observation time and source link.
@@ -208,8 +211,10 @@ Open-Meteo Geocoding is used first. When it cannot resolve a Korean-language
 place name, the proxy uses OpenStreetMap Nominatim as a user-triggered fallback
 and includes the applicable attribution link.
 
-The proxy requires only the existing `SUPABASE_KHA_PROJECT` deployment secret;
-Open-Meteo does not require a browser-exposed API key for this integration.
+Add the data.go.kr service key as the repository secret `MIDFCSTINFOSERVICE`.
+The weather deployment workflow copies it to the Supabase Edge Function secret;
+the key is never included in the browser bundle. The existing
+`SUPABASE_KHA_PROJECT` deployment secret is also required.
 
 Herian parses PDF, DOCX, PPTX, XLSX/XLS/XLSB/ODS, HWPX, and text attachments in
 the browser when the optional document service is unavailable. Spreadsheet

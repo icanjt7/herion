@@ -8,6 +8,7 @@ on:
       - '.github/workflows/deploy-motif-api.yml'
       - 'supabase/config.toml'
       - 'supabase/functions/motif-api/**'
+      - 'supabase/functions/_shared/sensitive-data.ts'
 
 jobs:
   deploy:
