@@ -1,4 +1,10 @@
-import { extractNamedRuleTerms, namedRuleTitleBoost, unitTypeQueryBoost } from './rag.ts';
+import {
+  expandRagQueryText,
+  extractNamedRuleTerms,
+  isTravelExpenseNonPaymentQuestion,
+  namedRuleTitleBoost,
+  unitTypeQueryBoost,
+} from './rag.ts';
 
 function assertEquals(actual: unknown, expected: unknown) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
@@ -27,4 +33,15 @@ Deno.test('boosts handbook Q&A and form chunks for matching request styles', () 
   assertEquals(unitTypeQueryBoost('qa', '육아휴직은 언제 신청할 수 있나요?'), 9);
   assertEquals(unitTypeQueryBoost('form', '유연근무제 신청서 양식을 찾아줘'), 11);
   assertEquals(unitTypeQueryBoost('body', '유연근무제 신청 절차를 알려줘'), 0);
+  assertEquals(unitTypeQueryBoost('qa', '출장비를 못 받는 경우가 있나?'), 0);
+});
+
+Deno.test('expands broad travel expense non-payment questions with every explicit restriction', () => {
+  const query = '근무지내 출장시 출장비를 못 받는 경우가 있나?';
+  assertEquals(isTravelExpenseNonPaymentQuestion(query), true);
+  const expanded = expandRagQueryText(query);
+  assertEquals(expanded.includes('운전업무 담당 직원'), true);
+  assertEquals(expanded.includes('편도 1km 이내'), true);
+  assertEquals(expanded.includes('출장 처리 필수'), true);
+  assertEquals(expandRagQueryText('근무지내 출장의 정의를 알려줘'), '근무지내 출장의 정의를 알려줘');
 });
