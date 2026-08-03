@@ -1,10 +1,33 @@
 import {
+  applyRagOverrides,
   expandRagQueryText,
   extractNamedRuleTerms,
   isTravelExpenseNonPaymentQuestion,
   namedRuleTitleBoost,
   unitTypeQueryBoost,
 } from './rag.ts';
+
+const baseChunk = {
+  id: 'base-1', document_title: '복무 편람', chapter_title: '출장', section_title: '여비',
+  text: '원문', collection: 'rules', source_file: 'handbook.md', revision_basis: '2026.05.01.',
+  source_line_start: 1, source_line_end: 2, checksum_sha256: 'base-checksum',
+};
+
+Deno.test('admin override replaces, disables, and extends the registered corpus', () => {
+  const common = {
+    id: 'override-1', base_chunk_id: 'base-1', document_title: '복무 편람', chapter_title: '출장',
+    section_title: '여비', text: '관리자 수정문', collection: 'rules', source_file: 'handbook.md',
+    revision_basis: '2026.08.03.', source_line_start: 1, source_line_end: 2, unit_type: null,
+    related_regulations: [], department: null, is_active: true, updated_at: '2026-08-03T00:00:00Z',
+    updated_by_email: 'admin@kh.or.kr',
+  };
+  const replaced = applyRagOverrides([baseChunk], [common]);
+  if (replaced.length !== 1 || replaced[0].text !== '관리자 수정문') throw new Error('override was not applied');
+  const disabled = applyRagOverrides([baseChunk], [{ ...common, is_active: false }]);
+  if (disabled.length !== 0) throw new Error('disabled base chunk remained searchable');
+  const custom = applyRagOverrides([baseChunk], [{ ...common, id: 'custom-1', base_chunk_id: null }]);
+  if (custom.length !== 2 || !custom.some((chunk) => chunk.id === 'custom:custom-1')) throw new Error('custom chunk missing');
+});
 
 function assertEquals(actual: unknown, expected: unknown) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {

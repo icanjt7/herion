@@ -22,6 +22,7 @@ window.HERION_CONFIG = {
 
   // ─── Motif AI API ──────────────────────────────────────────────
   motifApiProxyUrl: 'https://enpovkaknaxfgzanyghn.supabase.co/functions/v1/motif-api',
+  ragAdminApiUrl: 'https://enpovkaknaxfgzanyghn.supabase.co/functions/v1/rag-admin-api',
   imageApiProxyUrl: 'https://enpovkaknaxfgzanyghn.supabase.co/functions/v1/image-api',
   motifModels: [
     { id: 'motif3', label: 'Motif3 300B' }

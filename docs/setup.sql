@@ -1,6 +1,9 @@
 -- Herian: Supabase 초기 설정 SQL
 -- Supabase Dashboard → SQL Editor 에서 전체 실행하세요.
 
+-- RAG 관리용 운영 오버레이는 supabase/migrations/20260803100000_rag_chunk_overrides.sql을
+-- 함께 실행합니다. 암호화된 기본 코퍼스는 유지하고 관리자 수정본과 변경 이력만 저장합니다.
+
 -- 기존 profiles 테이블/트리거 정리
 drop trigger if exists on_auth_user_created on auth.users;
 drop function if exists public.handle_new_user();

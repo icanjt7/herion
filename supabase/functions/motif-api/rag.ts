@@ -4,7 +4,7 @@ import {
   WORK_HANDBOOK_RAG_CORPUS_METADATA,
 } from './rag-corpus-work-handbook.ts';
 
-type RagChunk = {
+export type RagChunk = {
   id: string;
   document_title: string;
   chapter_title: string;
@@ -19,6 +19,35 @@ type RagChunk = {
   unit_type?: string;
   related_regulations?: string[];
   department?: string;
+};
+
+export type RagChunkOverride = {
+  id: string;
+  base_chunk_id: string | null;
+  document_title: string;
+  chapter_title: string;
+  section_title: string;
+  text: string;
+  collection: string;
+  source_file: string;
+  revision_basis: string;
+  source_line_start: number | null;
+  source_line_end: number | null;
+  unit_type: string | null;
+  related_regulations: string[] | null;
+  department: string | null;
+  is_active: boolean;
+  updated_at: string;
+  updated_by_email: string;
+};
+
+type AdminRagChunk = RagChunk & {
+  base_chunk_id: string | null;
+  override_id: string | null;
+  is_override: boolean;
+  is_active: boolean;
+  updated_at: string | null;
+  updated_by_email: string | null;
 };
 
 type IndexedChunk = RagChunk & {
@@ -78,7 +107,13 @@ const STOP_WORDS = new Set([
   '알려줘', '무엇', '어떻게', '관련', '내용', '기준', '경우', '국가유산진흥원',
 ]);
 
-let indexPromise: Promise<{ chunks: IndexedChunk[]; documentFrequency: Map<string, number> }> | null = null;
+let baseChunksPromise: Promise<RagChunk[]> | null = null;
+let effectiveIndexCache: {
+  expiresAt: number;
+  value: Promise<{ chunks: IndexedChunk[]; documentFrequency: Map<string, number> }>;
+} | null = null;
+let overrideCache: { expiresAt: number; value: Promise<RagChunkOverride[]> } | null = null;
+const OVERRIDE_CACHE_MS = 15_000;
 
 function decodeBase64(value: string) {
   const binary = atob(value);
@@ -149,10 +184,76 @@ async function decryptCorpus(descriptor: CorpusDescriptor) {
   return chunks;
 }
 
-async function loadIndex() {
-  if (indexPromise) return indexPromise;
-  indexPromise = (async () => {
-    const source = (await Promise.all(CORPORA.map(decryptCorpus))).flat();
+async function loadBaseChunks() {
+  if (baseChunksPromise) return baseChunksPromise;
+  baseChunksPromise = Promise.all(CORPORA.map(decryptCorpus))
+    .then((corpora) => corpora.flat())
+    .catch((error) => {
+      baseChunksPromise = null;
+      throw error;
+    });
+  return baseChunksPromise;
+}
+
+async function loadOverrides(force = false) {
+  const now = Date.now();
+  if (!force && overrideCache && overrideCache.expiresAt > now) return overrideCache.value;
+  const value = (async () => {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')?.replace(/\/$/, '') || '';
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    if (!supabaseUrl || !serviceKey) return [];
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/rag_chunk_overrides?select=*&order=updated_at.desc`,
+      { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+    );
+    if (response.status === 404) return [];
+    if (!response.ok) throw new Error(`RAG override lookup failed (${response.status})`);
+    const rows = await response.json();
+    return Array.isArray(rows) ? rows as RagChunkOverride[] : [];
+  })().catch((error) => {
+    overrideCache = null;
+    console.error(error instanceof Error ? error.message : error);
+    return [];
+  });
+  overrideCache = { expiresAt: now + OVERRIDE_CACHE_MS, value };
+  return value;
+}
+
+function toRagChunk(override: RagChunkOverride): RagChunk {
+  return {
+    id: override.base_chunk_id || `custom:${override.id}`,
+    document_title: override.document_title,
+    chapter_title: override.chapter_title,
+    section_title: override.section_title,
+    text: override.text,
+    collection: override.collection,
+    source_file: override.source_file,
+    revision_basis: override.revision_basis,
+    source_line_start: override.source_line_start,
+    source_line_end: override.source_line_end,
+    checksum_sha256: `override:${override.id}:${override.updated_at}`,
+    unit_type: override.unit_type || undefined,
+    related_regulations: override.related_regulations || undefined,
+    department: override.department || undefined,
+  };
+}
+
+export function applyRagOverrides(baseChunks: RagChunk[], overrides: RagChunkOverride[]) {
+  const byBaseId = new Map(
+    overrides.filter((row) => row.base_chunk_id).map((row) => [row.base_chunk_id as string, row]),
+  );
+  const effective = baseChunks.flatMap((chunk) => {
+    const override = byBaseId.get(chunk.id);
+    if (!override) return [chunk];
+    return override.is_active ? [toRagChunk(override)] : [];
+  });
+  for (const override of overrides) {
+    if (!override.base_chunk_id && override.is_active) effective.push(toRagChunk(override));
+  }
+  return effective;
+}
+
+function buildIndex(source: RagChunk[]) {
     const documentFrequency = new Map<string, number>();
     const chunks = source.map((chunk) => {
       const titleTokens = new Set(tokenize(chunk.document_title));
@@ -182,11 +283,80 @@ async function loadIndex() {
       };
     });
     return { chunks, documentFrequency };
-  })().catch((error) => {
-    indexPromise = null;
-    throw error;
+}
+
+async function loadIndex() {
+  const now = Date.now();
+  if (effectiveIndexCache && effectiveIndexCache.expiresAt > now) return effectiveIndexCache.value;
+  const value = Promise.all([loadBaseChunks(), loadOverrides()])
+    .then(([base, overrides]) => buildIndex(applyRagOverrides(base, overrides)))
+    .catch((error) => {
+      effectiveIndexCache = null;
+      throw error;
+    });
+  effectiveIndexCache = { expiresAt: now + OVERRIDE_CACHE_MS, value };
+  return value;
+}
+
+export function invalidateRagOverrideCache() {
+  overrideCache = null;
+  effectiveIndexCache = null;
+}
+
+export async function listRagChunksForAdmin(options: {
+  query?: string;
+  document?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  const [base, overrides] = await Promise.all([loadBaseChunks(), loadOverrides(true)]);
+  const overrideByBase = new Map(
+    overrides.filter((row) => row.base_chunk_id).map((row) => [row.base_chunk_id as string, row]),
+  );
+  const items: AdminRagChunk[] = base.map((chunk) => {
+    const override = overrideByBase.get(chunk.id);
+    return {
+      ...(override ? toRagChunk(override) : chunk),
+      base_chunk_id: chunk.id,
+      override_id: override?.id || null,
+      is_override: Boolean(override),
+      is_active: override?.is_active ?? true,
+      updated_at: override?.updated_at || null,
+      updated_by_email: override?.updated_by_email || null,
+    };
   });
-  return indexPromise;
+  for (const override of overrides.filter((row) => !row.base_chunk_id)) {
+    items.push({
+      ...toRagChunk(override),
+      base_chunk_id: null,
+      override_id: override.id,
+      is_override: true,
+      is_active: override.is_active,
+      updated_at: override.updated_at,
+      updated_by_email: override.updated_by_email,
+    });
+  }
+
+  const query = (options.query || '').normalize('NFC').toLowerCase().trim();
+  const document = (options.document || '').normalize('NFC').trim();
+  const filtered = items.filter((item) => {
+    if (document && item.document_title !== document) return false;
+    if (!query) return true;
+    return [item.id, item.document_title, item.chapter_title, item.section_title, item.text]
+      .some((value) => String(value || '').normalize('NFC').toLowerCase().includes(query));
+  });
+  const pageSize = Math.min(50, Math.max(10, Math.floor(options.pageSize || 20)));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const page = Math.min(totalPages, Math.max(1, Math.floor(options.page || 1)));
+  const start = (page - 1) * pageSize;
+  return {
+    items: filtered.slice(start, start + pageSize),
+    page,
+    page_size: pageSize,
+    total: filtered.length,
+    total_pages: totalPages,
+    documents: [...new Set(items.map((item) => item.document_title))].sort((a, b) => a.localeCompare(b, 'ko')),
+  };
 }
 
 function scoreChunk(
