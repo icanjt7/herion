@@ -161,6 +161,18 @@ source package are currently null; the deployed retrieval is therefore sparse
 RAG and can be upgraded to hybrid vector retrieval later without changing the
 chunk IDs.
 
+Rich chunk packages may also provide `major_section`, `topic`, `subsection`,
+`minor_heading`, `unit_title`, `unit_type`, and `related_regulations`; the
+builder maps these fields into searchable hierarchy and metadata. The 2026-05-01
+work handbook is stored as a separate encrypted corpus and uses the repository
+secret `RAG_WORK_HANDBOOK_KEY`, so neither its plaintext nor its key is included
+in the public bundle.
+
+The handbook build also passes `--form-inventory`, `--document-title`,
+`--source-file`, `--revision`, and `--department`. Image-only forms become
+explicit limitation chunks that confirm the form exists while directing users
+to the original handbook or responsible department instead of inventing fields.
+
 ## Web Search Proxy
 
 Herian automatically performs a Tavily web search when the user explicitly asks
