@@ -1344,6 +1344,38 @@ function isValidCardNumber(candidate) {
   return sum % 10 === 0;
 }
 
+function hasKnownCardIssuerPrefix(digits) {
+  const firstTwo = Number(digits.slice(0, 2));
+  const firstThree = Number(digits.slice(0, 3));
+  const firstFour = Number(digits.slice(0, 4));
+  const firstSix = Number(digits.slice(0, 6));
+  return digits.startsWith('4')
+    || (firstTwo >= 51 && firstTwo <= 55)
+    || (firstFour >= 2221 && firstFour <= 2720)
+    || ['34', '37', '36', '38', '39', '62', '65'].includes(digits.slice(0, 2))
+    || digits.startsWith('6011')
+    || (firstThree >= 300 && firstThree <= 305)
+    || (firstThree >= 644 && firstThree <= 649)
+    || (firstFour >= 3528 && firstFour <= 3589)
+    || (firstSix >= 622126 && firstSix <= 622925);
+}
+
+function containsCardNumber(value) {
+  const matches = [
+    ...value.matchAll(/(?<!\d)\d{13,19}(?!\d)/g),
+    ...value.matchAll(/(?<!\d)\d{4}([ -])\d{4,6}(?:\1\d{4,5}){1,2}(?!\d)/g)
+  ];
+  return matches.some(match => {
+    if (!isValidCardNumber(match[0])) return false;
+    const digits = match[0].replace(/\D/g, '');
+    const start = Math.max(0, Number(match.index) - 32);
+    const end = Math.min(value.length, Number(match.index) + match[0].length + 32);
+    const context = value.slice(start, end);
+    return hasKnownCardIssuerPrefix(digits)
+      || /(?:카드|신용|체크|결제|유효\s*기간|CVC|CVV|card)/i.test(context);
+  });
+}
+
 function detectSensitiveData(value) {
   const text = String(value || '');
   const detected = new Set();
@@ -1351,8 +1383,7 @@ function detectSensitiveData(value) {
   if (/\b01[016789](?:[-.\s]?\d){7,8}\b/.test(text)) detected.add('휴대전화번호');
   if (/\b[MSROD]\d{8}\b/i.test(text)) detected.add('여권번호');
   if (/계좌(?:\s*번호)?\s*[:：]?\s*\d(?:[-\s]?\d){8,15}/.test(text)) detected.add('계좌번호');
-  const cardCandidates = text.match(/(?:\d[ -]?){13,19}/g) || [];
-  if (cardCandidates.some(isValidCardNumber)) detected.add('카드번호');
+  if (containsCardNumber(text)) detected.add('카드번호');
   return [...detected];
 }
 
@@ -1704,7 +1735,11 @@ async function fetchMotifCompletion(payload, options = {}) {
     signal: options.signal
   });
   if (!response.ok) {
-    throw new Error(`Motif API 오류 ${response.status}: ${await response.text()}`);
+    const payload = await response.json().catch(() => ({}));
+    const error = new Error(payload.error || `Motif API 오류 ${response.status}`);
+    error.code = payload.code || 'MOTIF_API_ERROR';
+    error.detectedTypes = Array.isArray(payload.detected_types) ? payload.detected_types : [];
+    throw error;
   }
   return response;
 }
@@ -2347,8 +2382,18 @@ function weatherResponseMarkdown(data) {
       markdown += `| ${weatherValue(today.precipitation_probability, '%')} `;
       markdown += `| ${weatherValue(current.wind_speed, 'km/h')} |\n`;
     });
+    if (data.midterm_outlook?.text) {
+      const issuedAt = String(data.midterm_outlook.issued_at || '');
+      const issuedLabel = issuedAt.length === 12
+        ? `${issuedAt.slice(0, 4)}-${issuedAt.slice(4, 6)}-${issuedAt.slice(6, 8)} ${issuedAt.slice(8, 10)}:${issuedAt.slice(10, 12)}`
+        : '';
+      markdown += `\n### 기상청 중기 전망${issuedLabel ? ` (${issuedLabel} KST 발표)` : ''}\n\n`;
+      markdown += `${weatherMarkdownCell(data.midterm_outlook.text)}\n`;
+    }
     markdown += '\n> 현재 상태와 오늘 예보는 기상 모델 자료이며 실제 관측과 차이가 있을 수 있습니다.\n\n';
-    markdown += '출처: [Open-Meteo 날씨 데이터](https://open-meteo.com/)\n';
+    markdown += data.midterm_outlook?.text
+      ? '출처: [기상청 중기예보 조회서비스](https://www.data.go.kr/data/15059468/openapi.do) · [Open-Meteo 현재 날씨 데이터](https://open-meteo.com/)\n'
+      : '출처: [Open-Meteo 날씨 데이터](https://open-meteo.com/)\n';
     return markdown;
   }
 
@@ -2379,8 +2424,30 @@ function weatherResponseMarkdown(data) {
       markdown += `| ${weatherValue(day.precipitation_probability, '%')} |\n`;
     });
   }
+  const midterm = data?.midterm || {};
+  const midtermDaily = Array.isArray(midterm.daily) ? midterm.daily : [];
+  if (midtermDaily.length) {
+    const issuedAt = String(midterm.issued_at || '');
+    const issuedLabel = issuedAt.length === 12
+      ? `${issuedAt.slice(0, 4)}-${issuedAt.slice(4, 6)}-${issuedAt.slice(6, 8)} ${issuedAt.slice(8, 10)}:${issuedAt.slice(10, 12)}`
+      : '';
+    markdown += `\n### 4~10일 중기예보${midterm.region_name ? ` (${weatherMarkdownCell(midterm.region_name)})` : ''}\n\n`;
+    if (issuedLabel) markdown += `기상청 발표 시각: **${issuedLabel} KST**\n\n`;
+    markdown += '| 날짜 | 날씨(오전 / 오후) | 최저 | 최고 | 강수확률 |\n';
+    markdown += '|---|---|---:|---:|---:|\n';
+    midtermDaily.forEach((day) => {
+      markdown += `| ${weatherMarkdownCell(day.date)} | ${weatherMarkdownCell(day.weather_text || '확인 필요')} `;
+      markdown += `| ${weatherValue(day.min_temperature, '°C')} | ${weatherValue(day.max_temperature, '°C')} `;
+      markdown += `| ${weatherValue(day.precipitation_probability, '%')} |\n`;
+    });
+    if (midterm.fallback_used) {
+      markdown += '\n> 기상청 중기예보를 조회하지 못해 중기 구간은 보조 기상 모델 자료를 표시했습니다.\n';
+    }
+  }
   markdown += '\n> 현재 상태와 예보는 기상 모델 자료이며 실제 관측과 차이가 있을 수 있습니다.\n\n';
-  markdown += '출처: [Open-Meteo 날씨 데이터](https://open-meteo.com/)';
+  markdown += midtermDaily.length && !midterm.fallback_used
+    ? '출처: [기상청 중기예보 조회서비스](https://www.data.go.kr/data/15059468/openapi.do) · [Open-Meteo 현재·단기 날씨 데이터](https://open-meteo.com/)'
+    : '출처: [Open-Meteo 날씨 데이터](https://open-meteo.com/)';
   if (place.geocoding_source === 'OpenStreetMap Nominatim') {
     markdown += ' · [지명 데이터 © OpenStreetMap contributors](https://www.openstreetmap.org/copyright)';
   }
@@ -3983,8 +4050,10 @@ function wantsImageGeneration(value) {
 
   const drawCommand = /그려\s*(?:줘|주세요|줄래|줘요|봐|보세요)?(?:\s|[.!?,]|$)/;
   const imageNoun = /(그림|이미지|일러스트|삽화|포스터|배너|로고|사진|캐릭터|초상화)/;
-  const createCommand = /(생성|만들어|만들기|제작|그려)/;
-  const englishCommand = /\b(?:draw|generate|create|make)\b[\s\S]*\b(?:image|picture|illustration|poster|banner|logo|photo)\b/i;
+  // 명사형 표현(예: "이미지 생성 AI")은 생성 명령이 아니다. 실제 요청형 어미가
+  // 붙은 경우만 이미지 생성으로 분기해 문장 검토 등의 일반 질문을 가로채지 않는다.
+  const createCommand = /(?:생성|제작)\s*(?:해\s*(?:줘|주세요|줘요|줄래)?|해주세요|해줘|하라|하세요)(?=\s|[.!?,]|$)|만들(?:어\s*(?:줘|주세요|줘요|줄래)?|어주세요|어줘|기)(?=\s|[.!?,]|$)|그려\s*(?:줘|주세요|줄래|줘요|봐|보세요)?(?=\s|[.!?,]|$)/;
+  const englishCommand = /(?:^|[.!?]\s*)(?:(?:please|can you|could you|would you)\s+)?(?:draw|generate|create|make)\b[^.!?\n]*\b(?:image|picture|illustration|poster|banner|logo|photo)\b/i;
   if (drawCommand.test(text) || (imageNoun.test(text) && createCommand.test(text)) || englishCommand.test(text)) {
     return true;
   }
