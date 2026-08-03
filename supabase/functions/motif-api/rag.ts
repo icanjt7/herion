@@ -136,7 +136,7 @@ function scoreChunk(
   totalChunks: number,
 ) {
   const titleBoost = namedRuleTitleBoost(chunk.normalizedTitle, queryText);
-  let score = titleBoost;
+  let lexicalScore = 0;
   let matched = 0;
   for (const token of queryTokens) {
     const frequency = documentFrequency.get(token) || 0;
@@ -148,12 +148,14 @@ function scoreChunk(
     if (chunk.termCounts.has(token)) weight += 1.5 + Math.log(1 + (chunk.termCounts.get(token) || 0));
     if (weight > 0) {
       matched += 1;
-      score += weight * idf;
+      lexicalScore += weight * idf;
     }
   }
   if ((!matched || (queryTokens.length >= 3 && matched < 2)) && titleBoost === 0) return 0;
   const coverage = matched / queryTokens.length;
-  return score * (0.55 + coverage) / Math.sqrt(Math.max(1, chunk.textLength / 320));
+  const normalizedLexicalScore = lexicalScore * (0.55 + coverage)
+    / Math.sqrt(Math.max(1, chunk.textLength / 320));
+  return titleBoost + normalizedLexicalScore;
 }
 
 export async function buildRagContext(query: unknown) {
