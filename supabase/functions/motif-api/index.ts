@@ -1,4 +1,4 @@
-import { buildRagContext } from './rag.ts';
+import { buildRagContext, buildRagUnavailableContext } from './rag.ts';
 import { detectSensitiveData } from '../_shared/sensitive-data.ts';
 
 const corsHeaders = {
@@ -27,6 +27,15 @@ function validMessages(value: unknown): value is Array<{ role: string; content: 
     allowedRoles.has(String((message as Record<string, unknown>).role)) &&
     typeof (message as Record<string, unknown>).content === 'string'
   );
+}
+
+function appendSystemContext(messages: Array<{ role: string; content: string }>, context: string) {
+  if (!context) return messages;
+  const systemIndex = messages.findIndex((message) => message.role === 'system');
+  if (systemIndex < 0) return [{ role: 'system', content: context.trim() }, ...messages];
+  return messages.map((message, index) => index === systemIndex
+    ? { ...message, content: `${message.content}${context}` }
+    : message);
 }
 
 function shouldRetry(response: Response) {
@@ -100,15 +109,10 @@ Deno.serve(async (request) => {
     let messages = requestMessages;
     try {
       const ragContext = await buildRagContext(body.rag_query);
-      if (ragContext) {
-        const systemIndex = messages.findIndex((message) => message.role === 'system');
-        messages = messages.map((message, index) => index === systemIndex
-          ? { ...message, content: `${message.content}${ragContext}` }
-          : message);
-        if (systemIndex < 0) messages = [{ role: 'system', content: ragContext.trim() }, ...messages];
-      }
+      messages = appendSystemContext(messages, ragContext);
     } catch (error) {
       console.error('RAG retrieval failed:', error instanceof Error ? error.message : error);
+      messages = appendSystemContext(messages, buildRagUnavailableContext(body.rag_query, 'error'));
     }
 
     const payload: Record<string, unknown> = {

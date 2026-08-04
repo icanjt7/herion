@@ -1,9 +1,14 @@
 import {
   applyRagOverrides,
+  buildRagUnavailableContext,
   expandRagQueryText,
   extractNamedRuleTerms,
+  isInternalGuidanceQuestion,
+  isTravelExpenseQuestion,
   isTravelExpenseNonPaymentQuestion,
   namedRuleTitleBoost,
+  normalizeTravelExpenseQuery,
+  requestedTravelExpenseComponents,
   unitTypeQueryBoost,
 } from './rag.ts';
 
@@ -67,4 +72,45 @@ Deno.test('expands broad travel expense non-payment questions with every explici
   assertEquals(expanded.includes('편도 1km 이내'), true);
   assertEquals(expanded.includes('출장 처리 필수'), true);
   assertEquals(expandRagQueryText('근무지내 출장의 정의를 알려줘'), '근무지내 출장의 정의를 알려줘');
+});
+
+Deno.test('normalizes and expands compact position-based travel expense questions', () => {
+  const query = '실장 여비기준';
+  assertEquals(isTravelExpenseQuestion(query), true);
+  assertEquals(normalizeTravelExpenseQuery(query), '실장 여비 기준');
+  const expanded = expandRagQueryText(query);
+  assertEquals(expanded.includes('국내출장 국외출장'), true);
+  assertEquals(expanded.includes('운임 교통비 숙박비 식비 일비'), true);
+  assertEquals(expanded.includes('직위 직급 여비 등급'), true);
+});
+
+Deno.test('guards travel expense answers when internal evidence is unavailable', () => {
+  const context = buildRagUnavailableContext('실장 여비기준', 'no_match');
+  assertEquals(context.includes('내부 여비 근거를 찾지 못했다'), true);
+  assertEquals(context.includes('법령번호'), true);
+  assertEquals(context.includes('직책만으로 여비 등급을 임의 결정하지 않는다'), true);
+  assertEquals(buildRagUnavailableContext('행사 안내문 작성', 'error'), '');
+});
+
+Deno.test('keeps per-diem questions focused on per-diem evidence', () => {
+  const query = '출장시 일비 안내';
+  assertEquals(isTravelExpenseQuestion(query), true);
+  assertEquals(requestedTravelExpenseComponents(query), ['일비']);
+  const expanded = expandRagQueryText(query);
+  assertEquals(expanded.includes('일비 지급액 정액 하루 1일 감액 제외'), true);
+  assertEquals(expanded.includes('교통비 숙박비 식비 일비'), false);
+});
+
+Deno.test('recognizes internal guidance questions across business domains', () => {
+  assertEquals(isInternalGuidanceQuestion('일상감사지침 대상업무를 알려줘'), true);
+  assertEquals(isInternalGuidanceQuestion('수의계약 기준과 절차'), true);
+  assertEquals(isInternalGuidanceQuestion('연차 신청은 언제 가능해?'), true);
+  assertEquals(isInternalGuidanceQuestion('행사 안내문 작성'), false);
+});
+
+Deno.test('guards every internal guidance answer when evidence is unavailable', () => {
+  const context = buildRagUnavailableContext('수의계약 기준과 절차', 'no_match');
+  assertEquals(context.includes('내부 규정·지침 검색 상태'), true);
+  assertEquals(context.includes('내부 문서명, 조항, 별표'), true);
+  assertEquals(context.includes('다른 기관의 일반 기준'), true);
 });
