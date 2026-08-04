@@ -44,6 +44,7 @@ Deno.test('extracts named internal guidance with or without spacing', () => {
   assertEquals(extractNamedRuleTerms('일상감사지침 대상업무인지 다시 검토해줘'), ['일상감사지침']);
   assertEquals(extractNamedRuleTerms('일상감사 지침에 따라 검토해줘'), ['일상감사지침']);
   assertEquals(extractNamedRuleTerms('복무 편람에서 연차 사용을 찾아줘'), ['복무편람']);
+  assertEquals(extractNamedRuleTerms('실장 여비기준'), []);
 });
 
 Deno.test('strongly boosts the explicitly named internal guidance', () => {

@@ -60,7 +60,7 @@ type IndexedChunk = RagChunk & {
   textLength: number;
 };
 
-const NAMED_RULE_SUFFIXES = '지침|규정|규칙|요령|기준|세칙|내규|편람';
+const NAMED_RULE_SUFFIXES = '지침|규정|규칙|요령|세칙|내규|편람';
 
 function normalizeForMatch(value: string) {
   return value.normalize('NFC').toLowerCase().replace(/[^가-힣a-z0-9]/g, '');
