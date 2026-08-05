@@ -114,6 +114,7 @@ Deno.test('boosts retrieved travel payment tables without inventing missing comp
   assertEquals(travelExpenseTableBoost(tableChunk, ['일비']), 32);
   assertEquals(travelExpenseTableBoost(tableChunk, ['교통비']), 0);
   assertEquals(travelExpenseTableBoost({ ...tableChunk, section_title: '일비 감액', text: '일비 1/2 지급' }, ['일비']), 0);
+  assertEquals(travelExpenseTableBoost({ ...tableChunk, section_title: '제13조', text: '일비는 별표 1에 따라 지급한다' }, ['일비']), 0);
 });
 
 Deno.test('recognizes internal guidance questions across business domains', () => {

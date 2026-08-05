@@ -133,7 +133,8 @@ export function travelExpenseTableBoost(chunk: RagChunk, requestedComponents: st
     chunk.text,
   ].join('\n').normalize('NFC');
   const hasPaymentTable = /(?:국내|국외)?\s*여비\s*지급\s*기준표/.test(searchable)
-    || /별표\s*(?:1|3|4)(?:\b|호)/.test(searchable);
+    || /구\s*분[\s\S]{0,500}일비[\s\S]{0,500}(?:숙박비|식비)/.test(searchable)
+    || /철도운임[\s\S]{0,500}(?:일비|숙박비|식비)/.test(searchable);
   if (!hasPaymentTable) return 0;
   if (requestedComponents.length
     && !requestedComponents.some((component) => searchable.includes(component))) return 0;
