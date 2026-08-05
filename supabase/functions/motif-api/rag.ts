@@ -124,8 +124,14 @@ export function isTravelExpenseQuestion(queryText: string) {
   return hasExpense && (hasLookupIntent || hasRoleSpecificLookup);
 }
 
+export function isWorkplaceLocalTravelQuestion(queryText: string) {
+  const normalized = queryText.normalize('NFC').replace(/\s+/g, '');
+  return /근무지내(?:국내)?출장/.test(normalized);
+}
+
 export function isInternalGuidanceQuestion(queryText: string) {
   const normalized = queryText.normalize('NFC').replace(/\s+/g, '');
+  if (isWorkplaceLocalTravelQuestion(queryText)) return true;
   if (isTravelExpenseQuestion(queryText)) return true;
   if (extractNamedRuleTerms(queryText).length > 0) return true;
   if (/(?:내부|사내|진흥원)(?:규정|지침|규칙|요령|기준|세칙|내규|편람)/.test(normalized)) return true;
@@ -164,8 +170,32 @@ export function travelExpenseTableBoost(chunk: RagChunk, requestedComponents: st
   return 32;
 }
 
+export function workplaceLocalTravelBoost(chunk: RagChunk, queryText: string) {
+  if (!isWorkplaceLocalTravelQuestion(queryText)) return 0;
+  const searchable = [
+    chunk.document_title,
+    chunk.chapter_title,
+    chunk.section_title,
+    chunk.text,
+  ].join('\n').normalize('NFC').replace(/\s+/g, '');
+  if (/근무지내(?:국내)?출장/.test(searchable)
+      && /4시간/.test(searchable)
+      && /(?:1만원|10,?000)/.test(searchable)
+      && /(?:2만원|20,?000)/.test(searchable)) return 120;
+  if (/근무지내(?:국내)?출장/.test(searchable)) return 55;
+  if (/근무지외|국내여비지급기준표/.test(searchable)) return -45;
+  return 0;
+}
+
 export function expandRagQueryText(queryText: string) {
   const normalized = normalizeTravelExpenseQuery(queryText);
+  if (isWorkplaceLocalTravelQuestion(normalized)) {
+    let expanded = `${normalized}\n근무지 내 국내출장 운영 지침 제3조 정의 제5조 여비 지급 기준 출장 여행 시간 4시간 미만 1만원 4시간 이상 2만원 공용차량 임차차량 1만원 감액 1일 최대 2만원`;
+    if (isTravelExpenseNonPaymentQuestion(normalized)) {
+      expanded += '\n근무지 내 국내출장 여비 지급 제한 미지급 운전업무 담당 직원 직무 수행 차량 운전 여행거리 편도 1km 이내 근거리 출장 출장 처리 필수';
+    }
+    return expanded;
+  }
   if (!isTravelExpenseQuestion(normalized)) return normalized;
 
   const requestedComponents = requestedTravelExpenseComponents(normalized);
@@ -331,6 +361,14 @@ export function structuredTableQueryBoost(table: RagTableSearchResult, queryText
   const title = normalizeForMatch(table.table_title);
   const searchable = normalizeForMatch(`${table.table_title} ${table.search_text}`);
   let boost = 0;
+  if (isWorkplaceLocalTravelQuestion(queryText)) {
+    if (/근무지내(?:국내)?출장/.test(searchable)
+        && /4시간/.test(searchable)
+        && /(?:1만원|10000)/.test(searchable)
+        && /(?:2만원|20000)/.test(searchable)) boost += 120;
+    else if (/근무지내(?:국내)?출장/.test(searchable)) boost += 55;
+    if (/근무지외|국내여비지급기준표/.test(searchable)) boost -= 70;
+  }
   const appendixNumbers = [...queryText.matchAll(/별표\s*(\d+(?:-\d+)?)/g)].map((match) => match[1]);
   if (appendixNumbers.some((number) => title.includes(normalizeForMatch(`별표 ${number}`)))) boost += 80;
   if (query.includes('국내') && searchable.includes('국내')) boost += 35;
@@ -631,6 +669,7 @@ export async function buildRagContext(query: unknown) {
   const asksTravelExpense = isTravelExpenseQuestion(rawQueryText);
   const requestedTravelComponents = requestedTravelExpenseComponents(rawQueryText);
   const asksTravelExpenseNonPayment = isTravelExpenseNonPaymentQuestion(rawQueryText);
+  const asksWorkplaceLocalTravel = isWorkplaceLocalTravelQuestion(rawQueryText);
   if (!queryText || queryTokens.length === 0) return '';
 
   const [{ chunks, documentFrequency }, tableResults] = await Promise.all([
@@ -651,7 +690,8 @@ export async function buildRagContext(query: unknown) {
     .map((chunk) => ({
       chunk,
       score: scoreChunk(chunk, queryText, queryTokens, documentFrequency, chunks.length)
-        + (asksTravelExpense ? travelExpenseTableBoost(chunk, requestedTravelComponents) : 0),
+        + (asksTravelExpense ? travelExpenseTableBoost(chunk, requestedTravelComponents) : 0)
+        + workplaceLocalTravelBoost(chunk, rawQueryText),
     }))
     .filter((item) => !namedRuleTerms.length || namedRuleTerms.some((term) =>
       item.chunk.normalizedTitle.includes(term)
@@ -732,6 +772,11 @@ export async function buildRagContext(query: unknown) {
   }
   if (asksTravelExpenseNonPayment) {
     context += `- 사용자는 출장비·여비가 실제로 지급되지 않는 경우 전체를 묻고 있다. 검색된 '여비 지급 제한' 항목의 각 사유를 빠짐없이 열거하고, 여비가 미지급이어도 출장 처리가 필요한지 함께 설명한다. 근무지내 출장의 정의나 적용 범위를 벗어나 다른 출장 여비 기준이 적용되는 경우를 '여비 미지급'으로 잘못 분류하지 않는다.\n`;
+  }
+  if (asksWorkplaceLocalTravel) {
+    context += `- 사용자는 일반적인 근무지 외 국내출장이 아니라 '근무지 내 국내출장'을 묻고 있다. '근무지 내 국내출장 운영 지침' 제5조와 복무 편람의 '8-3 근무지 내 국내출장'을 최우선 근거로 사용한다.\n`;
+    context += `- 검색된 해당 원문에 따라 출장 여행 시간이 4시간 미만이면 1만원, 4시간 이상이면 2만원임을 먼저 답한다. 일반 국내여비 지급 기준표의 1일 일비 25,000원을 이 질문에 적용하지 않는다.\n`;
+    context += `- 함께 질문받은 경우에만 공용차량·임차차량 이용 시 1만원 감액, 출장 횟수와 관계없는 1일 합계 2만원 상한과 지급 제한 사유를 구분하여 설명한다.\n`;
   }
   selected.forEach(({ chunk }, index) => {
     const line = chunk.source_line_start

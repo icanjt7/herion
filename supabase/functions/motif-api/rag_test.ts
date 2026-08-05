@@ -8,12 +8,14 @@ import {
   isStructuredInternalDataQuestion,
   isTravelExpenseQuestion,
   isTravelExpenseNonPaymentQuestion,
+  isWorkplaceLocalTravelQuestion,
   namedRuleTitleBoost,
   normalizeTravelExpenseQuery,
   requestedTravelExpenseComponents,
   structuredTableQueryBoost,
   travelExpenseTableBoost,
   unitTypeQueryBoost,
+  workplaceLocalTravelBoost,
 } from './rag.ts';
 
 const baseChunk = {
@@ -89,7 +91,7 @@ Deno.test('expands broad travel expense non-payment questions with every explici
   assertEquals(expanded.includes('운전업무 담당 직원'), true);
   assertEquals(expanded.includes('편도 1km 이내'), true);
   assertEquals(expanded.includes('출장 처리 필수'), true);
-  assertEquals(expandRagQueryText('근무지내 출장의 정의를 알려줘'), '근무지내 출장의 정의를 알려줘');
+  assertEquals(expandRagQueryText('근무지내 출장의 정의를 알려줘').includes('제3조 정의'), true);
 });
 
 Deno.test('normalizes and expands compact position-based travel expense questions', () => {
@@ -128,6 +130,29 @@ Deno.test('recognizes short role-specific per-diem lookups', () => {
   const expanded = expandRagQueryText('직원의 일비');
   assertEquals(expanded.includes('국내여비 지급 기준표'), true);
   assertEquals(expanded.includes('직위 직급 여비 등급 구분 임원 직원 적용 대상'), true);
+});
+
+Deno.test('prioritizes workplace-local travel rates over general domestic per-diem', () => {
+  const query = '근무지내 출장은 얼마야?';
+  assertEquals(isWorkplaceLocalTravelQuestion(query), true);
+  assertEquals(isInternalGuidanceQuestion(query), true);
+  const expanded = expandRagQueryText(query);
+  assertEquals(expanded.includes('4시간 미만 1만원'), true);
+  assertEquals(expanded.includes('4시간 이상 2만원'), true);
+  assertEquals(expanded.includes('국내여비 지급 기준표'), false);
+
+  const localChunk = {
+    ...baseChunk,
+    section_title: '8-3 근무지 내 국내출장',
+    text: '출장 여행 시간이 4시간 미만인 경우 1만원, 4시간 이상인 경우 2만원 지급',
+  };
+  const generalChunk = {
+    ...baseChunk,
+    section_title: '근무지 외 국내출장',
+    text: '국내여비 지급 기준표 팀장 팀원 일비 25,000',
+  };
+  assertEquals(workplaceLocalTravelBoost(localChunk, query), 120);
+  assertEquals(workplaceLocalTravelBoost(generalChunk, query), -45);
 });
 
 Deno.test('boosts retrieved travel payment tables without inventing missing components', () => {
