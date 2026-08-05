@@ -11,6 +11,7 @@ import {
   namedRuleTitleBoost,
   normalizeTravelExpenseQuery,
   requestedTravelExpenseComponents,
+  structuredTableQueryBoost,
   travelExpenseTableBoost,
   unitTypeQueryBoost,
 } from './rag.ts';
@@ -141,6 +142,29 @@ Deno.test('formats structured table matrices and preserves expanded merged-cell 
   }, ['일비']);
   assertEquals(markdown.includes('| 본부장 | 25,000 |'), true);
   assertEquals(markdown.includes('| 팀장, 팀원 | 25,000 |'), true);
+});
+
+Deno.test('prioritizes an explicitly requested appendix payment table', () => {
+  const table = {
+    id: 'KHT-travel',
+    document_title: '국가유산진흥원 정관 및 내규 전문',
+    source_file: 'rules.pdf',
+    revision_basis: '2026-07-29',
+    page_start: 128,
+    page_end: 128,
+    table_index: 1,
+    table_title: '[별표 1] 국내여비 지급 기준표',
+    table_type: 'data_table',
+    row_count: 5,
+    column_count: 8,
+    expanded_matrix: [['구분', '일비']],
+    markdown: '| 구분 | 일비 |',
+    search_text: '국내여비 지급 기준표 일비 숙박비 식비 운임',
+    confidence: 0.95,
+    score: 10,
+  };
+  assertEquals(structuredTableQueryBoost(table, '여비규정 별표 1 국내여비 일비'), 148);
+  assertEquals(structuredTableQueryBoost({ ...table, table_title: '출장 질의응답', table_type: 'qa_table' }, '일비 안내'), -4);
 });
 
 Deno.test('recognizes internal guidance questions across business domains', () => {

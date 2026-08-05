@@ -306,6 +306,23 @@ export function formatRagTableForContext(table: RagTableSearchResult, queryToken
   return `${markdown}\n※ 전체 ${matrix.length}행 중 질문 관련 행을 발췌함.`;
 }
 
+export function structuredTableQueryBoost(table: RagTableSearchResult, queryText: string) {
+  const query = normalizeForMatch(queryText);
+  const title = normalizeForMatch(table.table_title);
+  const searchable = normalizeForMatch(`${table.table_title} ${table.search_text}`);
+  let boost = 0;
+  const appendixNumbers = [...queryText.matchAll(/별표\s*(\d+(?:-\d+)?)/g)].map((match) => match[1]);
+  if (appendixNumbers.some((number) => title.includes(normalizeForMatch(`별표 ${number}`)))) boost += 80;
+  if (query.includes('국내') && searchable.includes('국내')) boost += 35;
+  if ((query.includes('국외') || query.includes('해외')) && searchable.includes('국외')) boost += 35;
+  if (query.includes('여비') && /여비.*(?:지급)?기준표/.test(searchable)) boost += 25;
+  for (const component of requestedTravelExpenseComponents(queryText)) {
+    if (searchable.includes(normalizeForMatch(component))) boost += 8;
+  }
+  if (table.table_type === 'qa_table' || table.table_type === 'layout_box') boost -= 12;
+  return boost;
+}
+
 async function searchStructuredTables(queryTokens: string[]) {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')?.replace(/\/$/, '') || '';
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
@@ -320,7 +337,7 @@ async function searchStructuredTables(queryTokens: string[]) {
         Authorization: `Bearer ${serviceKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ p_terms: terms, p_limit: 16 }),
+      body: JSON.stringify({ p_terms: terms, p_limit: 30 }),
     });
     if (response.status === 404) return [] as RagTableSearchResult[];
     if (!response.ok) throw new Error(`Structured RAG table lookup failed (${response.status})`);
@@ -605,6 +622,10 @@ export async function buildRagContext(query: unknown) {
   const structuredTables = tableResults
     .filter((table) => !asksTravelExpense || !requestedTravelComponents.length ||
       requestedTravelComponents.some((component) => table.search_text.includes(component)))
+    .sort((left, right) =>
+      Number(right.score) + structuredTableQueryBoost(right, rawQueryText)
+      - Number(left.score) - structuredTableQueryBoost(left, rawQueryText)
+    )
     .slice(0, 4);
   const ranked = chunks
     .map((chunk) => ({
