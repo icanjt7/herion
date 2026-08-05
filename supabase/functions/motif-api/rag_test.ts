@@ -9,6 +9,7 @@ import {
   namedRuleTitleBoost,
   normalizeTravelExpenseQuery,
   requestedTravelExpenseComponents,
+  travelExpenseTableBoost,
   unitTypeQueryBoost,
 } from './rag.ts';
 
@@ -99,7 +100,20 @@ Deno.test('keeps per-diem questions focused on per-diem evidence', () => {
   assertEquals(requestedTravelExpenseComponents(query), ['일비']);
   const expanded = expandRagQueryText(query);
   assertEquals(expanded.includes('일비 지급액 정액 하루 1일 감액 제외'), true);
+  assertEquals(expanded.includes('국내여비 지급 기준표 국외여비 지급 기준표'), true);
   assertEquals(expanded.includes('교통비 숙박비 식비 일비'), false);
+});
+
+Deno.test('boosts retrieved travel payment tables without inventing missing components', () => {
+  const tableChunk = {
+    ...baseChunk,
+    document_title: '국가유산진흥원 복무 편람',
+    section_title: '국내여비 지급 기준표',
+    text: '구분 철도운임 일비 숙박비 식비 원장 25,000',
+  };
+  assertEquals(travelExpenseTableBoost(tableChunk, ['일비']), 32);
+  assertEquals(travelExpenseTableBoost(tableChunk, ['교통비']), 0);
+  assertEquals(travelExpenseTableBoost({ ...tableChunk, section_title: '일비 감액', text: '일비 1/2 지급' }, ['일비']), 0);
 });
 
 Deno.test('recognizes internal guidance questions across business domains', () => {

@@ -125,6 +125,21 @@ export function requestedTravelExpenseComponents(queryText: string) {
     .filter((component) => normalized.includes(component));
 }
 
+export function travelExpenseTableBoost(chunk: RagChunk, requestedComponents: string[]) {
+  const searchable = [
+    chunk.document_title,
+    chunk.chapter_title,
+    chunk.section_title,
+    chunk.text,
+  ].join('\n').normalize('NFC');
+  const hasPaymentTable = /(?:국내|국외)?\s*여비\s*지급\s*기준표/.test(searchable)
+    || /별표\s*(?:1|3|4)(?:\b|호)/.test(searchable);
+  if (!hasPaymentTable) return 0;
+  if (requestedComponents.length
+    && !requestedComponents.some((component) => searchable.includes(component))) return 0;
+  return 32;
+}
+
 export function expandRagQueryText(queryText: string) {
   const normalized = normalizeTravelExpenseQuery(queryText);
   if (!isTravelExpenseQuestion(normalized)) return normalized;
@@ -134,6 +149,9 @@ export function expandRagQueryText(queryText: string) {
     ? `${requestedComponents.join(' ')} 지급액 정액 하루 1일 감액 제외`
     : '운임 교통비 숙박비 식비 일비';
   let expanded = `${normalized}\n출장 여비 지급 기준 국내출장 국외출장 해외출장 ${componentTerms} 직급 등급 상한액 별표`;
+  if (requestedComponents.length) {
+    expanded += '\n국내여비 지급 기준표 국외여비 지급 기준표 별표 1 별표 3 표 금액 적용기준';
+  }
   if (/(?:실장|본부장|부장|팀장|차장|과장|대리|주임|임원|직원)/.test(normalized)) {
     expanded += '\n직위 직급 여비 등급 구분 임원 직원 적용 대상';
   }
@@ -484,7 +502,8 @@ export async function buildRagContext(query: unknown) {
   const ranked = chunks
     .map((chunk) => ({
       chunk,
-      score: scoreChunk(chunk, queryText, queryTokens, documentFrequency, chunks.length),
+      score: scoreChunk(chunk, queryText, queryTokens, documentFrequency, chunks.length)
+        + (asksTravelExpense ? travelExpenseTableBoost(chunk, requestedTravelComponents) : 0),
     }))
     .filter((item) => item.score >= 1.4)
     .filter((item) => !namedRuleTerms.length || namedRuleTerms.some((term) =>
@@ -541,6 +560,8 @@ export async function buildRagContext(query: unknown) {
     context += `- 국내·국외, 출장지, 기간 또는 내부 여비 등급이 불명확하면 필요한 정보를 먼저 질문한다. 사용자 프로필의 직책만으로 등급을 추정하지 않는다.\n`;
     if (requestedTravelComponents.length) {
       context += `- 사용자가 확인한 여비 항목: ${requestedTravelComponents.join(', ')}. 이 항목이 명시된 인용문을 우선 사용하고 다른 여비 항목과 정의·금액을 섞지 않는다.\n`;
+      context += `- 검색 인용문에 국내·국외 여비 지급 기준표가 있으면 질문 항목과 관련된 행·열을 Markdown 표로 먼저 제시한다. 빈칸이나 병합 셀은 다른 행의 값을 추정해 채우지 말고 '원문상 미확인'으로 표시한다.\n`;
+      context += `- 조문이 별표를 참조하지만 별표 원표가 검색되지 않은 경우, '별표에 따른다'는 설명에서 멈추지 말고 검색된 복무 편람 등의 관련 지급 기준표를 출처와 함께 별도로 제시한다. 그 표를 별표 원표와 동일하다고 표현하지 않는다.\n`;
     }
     if (requestedTravelComponents.includes('일비')) {
       context += `- 일비를 식비·교통비·숙박비 전체를 포괄하는 비용으로 설명하지 않는다. 일비·식비·운임·숙박비는 검색된 내부 기준의 구분에 따라 각각 설명한다.\n`;
