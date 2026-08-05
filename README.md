@@ -173,6 +173,36 @@ The handbook build also passes `--form-inventory`, `--document-title`,
 explicit limitation chunks that confirm the form exists while directing users
 to the original handbook or responsible department instead of inventing fields.
 
+### Structured PDF tables
+
+Policy PDF tables are stored separately in the private `rag_tables` database
+table. The extractor preserves each physical cell, `rowspan`/`colspan`, an
+expanded retrieval matrix, PDF page, surrounding context, and a Markdown view.
+Plaintext table data and encryption keys must not be committed. Rebuild and
+encrypt the private package with:
+
+```bash
+python -m pip install -r scripts/requirements-rag-tables.txt
+python scripts/extract-pdf-tables.py \
+  --document "/secure/handbook.pdf::국가유산진흥원 복무 편람::2026-01-01" \
+  --document "/secure/rules.pdf::국가유산진흥원 정관 및 내규 전문::2026-07-29" \
+  --document "/secure/guidelines.pdf::진흥원 지침 및 업무처리기준::2026-07-30" \
+  --output /secure/private.rag-tables.json \
+  --summary /secure/table-extraction-summary.json
+python scripts/encrypt-rag-tables.py \
+  --input /secure/private.rag-tables.json \
+  --output supabase/data/rag-tables.enc \
+  --metadata supabase/data/rag-tables.metadata.json \
+  --key-file /secure/private.rag-tables.key
+```
+
+Set the matching base64 key as the repository secret `RAG_TABLE_DATA_KEY`.
+The `Deploy Structured RAG Tables` workflow applies the private database schema,
+decrypts the package only on the GitHub runner, imports it in batches, and
+removes superseded rows from the same source PDFs. The Motif proxy retrieves
+matching tables with the service role and injects only the relevant table or
+rows into the model context.
+
 ## Web Search Proxy
 
 Herian automatically performs a Tavily web search when the user explicitly asks

@@ -17,3 +17,8 @@ node_modules/
 .pytest_cache/
 dist/
 build/
+
+# Internal RAG extraction outputs and encryption keys must never be committed.
+*.rag-tables.json
+*.rag-tables.key
+private-rag-data/

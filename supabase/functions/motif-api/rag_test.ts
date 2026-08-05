@@ -3,7 +3,9 @@ import {
   buildRagUnavailableContext,
   expandRagQueryText,
   extractNamedRuleTerms,
+  formatRagTableForContext,
   isInternalGuidanceQuestion,
+  isStructuredInternalDataQuestion,
   isTravelExpenseQuestion,
   isTravelExpenseNonPaymentQuestion,
   namedRuleTitleBoost,
@@ -118,11 +120,40 @@ Deno.test('boosts retrieved travel payment tables without inventing missing comp
   assertEquals(travelExpenseTableBoost({ ...tableChunk, section_title: '제13조', text: '일비는 별표 1에 따라 지급한다' }, ['일비']), 0);
 });
 
+Deno.test('formats structured table matrices and preserves expanded merged-cell values', () => {
+  const markdown = formatRagTableForContext({
+    id: 'KHT-test',
+    document_title: '국가유산진흥원 복무 편람',
+    source_file: 'handbook.pdf',
+    revision_basis: '2026-01-01',
+    page_start: 113,
+    page_end: 113,
+    table_index: 1,
+    table_title: '국내여비 지급 기준표',
+    table_type: 'data_table',
+    row_count: 3,
+    column_count: 2,
+    expanded_matrix: [['구분', '일비'], ['본부장', '25,000'], ['팀장, 팀원', '25,000']],
+    markdown: '| 구분 | 일비 |\n| --- | --- |\n| 본부장 | 25,000 |\n| 팀장, 팀원 | 25,000 |',
+    search_text: '국내여비 지급 기준표 본부장 팀장 팀원 일비 25,000',
+    confidence: 0.95,
+    score: 20,
+  }, ['일비']);
+  assertEquals(markdown.includes('| 본부장 | 25,000 |'), true);
+  assertEquals(markdown.includes('| 팀장, 팀원 | 25,000 |'), true);
+});
+
 Deno.test('recognizes internal guidance questions across business domains', () => {
   assertEquals(isInternalGuidanceQuestion('일상감사지침 대상업무를 알려줘'), true);
   assertEquals(isInternalGuidanceQuestion('수의계약 기준과 절차'), true);
   assertEquals(isInternalGuidanceQuestion('연차 신청은 언제 가능해?'), true);
   assertEquals(isInternalGuidanceQuestion('행사 안내문 작성'), false);
+});
+
+Deno.test('recognizes internal questions that require structured table data', () => {
+  assertEquals(isStructuredInternalDataQuestion('직원 근무시간 표로 알려줘'), true);
+  assertEquals(isStructuredInternalDataQuestion('여비규정 별표 1 금액'), true);
+  assertEquals(isStructuredInternalDataQuestion('행사 일정표를 만들어줘'), false);
 });
 
 Deno.test('guards every internal guidance answer when evidence is unavailable', () => {

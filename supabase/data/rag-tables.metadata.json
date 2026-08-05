@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "tableCount": 1217,
+  "cellCount": 81792,
+  "documentCount": 3,
+  "plaintextSha256": "08569e1680fe0ceec74bae6b941cf2ec23e6d2f9dfbe9be3d7937ed10fc60583",
+  "encryptedSha256": "658e4899825d2ae131c36f97be075cfacfc52ee0b62bba5deb2a2b6570980002",
+  "sourceRevisions": [
+    "2026-01-01",
+    "2026-07-29",
+    "2026-07-30"
+  ]
+}

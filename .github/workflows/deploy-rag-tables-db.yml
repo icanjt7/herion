@@ -1,0 +1,45 @@
+name: Deploy Structured RAG Tables
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-rag-tables-db.yml'
+      - 'supabase/migrations/20260805143000_rag_tables.sql'
+      - 'supabase/data/rag-tables.enc'
+      - 'scripts/import-rag-tables.mjs'
+
+jobs:
+  migrate-and-import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate deployment secrets
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_KHA_PROJECT }}
+          RAG_TABLE_DATA_KEY: ${{ secrets.RAG_TABLE_DATA_KEY }}
+        run: test -n "$SUPABASE_ACCESS_TOKEN" && test -n "$RAG_TABLE_DATA_KEY"
+
+      - name: Apply structured table migration
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_KHA_PROJECT }}
+          SUPABASE_PROJECT_REF: enpovkaknaxfgzanyghn
+        run: |
+          jq -Rs '{ query: ., read_only: false }' \
+            supabase/migrations/20260805143000_rag_tables.sql \
+            > "$RUNNER_TEMP/rag-tables-migration.json"
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data-binary "@$RUNNER_TEMP/rag-tables-migration.json" \
+            "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query"
+
+      - name: Import encrypted table package
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_KHA_PROJECT }}
+          SUPABASE_PROJECT_REF: enpovkaknaxfgzanyghn
+          RAG_TABLE_DATA_KEY: ${{ secrets.RAG_TABLE_DATA_KEY }}
+        run: node scripts/import-rag-tables.mjs supabase/data/rag-tables.enc
