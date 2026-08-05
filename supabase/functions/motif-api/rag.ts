@@ -603,9 +603,6 @@ export async function buildRagContext(query: unknown) {
       : Promise.resolve([]),
   ]);
   const structuredTables = tableResults
-    .filter((table) => !namedRuleTerms.length || namedRuleTerms.some((term) =>
-      normalizeForMatch(`${table.document_title} ${table.table_title} ${table.search_text}`).includes(term)
-    ))
     .filter((table) => !asksTravelExpense || !requestedTravelComponents.length ||
       requestedTravelComponents.some((component) => table.search_text.includes(component)))
     .slice(0, 4);
