@@ -121,6 +121,15 @@ Deno.test('keeps per-diem questions focused on per-diem evidence', () => {
   assertEquals(expanded.includes('교통비 숙박비 식비 일비'), false);
 });
 
+Deno.test('recognizes short role-specific per-diem lookups', () => {
+  assertEquals(isTravelExpenseQuestion('직원의 일비'), true);
+  assertEquals(isInternalGuidanceQuestion('직원의 일비'), true);
+  assertEquals(isTravelExpenseQuestion('팀원 일비'), true);
+  const expanded = expandRagQueryText('직원의 일비');
+  assertEquals(expanded.includes('국내여비 지급 기준표'), true);
+  assertEquals(expanded.includes('직위 직급 여비 등급 구분 임원 직원 적용 대상'), true);
+});
+
 Deno.test('boosts retrieved travel payment tables without inventing missing components', () => {
   const tableChunk = {
     ...baseChunk,

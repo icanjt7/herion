@@ -118,12 +118,15 @@ export function isTravelExpenseNonPaymentQuestion(queryText: string) {
 
 export function isTravelExpenseQuestion(queryText: string) {
   const normalized = queryText.normalize('NFC').replace(/\s+/g, '');
-  return /(?:여비|출장비|교통비|운임|숙박비|식비|일비)/.test(normalized)
-    && /(?:기준|규정|지급|금액|한도|상한|등급|직급|출장|국내|국외|해외|못받|미지급|얼마|안내|알려)/.test(normalized);
+  const hasExpense = /(?:여비|출장비|교통비|운임|숙박비|식비|일비)/.test(normalized);
+  const hasLookupIntent = /(?:기준|규정|지급|금액|한도|상한|등급|직급|출장|국내|국외|해외|못받|미지급|얼마|안내|알려)/.test(normalized);
+  const hasRoleSpecificLookup = /(?:원장|본부장|부서장|실장|부장|팀장|차장|과장|대리|주임|팀원|임원|직원)(?:의)?(?:여비|출장비|교통비|운임|숙박비|식비|일비)/.test(normalized);
+  return hasExpense && (hasLookupIntent || hasRoleSpecificLookup);
 }
 
 export function isInternalGuidanceQuestion(queryText: string) {
   const normalized = queryText.normalize('NFC').replace(/\s+/g, '');
+  if (isTravelExpenseQuestion(queryText)) return true;
   if (extractNamedRuleTerms(queryText).length > 0) return true;
   if (/(?:내부|사내|진흥원)(?:규정|지침|규칙|요령|기준|세칙|내규|편람)/.test(normalized)) return true;
   const internalTopic = /(?:복무|인사|채용|평가|승진|휴가|연차|병가|휴직|유연근무|출장|여비|계약|수의계약|입찰|구매|회계|예산|정산|감사|일상감사|보안|기록물|결재|위임전결)/;
@@ -715,6 +718,9 @@ export async function buildRagContext(query: unknown) {
     context += `- 여비 답변은 검색된 내부 인용문에 명시된 내용만 사용하고, 근거 문서명·개정 기준·조항/구분을 문장 가까이에 표시한다.\n`;
     context += `- 금액·상한액·법령번호는 검색된 인용문에 실제로 있을 때만 제시한다. 검색되지 않은 공무원 여비 규정이나 외부 기준을 기억으로 보충하지 않는다.\n`;
     context += `- 국내·국외, 출장지, 기간 또는 내부 여비 등급이 불명확하면 필요한 정보를 먼저 질문한다. 사용자 프로필의 직책만으로 등급을 추정하지 않는다.\n`;
+    if (/(?:직원|팀원).*(?:일비|여비)|(?:일비|여비).*(?:직원|팀원)/.test(rawQueryText)) {
+      context += `- 질문의 '직원'은 검색된 지급 기준표의 '팀장, 팀원' 행을 우선 확인한다. 해당 행과 일비 열에 금액이 있으면 이를 직접 답하고, 별표나 금액을 찾지 못했다고 답하지 않는다. 적용 대상 표현이 애매할 때만 표의 행 명칭을 그대로 밝혀 설명한다.\n`;
+    }
     if (requestedTravelComponents.length) {
       context += `- 사용자가 확인한 여비 항목: ${requestedTravelComponents.join(', ')}. 이 항목이 명시된 인용문을 우선 사용하고 다른 여비 항목과 정의·금액을 섞지 않는다.\n`;
       context += `- 검색 인용문에 국내·국외 여비 지급 기준표가 있으면 질문 항목과 관련된 행·열을 Markdown 표로 먼저 제시한다. 빈칸이나 병합 셀은 다른 행의 값을 추정해 채우지 말고 '원문상 미확인'으로 표시한다.\n`;
