@@ -497,6 +497,56 @@
     .action-pill.copy-success { border-color: var(--accent); background: #edf8f5; color: var(--accent); }
     .action-pill.copy-error { border-color: var(--danger); background: #fff1f0; color: var(--danger); }
 
+    .internal-sources {
+      margin-top: 16px;
+      padding: 12px;
+      border: 1px solid #dce6e2;
+      border-radius: 10px;
+      background: #f8fbfa;
+    }
+    .internal-sources-title { margin-bottom: 8px; color: var(--text); font-size: 13px; font-weight: 700; }
+    .internal-source-list { display: grid; gap: 8px; }
+    .internal-source-card {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 11px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+    .internal-source-copy { min-width: 0; }
+    .internal-source-kind { color: var(--accent); font-size: 11px; font-weight: 700; }
+    .internal-source-document { margin-top: 2px; color: var(--text); font-size: 13px; font-weight: 650; }
+    .internal-source-location, .internal-source-file {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 11.5px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+    .internal-source-file::before { content: '📄 '; }
+    .internal-source-actions { display: flex; flex: 0 0 auto; gap: 5px; }
+    .internal-source-button {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      padding: 4px 8px;
+      color: var(--muted);
+      font-size: 11px;
+      text-decoration: none;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .internal-source-button:hover { border-color: var(--accent); color: var(--accent); }
+    .internal-source-button.copy-success { border-color: var(--accent); background: #edf8f5; color: var(--accent); }
+
+    @media (max-width: 620px) {
+      .internal-source-card { display: block; }
+      .internal-source-actions { margin-top: 8px; }
+    }
+
     .streaming-cursor {
       display: inline-block;
       width: 7px;
@@ -2649,7 +2699,7 @@ function showTableCopyStatus(button, message, success) {
 
 async function copyRenderedResponse(bodyEl, sourceText) {
   const clone = bodyEl.cloneNode(true);
-  clone.querySelectorAll('.table-output-toolbar, .streaming-cursor').forEach(element => element.remove());
+  clone.querySelectorAll('.table-output-toolbar, .streaming-cursor, .internal-source-actions').forEach(element => element.remove());
   clone.querySelectorAll('table').forEach(table => {
     table.setAttribute('border', '1');
     table.setAttribute('cellspacing', '0');
@@ -2962,8 +3012,130 @@ function appendMsgEl(role) {
   return div.querySelector('.msg-body');
 }
 
+function internalSourceDocumentConfig(documentTitle) {
+  const entries = Object.entries(cfg?.sourceDocuments || {});
+  const normalized = String(documentTitle || '').replace(/\s+/g, ' ').trim();
+  const match = entries.find(([title]) => normalized === title || normalized.includes(title) || title.includes(normalized));
+  return match?.[1] || {};
+}
+
+function extractInternalSourceLocations(content) {
+  const locations = [];
+  const seen = new Set();
+  const pattern = /\[(내부 지침|내부 표|관련 위치)\s*:\s*([^\]]+)\]/g;
+  for (const match of String(content || '').matchAll(pattern)) {
+    const parts = match[2].split(/\s*·\s*/).map(value => value.trim()).filter(Boolean);
+    const documentTitle = parts.shift() || '내부 문서';
+    const inlineFileIndex = parts.findIndex(value => /^원본\s*파일\s*:/.test(value));
+    const inlineFile = inlineFileIndex >= 0
+      ? parts.splice(inlineFileIndex, 1)[0].replace(/^원본\s*파일\s*:\s*/, '')
+      : '';
+    const documentConfig = internalSourceDocumentConfig(documentTitle);
+    const location = parts.join(' · ') || '문서 내 관련 항목';
+    const fileName = inlineFile || documentConfig.fileName || '';
+    const key = [documentTitle, location, fileName].join('|');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    locations.push({
+      kind: match[1],
+      documentTitle,
+      location,
+      fileName,
+      url: documentConfig.url || ''
+    });
+  }
+  return locations.slice(0, 6);
+}
+
+async function copyInternalSourceLocation(button, source) {
+  const text = [
+    `문서: ${source.documentTitle}`,
+    `위치: ${source.location}`,
+    source.fileName ? `원본 파일: ${source.fileName}` : ''
+  ].filter(Boolean).join('\n');
+  let copied = false;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      copied = true;
+    }
+  } catch (_) {}
+  if (!copied) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;';
+    document.body.appendChild(textarea);
+    textarea.select();
+    try { copied = document.execCommand('copy'); } catch (_) {}
+    textarea.remove();
+  }
+  showTableCopyStatus(button, copied ? '복사 완료' : '복사 실패', copied);
+}
+
+function appendInternalSourceCards(bodyEl, content) {
+  if (!bodyEl || bodyEl.querySelector('.internal-sources')) return;
+  const sources = extractInternalSourceLocations(content);
+  if (!sources.length) return;
+
+  const section = document.createElement('section');
+  section.className = 'internal-sources';
+  section.setAttribute('aria-label', '확인 위치');
+  const title = document.createElement('div');
+  title.className = 'internal-sources-title';
+  title.textContent = '확인 위치';
+  const list = document.createElement('div');
+  list.className = 'internal-source-list';
+
+  sources.forEach(source => {
+    const card = document.createElement('div');
+    card.className = 'internal-source-card';
+    const copy = document.createElement('div');
+    copy.className = 'internal-source-copy';
+    const kind = document.createElement('div');
+    kind.className = 'internal-source-kind';
+    kind.textContent = source.kind === '관련 위치' ? '관련 후보 위치' : source.kind;
+    const documentName = document.createElement('div');
+    documentName.className = 'internal-source-document';
+    documentName.textContent = source.documentTitle;
+    const location = document.createElement('div');
+    location.className = 'internal-source-location';
+    location.textContent = source.location;
+    copy.append(kind, documentName, location);
+    if (source.fileName) {
+      const file = document.createElement('div');
+      file.className = 'internal-source-file';
+      file.textContent = source.fileName;
+      copy.appendChild(file);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'internal-source-actions';
+    const copyButton = document.createElement('button');
+    copyButton.type = 'button';
+    copyButton.className = 'internal-source-button';
+    copyButton.textContent = '위치 복사';
+    copyButton.addEventListener('click', () => copyInternalSourceLocation(copyButton, source));
+    actions.appendChild(copyButton);
+    if (/^https?:\/\//i.test(source.url)) {
+      const link = document.createElement('a');
+      link.className = 'internal-source-button';
+      link.href = source.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = '원문 열기';
+      actions.appendChild(link);
+    }
+    card.append(copy, actions);
+    list.appendChild(card);
+  });
+  section.append(title, list);
+  bodyEl.appendChild(section);
+}
+
 function addMessageActions(bodyEl, content) {
   if (!bodyEl || !content || bodyEl.parentElement.querySelector('.msg-actions')) return;
+  appendInternalSourceCards(bodyEl, content);
   const actions = document.createElement('div');
   actions.className = 'msg-actions';
 
@@ -4036,8 +4208,9 @@ ${langLine}
 - 여비 항목의 지급 기준표가 검색되면 관련 행과 열을 Markdown 표로 제시한다. 원문의 빈칸·병합 셀은 임의로 채우지 말고 '원문상 미확인'으로 표시한다.
 - 조문이 별표를 참조하지만 별표 원표가 검색되지 않은 경우에는 검색된 복무 편람 등의 관련 기준표를 출처와 함께 별도로 제시하고, 이를 별표 원표와 동일한 표라고 표현하지 않는다.
 - [내부 표] 검색 결과가 있으면 본문에서 별표를 참조한다는 설명만 반복하지 말고, 질문과 관련된 실제 행·열 값을 표로 제시한다.
-- 구조화 표를 근거로 사용한 문장에는 [내부 표: 문서명 · 표 제목 · PDF 쪽] 형식으로 출처를 표시한다.
-- 검색된 근거를 사용한 문장에는 [내부 지침: 문서명 · 조항/구분] 형식으로 출처를 표시한다.
+- 구조화 표를 근거로 사용한 문장에는 [내부 표: 문서명 · 표 제목 · PDF 쪽 · 원본 파일: 파일명] 형식으로 출처를 표시한다.
+- 검색된 근거를 사용한 문장에는 [내부 지침: 문서명 · 조항/구분 · 원본 파일: 파일명] 형식으로 출처를 표시한다.
+- 내부 규정 답변 마지막에는 '확인 위치'를 두고 문서명, 조항·표 제목, PDF 쪽 또는 원문 근사 행, 원본 파일명을 안내한다.
 
 [날씨 답변 원칙]
 - 날씨 질문은 제공된 실시간 날씨 조회 결과를 사용한다.

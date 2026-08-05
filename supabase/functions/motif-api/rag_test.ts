@@ -51,6 +51,19 @@ Deno.test('extracts named internal guidance with or without spacing', () => {
   assertEquals(extractNamedRuleTerms('실장 여비기준'), []);
 });
 
+Deno.test('shows related document locations without treating them as evidence', () => {
+  const context = buildRagUnavailableContext('출장 여비 세부 기준', 'no_match', [baseChunk]);
+  if (!context.includes('[관련 후보 위치 1] 복무 편람 > 출장 > 여비')) {
+    throw new Error('candidate hierarchy was not included');
+  }
+  if (!context.includes('원본 파일: handbook.md')) {
+    throw new Error('candidate source file was not included');
+  }
+  if (!context.includes('관련 후보 위치')) {
+    throw new Error('candidate was not clearly labeled');
+  }
+});
+
 Deno.test('strongly boosts the explicitly named internal guidance', () => {
   const query = '용역 계약체결이 일상감사지침 대상업무인지 검토해줘';
   assertEquals(namedRuleTitleBoost('국가유산진흥원 일상감사 지침', query), 80);
