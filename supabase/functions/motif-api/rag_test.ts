@@ -97,6 +97,7 @@ Deno.test('guards travel expense answers when internal evidence is unavailable',
 Deno.test('keeps per-diem questions focused on per-diem evidence', () => {
   const query = '출장시 일비 안내';
   assertEquals(isTravelExpenseQuestion(query), true);
+  assertEquals(isTravelExpenseQuestion('일비 안내'), true);
   assertEquals(requestedTravelExpenseComponents(query), ['일비']);
   const expanded = expandRagQueryText(query);
   assertEquals(expanded.includes('일비 지급액 정액 하루 1일 감액 제외'), true);

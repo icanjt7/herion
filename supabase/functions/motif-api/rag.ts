@@ -100,7 +100,7 @@ export function isTravelExpenseNonPaymentQuestion(queryText: string) {
 export function isTravelExpenseQuestion(queryText: string) {
   const normalized = queryText.normalize('NFC').replace(/\s+/g, '');
   return /(?:여비|출장비|교통비|운임|숙박비|식비|일비)/.test(normalized)
-    && /(?:기준|규정|지급|금액|한도|상한|등급|직급|출장|국내|국외|해외|못받|미지급|얼마)/.test(normalized);
+    && /(?:기준|규정|지급|금액|한도|상한|등급|직급|출장|국내|국외|해외|못받|미지급|얼마|안내|알려)/.test(normalized);
 }
 
 export function isInternalGuidanceQuestion(queryText: string) {
@@ -134,7 +134,8 @@ export function travelExpenseTableBoost(chunk: RagChunk, requestedComponents: st
   ].join('\n').normalize('NFC');
   const hasPaymentTable = /(?:국내|국외)?\s*여비\s*지급\s*기준표/.test(searchable)
     || /구\s*분[\s\S]{0,500}일비[\s\S]{0,500}(?:숙박비|식비)/.test(searchable)
-    || /철도운임[\s\S]{0,500}(?:일비|숙박비|식비)/.test(searchable);
+    || (searchable.includes('철도운임')
+      && ['일비', '숙박비', '식비'].filter((term) => searchable.includes(term)).length >= 2);
   if (!hasPaymentTable) return 0;
   if (requestedComponents.length
     && !requestedComponents.some((component) => searchable.includes(component))) return 0;
