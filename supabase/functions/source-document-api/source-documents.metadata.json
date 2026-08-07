@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "documentCount": 6,
+  "totalPlaintextBytes": 9272227,
+  "documents": [
+    {
+      "id": "accounting-guide",
+      "fileName": "회계처리 가이드.pdf",
+      "size": 4094057,
+      "plaintextSha256": "44c049f075c01576998ca163165fb1f8a90a406d94a421856617734bcc74e391",
+      "encryptedSha256": "d7c0e26e1f75b2e6814bc397ed226ff0c5fda138117fa54712a0138b09c9ed62"
+    },
+    {
+      "id": "accounting-guideline",
+      "fileName": "회계처리지침.pdf",
+      "size": 396168,
+      "plaintextSha256": "62ffd2fde6c6210a8ad2eb20a57bd38db57762685f3ae5722923800a0f66c765",
+      "encryptedSha256": "9e430ee77c6b6e7a3d712412cd97b2be174a7ae872bcf8f371033bfd82bbb6c4"
+    },
+    {
+      "id": "accounting-contract-handbook",
+      "fileName": "회계·계약업무 편람.pdf",
+      "size": 4651531,
+      "plaintextSha256": "acf046b6fced652bff8d1859bb1ec7f2e90aef3c07d4cc69fe7ce2c5037fcf3e",
+      "encryptedSha256": "cfb58aec335f60b656adba52a98a418d6e742de810a3f58f6eeb4fbf5d1bc4ec"
+    },
+    {
+      "id": "project-vat-workbook",
+      "fileName": "사업별 회계 단위 및 부가가치세 공제여부(260625).xlsx",
+      "size": 14636,
+      "plaintextSha256": "89bf66a5f76215733a23d4ab04670184c785a571f89630b4402d21946288a4a9",
+      "encryptedSha256": "05c04af84ca2ef650cb20a683215275ffa31b77c165166bd37eab777e6e013b9"
+    },
+    {
+      "id": "account-code-workbook",
+      "fileName": "회계계정 매뉴얼(ver.20250520).xlsx",
+      "size": 31210,
+      "plaintextSha256": "42a50799424d52daa8ace73598818aa2f56f217028108923e373b3f142c6637a",
+      "encryptedSha256": "a86478c89180aec42ab5a55ddaae9ee8aae2a2e59e76e38e0798c78e801623b5"
+    },
+    {
+      "id": "income-payment-template",
+      "fileName": "(양식) 사업, 기타, 일용소득 지급.xlsx",
+      "size": 84625,
+      "plaintextSha256": "c746080e6aba10781183cadb7e4bc0a955bfad41d6475f9e9d95b495717f81bd",
+      "encryptedSha256": "e0a7a7e9f1569db6fdf2ad23bf9ba3d2031b8236a8d0e538fce4814f9070ab84"
+    }
+  ]
+}

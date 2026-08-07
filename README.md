@@ -221,6 +221,16 @@ outputs and OCR images must remain outside the repository. The structured-table
 deployment imports both encrypted packages and replaces prior rows only for the
 source files contained in each package.
 
+### Authenticated source downloads
+
+Accounting source cards can download the six original PDF and Excel files
+through `source-document-api`. Original files are AES-256-GCM encrypted before
+being committed, and the matching `SOURCE_DOCUMENT_KEY` exists only as a GitHub
+Actions and Supabase function secret. The API verifies that the requesting
+`@kh.or.kr` email is present in the employee registry, validates the decrypted
+file size and SHA-256 checksum, and returns it with private no-store headers.
+The static site never receives the encryption key or a public source-file URL.
+
 ## Web Search Proxy
 
 Herian automatically performs a Tavily web search when the user explicitly asks

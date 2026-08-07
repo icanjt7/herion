@@ -21,4 +21,6 @@ build/
 # Internal RAG extraction outputs and encryption keys must never be committed.
 *.rag-tables.json
 *.rag-tables.key
+*.source-document.key
+*.source-documents.key
 private-rag-data/

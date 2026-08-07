@@ -17,3 +17,7 @@ verify_jwt = false
 
 [functions.rag-admin-api]
 verify_jwt = false
+
+[functions.source-document-api]
+verify_jwt = false
+static_files = ["./functions/source-document-api/assets/*.enc"]

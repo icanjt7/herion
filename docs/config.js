@@ -33,9 +33,10 @@ window.HERION_CONFIG = {
 
   // Docling 문서 분석·보고서 생성 서비스. 배포 전에는 빈 값으로 두면 브라우저 파서를 사용합니다.
   documentApiUrl: '',
+  sourceDocumentApiUrl: 'https://enpovkaknaxfgzanyghn.supabase.co/functions/v1/source-document-api',
 
-  // 내부 문서 확인 위치. 승인된 원문 URL이 생기면 url을 추가하면 답변의
-  // 확인 위치 카드에 '원문 열기' 버튼이 자동으로 표시됩니다.
+  // 내부 문서 확인 위치. downloadId가 있는 자료는 등록된 기관 사용자에게만
+  // 인증 프록시를 통해 원문 다운로드 버튼을 표시합니다.
   sourceDocuments: {
     '국가유산진흥원 복무 편람': {
       fileName: '1. 국가유산진흥원 복무 편람(2026.01.01.).pdf'
@@ -47,22 +48,28 @@ window.HERION_CONFIG = {
       fileName: '진흥원 지침 및 업무처리기준(2026년도 7월 30일 개정).pdf'
     },
     '회계처리 가이드': {
-      fileName: '회계처리 가이드.pdf'
+      fileName: '회계처리 가이드.pdf',
+      downloadId: 'accounting-guide'
     },
     '회계처리지침': {
-      fileName: '회계처리지침.pdf'
+      fileName: '회계처리지침.pdf',
+      downloadId: 'accounting-guideline'
     },
     '회계·계약업무 편람': {
-      fileName: '회계·계약업무 편람.pdf'
+      fileName: '회계·계약업무 편람.pdf',
+      downloadId: 'accounting-contract-handbook'
     },
     '사업별 회계 단위 및 부가가치세 공제여부': {
-      fileName: '사업별 회계 단위 및 부가가치세 공제여부(260625).xlsx'
+      fileName: '사업별 회계 단위 및 부가가치세 공제여부(260625).xlsx',
+      downloadId: 'project-vat-workbook'
     },
     '회계계정 매뉴얼': {
-      fileName: '회계계정 매뉴얼(ver.20250520).xlsx'
+      fileName: '회계계정 매뉴얼(ver.20250520).xlsx',
+      downloadId: 'account-code-workbook'
     },
     '사업·기타·일용소득 지급 양식': {
-      fileName: '(양식) 사업, 기타, 일용소득 지급.xlsx'
+      fileName: '(양식) 사업, 기타, 일용소득 지급.xlsx',
+      downloadId: 'income-payment-template'
     }
   },
 
