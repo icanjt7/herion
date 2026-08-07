@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "tableCount": 114,
+  "cellCount": 3038,
+  "documentCount": 6,
+  "plaintextSha256": "7fbcdfe35880983ad1ce69a489112cf31a012cf404795a2a121b8b0e36a0fc83",
+  "encryptedSha256": "67491c99db6d5aa6b8a34e8717fc5d85941e7db5574a56288ddea58147742358",
+  "sourceRevisions": [
+    "2024-09",
+    "2025",
+    "2025-05-20",
+    "2025-06",
+    "2026-03",
+    "2026-06-25"
+  ]
+}

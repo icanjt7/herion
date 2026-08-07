@@ -8,6 +8,7 @@ on:
       - '.github/workflows/deploy-rag-tables-db.yml'
       - 'supabase/migrations/20260805143000_rag_tables.sql'
       - 'supabase/data/rag-tables.enc'
+      - 'supabase/data/accounting-rag-tables.enc'
       - 'scripts/import-rag-tables.mjs'
 
 jobs:
@@ -20,7 +21,8 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_KHA_PROJECT }}
           RAG_TABLE_DATA_KEY: ${{ secrets.RAG_TABLE_DATA_KEY }}
-        run: test -n "$SUPABASE_ACCESS_TOKEN" && test -n "$RAG_TABLE_DATA_KEY"
+          RAG_ACCOUNTING_TABLE_KEY: ${{ secrets.RAG_ACCOUNTING_TABLE_KEY }}
+        run: test -n "$SUPABASE_ACCESS_TOKEN" && test -n "$RAG_TABLE_DATA_KEY" && test -n "$RAG_ACCOUNTING_TABLE_KEY"
 
       - name: Apply structured table migration
         env:
@@ -43,3 +45,10 @@ jobs:
           SUPABASE_PROJECT_REF: enpovkaknaxfgzanyghn
           RAG_TABLE_DATA_KEY: ${{ secrets.RAG_TABLE_DATA_KEY }}
         run: node scripts/import-rag-tables.mjs supabase/data/rag-tables.enc
+
+      - name: Import encrypted accounting table package
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_KHA_PROJECT }}
+          SUPABASE_PROJECT_REF: enpovkaknaxfgzanyghn
+          RAG_TABLE_DATA_KEY: ${{ secrets.RAG_ACCOUNTING_TABLE_KEY }}
+        run: node scripts/import-rag-tables.mjs supabase/data/accounting-rag-tables.enc

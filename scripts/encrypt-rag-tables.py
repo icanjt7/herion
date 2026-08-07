@@ -19,7 +19,7 @@ MAGIC = b"HRT1"
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input", type=Path, required=True)
+    parser.add_argument("--input", action="append", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--metadata", type=Path, required=True)
     parser.add_argument("--key-file", type=Path)
@@ -28,10 +28,16 @@ def main() -> int:
     key = base64.b64decode(key_text, validate=True)
     if len(key) != 32:
         raise SystemExit("RAG_TABLE_DATA_KEY must be a base64-encoded 32-byte key")
-    plaintext = args.input.read_bytes()
-    rows = json.loads(plaintext)
-    if not isinstance(rows, list) or not rows:
-        raise SystemExit("table package must be a non-empty JSON array")
+    rows = []
+    for input_path in args.input:
+        input_rows = json.loads(input_path.read_text(encoding="utf-8"))
+        if not isinstance(input_rows, list) or not input_rows:
+            raise SystemExit(f"table package must be a non-empty JSON array: {input_path}")
+        rows.extend(input_rows)
+    ids = [row.get("id") for row in rows]
+    if len(ids) != len(set(ids)):
+        raise SystemExit("combined table package contains duplicate ids")
+    plaintext = json.dumps(rows, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     compressed = gzip.compress(plaintext, compresslevel=9)
     nonce = os.urandom(12)
     encrypted = AESGCM(key).encrypt(nonce, compressed, MAGIC)

@@ -25,7 +25,8 @@ jobs:
           MOTIF_API_KEY: ${{ secrets.MOTIF_300B }}
           RAG_DATA_KEY: ${{ secrets.RAG_DATA_KEY }}
           RAG_WORK_HANDBOOK_KEY: ${{ secrets.RAG_WORK_HANDBOOK_KEY }}
-        run: test -n "$MOTIF_API_KEY" && test -n "$RAG_DATA_KEY" && test -n "$RAG_WORK_HANDBOOK_KEY"
+          RAG_ACCOUNTING_KEY: ${{ secrets.RAG_ACCOUNTING_KEY }}
+        run: test -n "$MOTIF_API_KEY" && test -n "$RAG_DATA_KEY" && test -n "$RAG_WORK_HANDBOOK_KEY" && test -n "$RAG_ACCOUNTING_KEY"
 
       - name: Validate Supabase access token
         env:
@@ -38,11 +39,13 @@ jobs:
           MOTIF_API_KEY: ${{ secrets.MOTIF_300B }}
           RAG_DATA_KEY: ${{ secrets.RAG_DATA_KEY }}
           RAG_WORK_HANDBOOK_KEY: ${{ secrets.RAG_WORK_HANDBOOK_KEY }}
+          RAG_ACCOUNTING_KEY: ${{ secrets.RAG_ACCOUNTING_KEY }}
         run: |
           supabase secrets set \
             MOTIF_API_KEY="$MOTIF_API_KEY" \
             RAG_DATA_KEY="$RAG_DATA_KEY" \
             RAG_WORK_HANDBOOK_KEY="$RAG_WORK_HANDBOOK_KEY" \
+            RAG_ACCOUNTING_KEY="$RAG_ACCOUNTING_KEY" \
             --project-ref enpovkaknaxfgzanyghn
 
       - name: Deploy Motif3 API function

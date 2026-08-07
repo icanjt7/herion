@@ -203,6 +203,24 @@ removes superseded rows from the same source PDFs. The Motif proxy retrieves
 matching tables with the service role and injects only the relevant table or
 rows into the model context.
 
+### Accounting and contract corpus
+
+The accounting corpus adds three page-aware PDF sources and three Excel
+workbooks. PDF body text is stored as encrypted semantic chunks with exact PDF
+pages. Ruled PDF tables and all seven workbook sheets are stored as structured
+tables; Excel extraction trims unused styled cells while preserving formulas,
+merged-cell spans, sheet order, sheet names, and the actual used range.
+Image-heavy PDF pages receive separate Korean OCR chunks that are explicitly
+treated as navigation aids rather than sole evidence for amounts, rates, dates,
+or account classifications.
+
+The encrypted assets use independent repository secrets:
+`RAG_ACCOUNTING_KEY` for `rag-corpus-accounting.ts` and
+`RAG_ACCOUNTING_TABLE_KEY` for `accounting-rag-tables.enc`. Plaintext extraction
+outputs and OCR images must remain outside the repository. The structured-table
+deployment imports both encrypted packages and replaces prior rows only for the
+source files contained in each package.
+
 ## Web Search Proxy
 
 Herian automatically performs a Tavily web search when the user explicitly asks

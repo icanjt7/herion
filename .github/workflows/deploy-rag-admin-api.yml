@@ -24,7 +24,13 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_KHA_PROJECT }}
           RAG_DATA_KEY: ${{ secrets.RAG_DATA_KEY }}
           RAG_WORK_HANDBOOK_KEY: ${{ secrets.RAG_WORK_HANDBOOK_KEY }}
-        run: test -n "$SUPABASE_ACCESS_TOKEN" && test -n "$RAG_DATA_KEY" && test -n "$RAG_WORK_HANDBOOK_KEY"
+          RAG_ACCOUNTING_KEY: ${{ secrets.RAG_ACCOUNTING_KEY }}
+        run: test -n "$SUPABASE_ACCESS_TOKEN" && test -n "$RAG_DATA_KEY" && test -n "$RAG_WORK_HANDBOOK_KEY" && test -n "$RAG_ACCOUNTING_KEY"
+      - name: Configure accounting RAG secret
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_KHA_PROJECT }}
+          RAG_ACCOUNTING_KEY: ${{ secrets.RAG_ACCOUNTING_KEY }}
+        run: supabase secrets set RAG_ACCOUNTING_KEY="$RAG_ACCOUNTING_KEY" --project-ref enpovkaknaxfgzanyghn
       - name: Deploy RAG admin function
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_KHA_PROJECT }}

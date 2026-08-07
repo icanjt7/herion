@@ -2,9 +2,11 @@ import {
   applyRagOverrides,
   buildRagUnavailableContext,
   expandRagQueryText,
+  expandAccountingQueryText,
   extractNamedRuleTerms,
   formatRagTableForContext,
   isInternalGuidanceQuestion,
+  isAccountingGuidanceQuestion,
   isStructuredInternalDataQuestion,
   isTravelExpenseQuestion,
   isTravelExpenseNonPaymentQuestion,
@@ -225,6 +227,29 @@ Deno.test('recognizes internal questions that require structured table data', ()
   assertEquals(isStructuredInternalDataQuestion('직원 근무시간 표로 알려줘'), true);
   assertEquals(isStructuredInternalDataQuestion('여비규정 별표 1 금액'), true);
   assertEquals(isStructuredInternalDataQuestion('행사 일정표를 만들어줘'), false);
+});
+
+Deno.test('recognizes and expands accounting workbook questions', () => {
+  const vatQuery = '한국의집 사업 부가세 공제여부 알려줘';
+  assertEquals(isAccountingGuidanceQuestion(vatQuery), true);
+  assertEquals(isInternalGuidanceQuestion(vatQuery), true);
+  assertEquals(isStructuredInternalDataQuestion(vatQuery), true);
+  assertEquals(expandAccountingQueryText(vatQuery).includes('사업별 회계 단위'), true);
+  assertEquals(expandAccountingQueryText('택배비 계정과목').includes('회계계정 매뉴얼'), true);
+  assertEquals(expandAccountingQueryText('일용근로소득 지급 양식').includes('Excel 시트'), true);
+  const workbookTable = {
+    id: 'KHT-accounting', document_title: '사업별 회계 단위 및 부가가치세 공제여부',
+    source_file: '사업별 회계 단위 및 부가가치세 공제여부(260625).xlsx', revision_basis: '2026-06-25',
+    page_start: 1, page_end: 1, table_index: 1, table_title: '[Excel 시트 1] Sheet1',
+    table_type: 'data_table', row_count: 59, column_count: 6, expanded_matrix: [], markdown: '',
+    search_text: '프로젝트 회계단위 수입 지출 공제 불공제', confidence: 1, score: 1,
+  };
+  assertEquals(structuredTableQueryBoost(workbookTable, vatQuery) >= 90, true);
+  assertEquals(structuredTableQueryBoost({
+    ...workbookTable,
+    document_title: '회계계정 매뉴얼',
+    source_file: '회계계정 매뉴얼(ver.20250520).xlsx',
+  }, '택배비 계정과목') >= 80, true);
 });
 
 Deno.test('guards every internal guidance answer when evidence is unavailable', () => {

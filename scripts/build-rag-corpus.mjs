@@ -105,6 +105,8 @@ const normalizedChunks = source.map((item, index) => {
     ).trim(),
     source_line_start: Number(metadata.source_line_start_approx) || null,
     source_line_end: Number(metadata.source_line_end_approx) || null,
+    page_start: Number(metadata.page_start || item?.page_start) || null,
+    page_end: Number(metadata.page_end || item?.page_end || metadata.page_start || item?.page_start) || null,
     checksum_sha256: String(item?.checksum_sha256 || createHash('sha256').update(text).digest('hex')).trim(),
     unit_type: unitType,
     related_regulations: relatedRegulations,
