@@ -73,6 +73,15 @@ function asciiDownloadName(mediaType: string) {
   return 'source-document.bin';
 }
 
+function publicErrorCode(error: unknown) {
+  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+  if (message.includes('SOURCE_DOCUMENT_KEY')) return 'key_configuration';
+  if (/not found|No such file|os error 2/i.test(message)) return 'asset_missing';
+  if (/decrypt|OperationError|authentication/i.test(message)) return 'decryption_failed';
+  if (/checksum|size validation/i.test(message)) return 'integrity_failed';
+  return 'source_preparation_failed';
+}
+
 Deno.serve(async request => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'GET') return json({ error: 'Method not allowed' }, 405);
@@ -98,6 +107,9 @@ Deno.serve(async request => {
     });
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
-    return json({ error: '원문 파일을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.' }, 500);
+    return json({
+      error: '원문 파일을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+      code: publicErrorCode(error),
+    }, 500);
   }
 });
