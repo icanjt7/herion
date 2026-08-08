@@ -121,12 +121,13 @@ The GitHub Pages client calls the `motif-api` Supabase Edge Function so the
 Motif3 API key is never embedded in the public browser bundle.
 
 1. Add repository secrets `MOTIF_300B` (the Motif3 API key), `LLAMA33`
-   (the NVIDIA API key used when Motif3 is unavailable), and
+   (the NVIDIA Nemotron fallback key), `LLAMA33_70B` (the NVIDIA Llama 3.3
+   70B reserve fallback key), and
    `SUPABASE_KHA_PROJECT` (a Supabase personal access token).
 2. The proxy deploys automatically when its files are pushed to `main`, or it
    can be deployed with the `Deploy Motif3 API Proxy` workflow manually.
-3. The proxy calls model `motif3` first. If Motif3 is unavailable, it falls
-   back to `nvidia/llama-3.3-nemotron-super-49b-v1.5` through NVIDIA's API.
+3. The proxy tries `motif3`, `nvidia/llama-3.3-nemotron-super-49b-v1.5`, and
+   `meta/llama-3.3-70b-instruct` in that order until a provider responds.
 
 The client requests up to 16,384 output tokens for normal chat and 8,192 for
 spell-check results. These values can be changed with `maxOutputTokens` and
