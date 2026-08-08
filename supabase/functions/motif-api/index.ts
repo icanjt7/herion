@@ -7,7 +7,9 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const upstreamUrl = 'https://chat-azure.motiftech.io/openapi/v1/chat/completions';
+const motifUpstreamUrl = 'https://chat-azure.motiftech.io/openapi/v1/chat/completions';
+const nvidiaUpstreamUrl = 'https://integrate.api.nvidia.com/v1/chat/completions';
+const nvidiaModel = 'nvidia/llama-3.3-nemotron-super-49b-v1.5';
 const allowedRoles = new Set(['system', 'user', 'assistant']);
 const optionalFields = [
   'max_tokens', 'temperature', 'top_p', 'frequency_penalty',
@@ -85,8 +87,11 @@ Deno.serve(async (request) => {
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   try {
-    const apiKey = Deno.env.get('MOTIF_API_KEY');
-    if (!apiKey) return json({ error: 'MOTIF_API_KEY is not configured' }, 500);
+    const motifApiKey = Deno.env.get('MOTIF_API_KEY');
+    const llamaApiKey = Deno.env.get('LLAMA33');
+    if (!motifApiKey && !llamaApiKey) {
+      return json({ error: 'No AI provider API key is configured' }, 500);
+    }
 
     const body = await request.json();
     if (!validMessages(body?.messages)) {
@@ -127,7 +132,11 @@ Deno.serve(async (request) => {
     }
     if (body.stream === true) payload.stream_options = { include_usage: true };
 
-    const requestUpstream = (requestPayload: Record<string, unknown>) => fetch(upstreamUrl, {
+    const requestUpstream = (
+      url: string,
+      apiKey: string,
+      requestPayload: Record<string, unknown>,
+    ) => fetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -137,31 +146,67 @@ Deno.serve(async (request) => {
         signal: AbortSignal.timeout(600_000),
       });
 
-    let upstream = await requestUpstream(payload);
-    if (shouldRetry(upstream)) {
-      await upstream.body?.cancel();
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      upstream = await requestUpstream(payload);
+    let upstream: Response | undefined;
+    let provider = 'Motif3';
+
+    if (motifApiKey) {
+      try {
+        upstream = await requestUpstream(motifUpstreamUrl, motifApiKey, payload);
+        if (shouldRetry(upstream)) {
+          await upstream.body?.cancel();
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          upstream = await requestUpstream(motifUpstreamUrl, motifApiKey, payload);
+        }
+      } catch (error) {
+        console.error('Motif3 request failed:', error instanceof Error ? error.message : error);
+      }
     }
 
-    if (body.stream === true && shouldRetry(upstream)) {
+    if (body.stream === true && upstream && shouldRetry(upstream) && motifApiKey) {
       await upstream.body?.cancel();
       const fallbackPayload: Record<string, unknown> = { ...payload, stream: false };
       delete fallbackPayload.stream_options;
-      const fallback = await requestUpstream(fallbackPayload);
-      if (fallback.ok) {
-        const completion = await fallback.json();
-        return new Response(streamFromCompletion(completion), {
-          status: 200,
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'text/event-stream; charset=utf-8',
-            'Cache-Control': 'no-cache, no-transform',
-            'X-Accel-Buffering': 'no',
-          },
-        });
+      try {
+        const fallback = await requestUpstream(motifUpstreamUrl, motifApiKey, fallbackPayload);
+        if (fallback.ok) {
+          const completion = await fallback.json();
+          return new Response(streamFromCompletion(completion), {
+            status: 200,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'text/event-stream; charset=utf-8',
+              'Cache-Control': 'no-cache, no-transform',
+              'X-Accel-Buffering': 'no',
+            },
+          });
+        }
+        upstream = fallback;
+      } catch (error) {
+        console.error('Motif3 non-streaming retry failed:', error instanceof Error ? error.message : error);
       }
-      upstream = fallback;
+    }
+
+    if ((!upstream || !upstream.ok) && llamaApiKey) {
+      await upstream?.body?.cancel();
+      const llamaPayload: Record<string, unknown> = {
+        ...payload,
+        model: nvidiaModel,
+        max_tokens: Math.min(Number(payload.max_tokens) || 16384, 65536),
+        top_p: body.top_p ?? 0.95,
+        frequency_penalty: body.frequency_penalty ?? 0,
+        presence_penalty: body.presence_penalty ?? 0,
+      };
+      try {
+        upstream = await requestUpstream(nvidiaUpstreamUrl, llamaApiKey, llamaPayload);
+        provider = 'NVIDIA Llama 3.3';
+      } catch (error) {
+        console.error('NVIDIA Llama 3.3 fallback failed:', error instanceof Error ? error.message : error);
+        return json({ error: 'AI provider connection failed' }, 503);
+      }
+    }
+
+    if (!upstream) {
+      return json({ error: 'AI provider connection failed' }, 503);
     }
 
     if (body.stream === true && upstream.ok && upstream.body) {
@@ -179,7 +224,7 @@ Deno.serve(async (request) => {
     const responseBody = await upstream.text();
     if (!upstream.ok && responseBody.trimStart().startsWith('<')) {
       return json({
-        error: 'Motif3 연결이 일시적으로 거부되었습니다. 잠시 후 다시 시도해 주세요.',
+        error: `${provider} 연결이 일시적으로 거부되었습니다. 잠시 후 다시 시도해 주세요.`,
         upstream_status: upstream.status,
       }, 503);
     }
