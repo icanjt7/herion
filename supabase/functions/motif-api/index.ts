@@ -10,6 +10,7 @@ const corsHeaders = {
 const motifUpstreamUrl = 'https://chat-azure.motiftech.io/openapi/v1/chat/completions';
 const nvidiaUpstreamUrl = 'https://integrate.api.nvidia.com/v1/chat/completions';
 const nvidiaModel = 'nvidia/llama-3.3-nemotron-super-49b-v1.5';
+const nvidia70bModel = 'meta/llama-3.3-70b-instruct';
 const allowedRoles = new Set(['system', 'user', 'assistant']);
 const optionalFields = [
   'max_tokens', 'temperature', 'top_p', 'frequency_penalty',
@@ -89,7 +90,8 @@ Deno.serve(async (request) => {
   try {
     const motifApiKey = Deno.env.get('MOTIF_API_KEY');
     const llamaApiKey = Deno.env.get('LLAMA33');
-    if (!motifApiKey && !llamaApiKey) {
+    const llama70bApiKey = Deno.env.get('LLAMA33_70B');
+    if (!motifApiKey && !llamaApiKey && !llama70bApiKey) {
       return json({ error: 'No AI provider API key is configured' }, 500);
     }
 
@@ -186,22 +188,27 @@ Deno.serve(async (request) => {
       }
     }
 
-    if ((!upstream || !upstream.ok) && llamaApiKey) {
+    const fallbackProviders = [
+      { apiKey: llamaApiKey, model: nvidiaModel, name: 'NVIDIA Llama 3.3 Nemotron' },
+      { apiKey: llama70bApiKey, model: nvidia70bModel, name: 'NVIDIA Llama 3.3 70B' },
+    ];
+    for (const fallbackProvider of fallbackProviders) {
+      if (upstream?.ok || !fallbackProvider.apiKey) continue;
       await upstream?.body?.cancel();
-      const llamaPayload: Record<string, unknown> = {
+      upstream = undefined;
+      const fallbackPayload: Record<string, unknown> = {
         ...payload,
-        model: nvidiaModel,
+        model: fallbackProvider.model,
         max_tokens: Math.min(Number(payload.max_tokens) || 16384, 65536),
         top_p: body.top_p ?? 0.95,
         frequency_penalty: body.frequency_penalty ?? 0,
         presence_penalty: body.presence_penalty ?? 0,
       };
       try {
-        upstream = await requestUpstream(nvidiaUpstreamUrl, llamaApiKey, llamaPayload);
-        provider = 'NVIDIA Llama 3.3';
+        upstream = await requestUpstream(nvidiaUpstreamUrl, fallbackProvider.apiKey, fallbackPayload);
+        provider = fallbackProvider.name;
       } catch (error) {
-        console.error('NVIDIA Llama 3.3 fallback failed:', error instanceof Error ? error.message : error);
-        return json({ error: 'AI provider connection failed' }, 503);
+        console.error(`${fallbackProvider.name} fallback failed:`, error instanceof Error ? error.message : error);
       }
     }
 
