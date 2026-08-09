@@ -790,11 +790,11 @@ export async function buildRagContext(query: unknown) {
   let characters = 0;
   const perDocumentLimit = asksPublicOverseasOfficialTravel ? 5 : 3;
   const selectedLimit = asksPublicOverseasOfficialTravel ? 8 : 6;
-  const characterLimit = asksPublicOverseasOfficialTravel ? 10800 : 7200;
+  const characterLimit = asksPublicOverseasOfficialTravel ? 16000 : asksInternalGuidance ? 12000 : 7200;
   for (const item of ranked) {
     const documentCount = perDocument.get(item.chunk.document_title) || 0;
     if (documentCount >= perDocumentLimit) continue;
-    const text = item.chunk.text.slice(0, 1800);
+    const text = item.chunk.text.slice(0, 3000);
     if (characters + text.length > characterLimit && selected.length >= 3) continue;
     selected.push(item);
     perDocument.set(item.chunk.document_title, documentCount + 1);
@@ -825,6 +825,10 @@ export async function buildRagContext(query: unknown) {
   if (asksInternalGuidance) {
     context += `- 내부 규정·지침 답변의 문서명, 조항, 별표, 적용 대상, 절차, 금액·한도와 예외는 아래 인용문에서 직접 확인된 내용만 사용한다.\n`;
     context += `- 아래 인용문에 없는 내용을 공개 법령, 다른 기관 사례 또는 일반 지식으로 보충해 국가유산진흥원 내부 기준처럼 표현하지 않는다.\n`;
+    context += `- 검색된 조항을 설명할 때는 먼저 핵심 내용을 이해하기 쉽게 설명하고, 그 설명 바로 아래에 해당 조항의 검색 원문을 생략·요약·의역하지 않고 다음 전용 블록으로 함께 제시한다.\n`;
+    context += `:::regulation-detail\n**제N조(조항명)** 항·호·목과 개정 표기를 포함한 검색 원문 전체\n:::\n`;
+    context += `- 전용 블록은 조항마다 하나씩 만들고 시작·종료 표식을 정확히 지킨다. 검색 원문에 있는 ①·② 등의 항 번호, 1.·2. 등의 호 번호, 가.·나. 등의 목 번호, 단서와 <개정 ...> 표기를 보존한다. 서로 다른 조항을 한 블록에 합치지 않는다.\n`;
+    context += `- 검색 청크가 조항의 일부만 포함하면 확보된 문언만 그대로 싣고 '검색된 청크 범위'라고 밝힌다. 누락된 문언을 추정하거나 원문처럼 만들어 넣지 않는다. 조항형 원문이 아닌 표·서식·Q&A에는 이 블록을 사용하지 않는다.\n`;
   }
   context += `- 검색된 수록 문서를 공개 웹자료와 혼동하지 않는다. 해당 문서를 "직접 열람·확인할 수 없다"거나 "공개 자료가 아니다"라고 답하지 않는다.\n`;
   context += `- 홈페이지나 담당 부서 확인은 최신 개정 여부를 재확인하는 보조 절차로만 안내하며, 검색된 내부 자료의 존재를 부정하는 근거로 사용하지 않는다.\n`;
@@ -887,7 +891,7 @@ export async function buildRagContext(query: unknown) {
         : '',
     ].filter(Boolean).join(' · ');
     if (details) context += `${details}\n`;
-    context += `${chunk.text.slice(0, 1800)}\n`;
+    context += `${chunk.text.slice(0, 3000)}\n`;
   });
   structuredTables.forEach((table, index) => {
     const isExcel = /\.xlsx$/i.test(table.source_file);
