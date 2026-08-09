@@ -3034,6 +3034,17 @@ function extractInternalSourceLocations(content) {
     const documentConfig = internalSourceDocumentConfig(documentTitle);
     const location = parts.join(' · ') || '문서 내 관련 항목';
     const fileName = inlineFile || documentConfig.fileName || '';
+    const paragraphStart = String(content || '').lastIndexOf('\n\n', match.index) + 2;
+    const paragraphEndIndex = String(content || '').indexOf('\n\n', match.index);
+    const paragraphEnd = paragraphEndIndex >= 0 ? paragraphEndIndex : String(content || '').length;
+    const evidenceText = String(content || '').slice(paragraphStart, paragraphEnd)
+      .replace(pattern, '')
+      .replace(/^#{1,6}\s*/gm, '')
+      .replace(/^[-*]\s*/gm, '')
+      .replace(/\*\*/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 600);
     const key = [documentTitle, location, fileName].join('|');
     if (seen.has(key)) continue;
     seen.add(key);
@@ -3042,6 +3053,7 @@ function extractInternalSourceLocations(content) {
       documentTitle,
       location,
       fileName,
+      evidenceText,
       url: documentConfig.url || '',
       downloadId: documentConfig.downloadId || ''
     });
@@ -3051,9 +3063,11 @@ function extractInternalSourceLocations(content) {
 
 async function copyInternalSourceLocation(button, source) {
   const text = [
+    '확인 근거',
     `문서: ${source.documentTitle}`,
-    `위치: ${source.location}`,
-    source.fileName ? `원본 파일: ${source.fileName}` : ''
+    `조항/구분: ${source.location}`,
+    source.fileName ? `원본 파일: ${source.fileName}` : '',
+    source.evidenceText ? `답변 근거 문장: ${source.evidenceText}` : ''
   ].filter(Boolean).join('\n');
   let copied = false;
   try {
@@ -3115,10 +3129,10 @@ function appendInternalSourceCards(bodyEl, content) {
 
   const section = document.createElement('section');
   section.className = 'internal-sources';
-  section.setAttribute('aria-label', '확인 위치');
+  section.setAttribute('aria-label', '확인 근거');
   const title = document.createElement('div');
   title.className = 'internal-sources-title';
-  title.textContent = '확인 위치';
+  title.textContent = '확인 근거';
   const list = document.createElement('div');
   list.className = 'internal-source-list';
 
@@ -3149,7 +3163,7 @@ function appendInternalSourceCards(bodyEl, content) {
     const copyButton = document.createElement('button');
     copyButton.type = 'button';
     copyButton.className = 'internal-source-button';
-    copyButton.textContent = '위치 복사';
+    copyButton.textContent = '근거 복사';
     copyButton.addEventListener('click', () => copyInternalSourceLocation(copyButton, source));
     actions.appendChild(copyButton);
     if (source.downloadId && cfg?.sourceDocumentApiUrl) {
@@ -4255,7 +4269,8 @@ ${langLine}
 - [내부 표] 검색 결과가 있으면 본문에서 별표를 참조한다는 설명만 반복하지 말고, 질문과 관련된 실제 행·열 값을 표로 제시한다.
 - 구조화 표를 근거로 사용한 문장에는 [내부 표: 문서명 · 표 제목 · PDF 쪽 또는 Excel 시트명 · 원본 파일: 파일명] 형식으로 출처를 표시한다.
 - 검색된 근거를 사용한 문장에는 [내부 지침: 문서명 · 조항/구분 · 원본 파일: 파일명] 형식으로 출처를 표시한다.
-- 내부 규정 답변 마지막에는 '확인 위치'를 두고 문서명, 조항·표 제목, PDF 쪽·Excel 시트명 또는 원문 근사 행, 원본 파일명을 안내한다.
+- 내부 규정 답변은 검색된 각 조항을 제목만 나열하거나 한 줄로 축약하지 않는다. 각 조항에서 확인되는 적용 대상, 담당 주체, 기한, 제출서류, 절차, 조건, 제한, 예외, 의무와 사후조치를 구체적으로 설명하고 조항 설명 바로 뒤에 출처를 표시한다.
+- 내부 규정 답변 마지막에는 '확인 근거'를 두고 문서명, 조항·표 제목, PDF 쪽·Excel 시트명 또는 원문 근사 행, 원본 파일명을 안내한다. '확인 근거'는 원문 이동 링크가 아니라 답변에 사용한 문서 근거 목록이다.
 - 회계·계약 질문은 내부 회계처리지침·가이드·편람과 회계 Excel 원표를 우선 검색한다. 개별 사업의 회계단위·부가가치세 공제 여부와 계정과목은 Excel의 실제 행을 제시하며, 화면 OCR만으로 금액·세율·기한을 확정하지 않는다.
 
 [날씨 답변 원칙]

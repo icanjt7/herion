@@ -135,6 +135,12 @@ export function isWorkplaceLocalTravelQuestion(queryText: string) {
   return /근무지내(?:국내)?출장/.test(normalized);
 }
 
+export function isPublicOverseasOfficialTravelQuestion(queryText: string) {
+  const normalized = queryText.normalize('NFC').replace(/\s+/g, '');
+  return /공무국외(?:출장|여행)/.test(normalized)
+    || /(?:국외|해외)(?:공무)?출장(?:운영|절차|심사|허가|의무|계획|보고)/.test(normalized);
+}
+
 export function isAccountingGuidanceQuestion(queryText: string) {
   const normalized = queryText.normalize('NFC').replace(/\s+/g, '');
   const subject = /(?:회계|계정과목|부가가치세|부가세|공제여부|결의서|법인카드|사업비카드|세금계산서|계산서|사업소득|기타소득|일용소득|일용근로|원천징수|증빙|수의계약|입찰|계약업무)/.test(normalized);
@@ -145,6 +151,7 @@ export function isAccountingGuidanceQuestion(queryText: string) {
 export function isInternalGuidanceQuestion(queryText: string) {
   const normalized = queryText.normalize('NFC').replace(/\s+/g, '');
   if (isWorkplaceLocalTravelQuestion(queryText)) return true;
+  if (isPublicOverseasOfficialTravelQuestion(queryText)) return true;
   if (isTravelExpenseQuestion(queryText)) return true;
   if (isAccountingGuidanceQuestion(queryText)) return true;
   if (extractNamedRuleTerms(queryText).length > 0) return true;
@@ -201,8 +208,30 @@ export function workplaceLocalTravelBoost(chunk: RagChunk, queryText: string) {
   return 0;
 }
 
+export function publicOverseasOfficialTravelBoost(chunk: RagChunk, queryText: string) {
+  if (!isPublicOverseasOfficialTravelQuestion(queryText)) return 0;
+  const searchable = [
+    chunk.document_title,
+    chunk.chapter_title,
+    chunk.section_title,
+    (chunk.related_regulations || []).join(' '),
+    chunk.text,
+  ].join('\n').normalize('NFC').replace(/\s+/g, '');
+  let boost = 0;
+  if (/공무국외(?:출장|여행)운영/.test(searchable)) boost += 90;
+  else if (/공무국외(?:출장|여행)/.test(searchable)) boost += 60;
+  if (/국외출장심사위원회|공무국외출장심사위원회/.test(searchable)) boost += 55;
+  if (/8-6국외출장/.test(searchable)) boost += 45;
+  if (/제(?:4|7|10)조/.test(searchable)) boost += 25;
+  if (/계획서|심사|허가|서약서|의무|결과보고|사후관리/.test(searchable)) boost += 15;
+  return boost;
+}
+
 export function expandRagQueryText(queryText: string) {
   const normalized = normalizeTravelExpenseQuery(queryText);
+  if (isPublicOverseasOfficialTravelQuestion(normalized)) {
+    return `${normalized}\n공무국외출장 공무국외여행 운영 지침 국외출장 절차 계획서 제출 심사 대상 심사 제외 원칙적 제한 심사위원회 허가 서약서 출장자 의무 연락 유지 특수 사정 보고 품위 유지 결과보고 사후관리 제4조 제7조 제10조 복무 편람 8-6 국외출장`;
+  }
   if (isWorkplaceLocalTravelQuestion(normalized)) {
     let expanded = `${normalized}\n근무지 내 국내출장 운영 지침 제3조 정의 제5조 여비 지급 기준 출장 여행 시간 4시간 미만 1만원 4시간 이상 2만원 공용차량 임차차량 1만원 감액 1일 최대 2만원`;
     if (isTravelExpenseNonPaymentQuestion(normalized)) {
@@ -714,6 +743,7 @@ export async function buildRagContext(query: unknown) {
   const requestedTravelComponents = requestedTravelExpenseComponents(rawQueryText);
   const asksTravelExpenseNonPayment = isTravelExpenseNonPaymentQuestion(rawQueryText);
   const asksWorkplaceLocalTravel = isWorkplaceLocalTravelQuestion(rawQueryText);
+  const asksPublicOverseasOfficialTravel = isPublicOverseasOfficialTravelQuestion(rawQueryText);
   const asksAccountingGuidance = isAccountingGuidanceQuestion(rawQueryText);
   if (!queryText || queryTokens.length === 0) return '';
 
@@ -737,6 +767,7 @@ export async function buildRagContext(query: unknown) {
       score: scoreChunk(chunk, queryText, queryTokens, documentFrequency, chunks.length)
         + (asksTravelExpense ? travelExpenseTableBoost(chunk, requestedTravelComponents) : 0)
         + workplaceLocalTravelBoost(chunk, rawQueryText)
+        + publicOverseasOfficialTravelBoost(chunk, rawQueryText)
         - (/이미지 화면·서식 OCR/.test(chunk.chapter_title) ? 18 : 0),
     }))
     .filter((item) => !namedRuleTerms.length || namedRuleTerms.some((term) =>
@@ -757,15 +788,18 @@ export async function buildRagContext(query: unknown) {
   const selected: typeof ranked = [];
   const perDocument = new Map<string, number>();
   let characters = 0;
+  const perDocumentLimit = asksPublicOverseasOfficialTravel ? 5 : 3;
+  const selectedLimit = asksPublicOverseasOfficialTravel ? 8 : 6;
+  const characterLimit = asksPublicOverseasOfficialTravel ? 10800 : 7200;
   for (const item of ranked) {
     const documentCount = perDocument.get(item.chunk.document_title) || 0;
-    if (documentCount >= 3) continue;
+    if (documentCount >= perDocumentLimit) continue;
     const text = item.chunk.text.slice(0, 1800);
-    if (characters + text.length > 7200 && selected.length >= 3) continue;
+    if (characters + text.length > characterLimit && selected.length >= 3) continue;
     selected.push(item);
     perDocument.set(item.chunk.document_title, documentCount + 1);
     characters += text.length;
-    if (selected.length >= 6) break;
+    if (selected.length >= selectedLimit) break;
   }
   if (!selected.length && !structuredTables.length) return asksInternalGuidance
     ? buildRagUnavailableContext(rawQueryText, 'no_match', locationCandidates)
@@ -787,7 +821,7 @@ export async function buildRagContext(query: unknown) {
     context += `- 표에 없는 값은 추정하지 않는다. '원문상 빈칸'은 실제 공란이며, 표의 병합 셀 값은 구조화 과정에서 해당 범위에 확장되어 있다.\n`;
   }
   context += `- 검색 결과만으로 단정할 수 없으면 담당 부서 확인이 필요하다고 명시한다.\n`;
-  context += `- 답변 마지막에 '확인 위치'를 두고, 사용한 근거별 문서명, 장·절·조항 또는 표 제목과 PDF 쪽·Excel 시트명, 원본 파일명을 적는다. 화면의 위치 카드가 인식할 수 있도록 본문의 [내부 지침]·[내부 표] 출처 표기는 반드시 유지한다.\n`;
+  context += `- 답변 마지막에 '확인 근거'를 두고, 사용한 근거별 문서명, 장·절·조항 또는 표 제목과 PDF 쪽·Excel 시트명, 원본 파일명을 적는다. 이는 원문으로 이동하는 링크가 아니라 답변을 뒷받침한 문서 근거 목록이다. 화면의 근거 카드가 인식할 수 있도록 본문의 [내부 지침]·[내부 표] 출처 표기는 반드시 유지한다.\n`;
   if (asksInternalGuidance) {
     context += `- 내부 규정·지침 답변의 문서명, 조항, 별표, 적용 대상, 절차, 금액·한도와 예외는 아래 인용문에서 직접 확인된 내용만 사용한다.\n`;
     context += `- 아래 인용문에 없는 내용을 공개 법령, 다른 기관 사례 또는 일반 지식으로 보충해 국가유산진흥원 내부 기준처럼 표현하지 않는다.\n`;
@@ -823,6 +857,11 @@ export async function buildRagContext(query: unknown) {
     context += `- 사용자는 일반적인 근무지 외 국내출장이 아니라 '근무지 내 국내출장'을 묻고 있다. '근무지 내 국내출장 운영 지침' 제5조와 복무 편람의 '8-3 근무지 내 국내출장'을 최우선 근거로 사용한다.\n`;
     context += `- 검색된 해당 원문에 따라 출장 여행 시간이 4시간 미만이면 1만원, 4시간 이상이면 2만원임을 먼저 답한다. 일반 국내여비 지급 기준표의 1일 일비 25,000원을 이 질문에 적용하지 않는다.\n`;
     context += `- 함께 질문받은 경우에만 공용차량·임차차량 이용 시 1만원 감액, 출장 횟수와 관계없는 1일 합계 2만원 상한과 지급 제한 사유를 구분하여 설명한다.\n`;
+  }
+  if (asksPublicOverseasOfficialTravel) {
+    context += `- 사용자는 공무국외출장 제도의 세부 내용을 묻고 있다. 검색된 각 조항과 복무 편람 항목을 '조항별 세부 내용'으로 나누고, 조항 제목이나 한 줄 요약만 제시하지 않는다.\n`;
+    context += `- 각 근거에서 확인되는 적용 대상, 담당 주체, 제출 기한, 제출 서류, 심사 대상·제외·제한, 심사와 허가 절차, 출장 중 준수사항, 예외, 결과보고와 사후조치를 빠짐없이 구체적으로 설명한다. 해당 요소가 인용문에 없으면 추정하지 않는다.\n`;
+    context += `- 동일 조항이 여러 청크에 나뉘어 있으면 내용을 합쳐 설명하되, 검색된 일부 문언만으로 조항 전체를 확인했다고 과장하지 않는다. 각 조항 설명 바로 뒤에 [내부 지침] 출처를 붙인다.\n`;
   }
   if (asksAccountingGuidance) {
     context += `- 회계·계약 답변은 이번에 검색된 회계처리지침, 회계처리 가이드, 회계·계약업무 편람, 회계계정 매뉴얼, 사업별 회계단위·부가가치세 공제여부 자료와 지급 양식만 근거로 작성한다.\n`;
