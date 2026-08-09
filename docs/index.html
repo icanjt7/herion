@@ -1243,9 +1243,9 @@
         <div id="filePreview" style="display:none;margin-bottom:8px;gap:6px;flex-wrap:wrap;"></div>
         <div class="input-shell">
           <div class="drop-overlay" id="dropOverlay">📄 여기에 놓으면 파일이 첨부됩니다</div>
-          <button class="attach-btn" id="fileBtn" title="파일 첨부 (PDF·DOCX·PPTX·XLSX·HWPX·TXT)">📎</button>
+          <button class="attach-btn" id="fileBtn" title="파일 첨부 (이미지·PDF·DOCX·PPTX·XLSX·HWPX·TXT)">📎</button>
           <input type="file" id="fileInput" style="display:none"
-                 accept=".pdf,.docx,.doc,.pptx,.ppt,.xlsx,.xls,.xlsb,.ods,.hwpx,.html,.txt,.csv,.md" multiple>
+                 accept=".png,.jpg,.jpeg,.pdf,.docx,.doc,.pptx,.ppt,.xlsx,.xls,.xlsb,.ods,.hwpx,.html,.txt,.csv,.md" multiple>
           <textarea rows="1" id="msgInput" placeholder="Herian에게 국가유산진흥원 업무를 요청하세요..."></textarea>
           <button class="send-btn" id="sendBtn" type="button" aria-label="메시지 보내기" title="보내기">↑</button>
         </div>
@@ -4435,6 +4435,51 @@ async function fetchGeneratedImage(prompt, signal) {
   return payload.image;
 }
 
+async function imageFileDataUrl(file) {
+  if (file.size > 8 * 1024 * 1024) throw new Error('원본 이미지는 8MB 이하여야 합니다.');
+  const bitmap = await createImageBitmap(file);
+  const maxWidth = 1600;
+  const maxHeight = 1600;
+  const scale = Math.min(1, maxWidth / bitmap.width, maxHeight / bitmap.height);
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+  context.fillStyle = '#fff';
+  context.fillRect(0, 0, width, height);
+  context.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close?.();
+  return canvas.toDataURL('image/jpeg', .86);
+}
+
+async function analyzeAttachedImage(file) {
+  if (!cfg?.imageApiProxyUrl) throw new Error('이미지 인식 API가 설정되지 않았습니다.');
+  const image = await imageFileDataUrl(file);
+  const response = await fetch(cfg.imageApiProxyUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': cfg.supabaseAnonKey,
+      'Authorization': `Bearer ${cfg.supabaseAnonKey}`
+    },
+    body: JSON.stringify({
+      action: 'analyze',
+      image,
+      prompt: 'Analyze this image in detail. Extract all visible text exactly, describe objects and layout, and preserve table rows and columns. Return factual text only.'
+    })
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(payload.error || `이미지 인식 API 오류 ${response.status}`);
+    error.code = payload.code || 'VISION_API_ERROR';
+    throw error;
+  }
+  if (!payload.analysis) throw new Error('이미지 인식 결과가 비어 있습니다.');
+  return `[NVIDIA 이미지 인식: ${payload.model || 'Nemotron VL'}]\n${payload.analysis}`;
+}
+
 async function generateImageForConversation(text, { reuseLastUser = false } = {}) {
   if (!currentConvId && !reuseLastUser) {
     const id = Date.now().toString();
@@ -4574,7 +4619,7 @@ async function sendMessage(options = {}) {
     applyConversationPersonaCommand(text);
     const userBodyEl = appendMsgEl('user');
     userBodyEl.innerHTML = `<p class="user-message-text">${renderUserMessageText(text)}</p>` +
-      pendingAttachments.map(f => `<div class="file-chip">📄 ${escHtml(f.name)}</div>`).join('');
+      pendingAttachments.map(f => `<div class="file-chip">${f.kind === 'image' ? '🖼️' : '📄'} ${escHtml(f.name)}</div>`).join('');
     clearAttachments();
   }
 
@@ -4920,13 +4965,18 @@ async function handleFiles(files) {
   for (const file of incoming) {
     if (attachedFiles.some(item => item.name === file.name && item.size === file.size)) continue;
     try {
-      const content = await extractText(file);
+      const isImage = /^image\/(?:png|jpeg)$/i.test(file.type) || /\.(?:png|jpe?g)$/i.test(file.name);
+      if (isImage) {
+        filePreview.style.display = 'flex';
+        filePreview.innerHTML = `<div class="file-chip">🖼️ ${escHtml(file.name)} · 이미지 인식 중…</div>`;
+      }
+      const content = isImage ? await analyzeAttachedImage(file) : await extractText(file);
       const sensitiveTypes = detectSensitiveData(`${file.name}\n${content}`);
       if (sensitiveTypes.length) {
         errors.push(`${file.name}: 개인정보(${sensitiveTypes.join(', ')})가 탐지되어 첨부하지 않았습니다. 정보를 삭제하거나 마스킹해 주세요.`);
         continue;
       }
-      attachedFiles.push({ name: file.name, content, size: file.size });
+      attachedFiles.push({ name: file.name, content, size: file.size, kind: isImage ? 'image' : 'document' });
     } catch (e) {
       errors.push(`${file.name}: ${e.message}`);
     }
@@ -4983,7 +5033,7 @@ function renderFileChips() {
   filePreview.style.display = 'flex';
   filePreview.innerHTML = attachedFiles.map((f, i) => `
     <div class="file-chip">
-      📄 ${escHtml(f.name)}
+      ${f.kind === 'image' ? '🖼️' : '📄'} ${escHtml(f.name)}
       <button onclick="removeFile(${i})" title="제거">✕</button>
     </div>`).join('');
 }
@@ -5210,7 +5260,7 @@ async function extractText(file) {
     return preserveDetail(text);
   }
 
-  throw new Error(`지원하지 않는 형식입니다 (.${ext}). PDF·DOCX·PPTX·XLSX·HWPX·TXT를 사용해주세요.`);
+  throw new Error(`지원하지 않는 형식입니다 (.${ext}). PNG·JPEG·PDF·DOCX·PPTX·XLSX·HWPX·TXT를 사용해주세요.`);
 }
 
 // 모바일 브라우저 주소창과 가상 키보드를 제외한 실제 표시 높이에 맞춘다.
