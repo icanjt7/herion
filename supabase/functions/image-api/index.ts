@@ -71,41 +71,48 @@ function validateVisionImage(value: unknown) {
   return image;
 }
 
-async function requestNemotron(apiKey: string, prompt: string, image = '') {
+async function requestNemotron(apiKeys: string[], prompt: string, image = '') {
   const content = image
     ? [
         { type: 'image_url', image_url: { url: image } },
         { type: 'text', text: prompt },
       ]
     : prompt;
-  const upstream = await fetch(nvidiaChatUrl, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    },
-    body: JSON.stringify({
-      model: nemotronVisionModel,
-      messages: [{ role: 'user', content }],
-      temperature: 0,
-      top_p: 1,
-      max_tokens: image ? 1800 : 500,
-      stream: false,
-    }),
-    signal: AbortSignal.timeout(90_000),
-  });
-  const payload = await upstream.json().catch(() => ({})) as Record<string, unknown>;
-  if (!upstream.ok) {
-    throw new Error(`NVIDIA Nemotron VL 요청에 실패했습니다 (${upstream.status}).`);
+  const uniqueKeys = [...new Set(apiKeys.filter(Boolean))];
+  let lastStatus = 0;
+  for (const [index, apiKey] of uniqueKeys.entries()) {
+    const upstream = await fetch(nvidiaChatUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        model: nemotronVisionModel,
+        messages: [{ role: 'user', content }],
+        temperature: 0,
+        top_p: 1,
+        max_tokens: image ? 1800 : 500,
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(90_000),
+    });
+    const payload = await upstream.json().catch(() => ({})) as Record<string, unknown>;
+    if (upstream.ok) {
+      const result = assistantText(payload);
+      if (!result) throw new Error('NVIDIA Nemotron VL이 분석 결과를 반환하지 않았습니다.');
+      return result;
+    }
+    lastStatus = upstream.status;
+    const canRetryWithFallback = [401, 403].includes(upstream.status) && index < uniqueKeys.length - 1;
+    if (!canRetryWithFallback) break;
   }
-  const text = assistantText(payload);
-  if (!text) throw new Error('NVIDIA Nemotron VL이 분석 결과를 반환하지 않았습니다.');
-  return text;
+  throw new Error(`NVIDIA Nemotron VL 요청에 실패했습니다 (${lastStatus || 503}).`);
 }
 
-async function analyzeImage(body: Record<string, unknown>, nemotronKey: string) {
-  if (!nemotronKey) {
+async function analyzeImage(body: Record<string, unknown>, nemotronKeys: string[]) {
+  if (!nemotronKeys.length) {
     return json({
       error: 'NVIDIA 이미지 인식 설정이 완료되지 않았습니다.',
       code: 'VISION_API_NOT_CONFIGURED',
@@ -128,7 +135,7 @@ async function analyzeImage(body: Record<string, unknown>, nemotronKey: string) 
       detected_types: sensitiveTypes,
     }, 400);
   }
-  const analysis = await requestNemotron(nemotronKey, prompt, image);
+  const analysis = await requestNemotron(nemotronKeys, prompt, image);
   const detectedInResult = detectSensitiveData(analysis);
   if (detectedInResult.length) {
     return json({
@@ -140,11 +147,11 @@ async function analyzeImage(body: Record<string, unknown>, nemotronKey: string) 
   return json({ analysis, model: nemotronVisionModel });
 }
 
-async function enhanceImagePrompt(prompt: string, nemotronKey: string) {
-  if (!nemotronKey) return prompt;
+async function enhanceImagePrompt(prompt: string, nemotronKeys: string[]) {
+  if (!nemotronKeys.length) return prompt;
   try {
     const enhanced = await requestNemotron(
-      nemotronKey,
+      nemotronKeys,
       `Rewrite the following request as one concise English text-to-image prompt. Preserve every subject, style, color, composition, and text requirement. Output only the prompt.\n\n${prompt}`,
     );
     return enhanced.slice(0, 2048) || prompt;
@@ -160,8 +167,11 @@ Deno.serve(async (request) => {
 
   try {
     const body = await request.json() as Record<string, unknown>;
-    const nemotronKey = Deno.env.get('NEMOTRON_VL')?.trim() || '';
-    if (body.action === 'analyze' || body.image) return await analyzeImage(body, nemotronKey);
+    const nemotronKeys = [
+      Deno.env.get('NEMOTRON_VL')?.trim() || '',
+      Deno.env.get('NEMOTRON_VL_FALLBACK')?.trim() || '',
+    ].filter(Boolean);
+    if (body.action === 'analyze' || body.image) return await analyzeImage(body, nemotronKeys);
 
     const accountId = Deno.env.get('CLOUDFLARE_ACCOUNT_ID')?.trim();
     const apiToken = Deno.env.get('CLOUDFLARE_API_TOKEN');
@@ -199,7 +209,7 @@ Deno.serve(async (request) => {
       }, 400);
     }
 
-    const generationPrompt = await enhanceImagePrompt(prompt, nemotronKey);
+    const generationPrompt = await enhanceImagePrompt(prompt, nemotronKeys);
     const upstream = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/run/${model}`,
       {
@@ -223,7 +233,7 @@ Deno.serve(async (request) => {
       return json({
         image: `data:${contentType.split(';')[0]};base64,${btoa(binary)}`,
         model,
-        prompt_model: nemotronKey ? nemotronVisionModel : null,
+        prompt_model: nemotronKeys.length ? nemotronVisionModel : null,
       });
     }
 
@@ -259,7 +269,7 @@ Deno.serve(async (request) => {
     return json({
       image: imageDataUrl(encoded),
       model,
-      prompt_model: nemotronKey ? nemotronVisionModel : null,
+      prompt_model: nemotronKeys.length ? nemotronVisionModel : null,
     });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : 'Unknown error' }, 500);
