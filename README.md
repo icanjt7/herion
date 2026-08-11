@@ -100,12 +100,18 @@ OC is not exposed in `docs/config.js` and browser CORS does not block requests.
 The GitHub Pages client calls the `motif-api` Supabase Edge Function so the
 Motif3 API key is never embedded in the public browser bundle.
 
-1. Add repository secrets `MOTIF_300B` (the Motif3 API key) and
+1. Add repository secrets `MOTIF_300B` (the Motif3 API key),
+   `OPENROUTER_API_KEY` (the OpenRouter emergency free-router key), and
    `SUPABASE_KHA_PROJECT` (a Supabase personal access token).
 2. The proxy deploys automatically when its files are pushed to `main`, or it
    can be deployed with the `Deploy Motif3 API Proxy` workflow manually.
-3. The client calls model `motif3` through the proxy at
-   `https://chat-azure.motiftech.io/openapi/v1/chat/completions`.
+3. The proxy calls `motif3` first and falls back to `openrouter/free` when the
+   Motif endpoint is unavailable. OpenRouter's free route is rate-limited and
+   is intended only for emergency, low-volume use.
+
+Attachment contents are not sent to OpenRouter by default. Set the repository
+variable `OPENROUTER_ALLOW_INTERNAL_DATA=true` only after the organization has
+approved transferring those materials to OpenRouter's upstream model pool.
 
 The client requests up to 16,384 output tokens for normal chat and 8,192 for
 spell-check results. These values can be changed with `maxOutputTokens` and

@@ -19,21 +19,33 @@ jobs:
         with:
           version: latest
 
-      - name: Validate MOTIF_300B secret
+      - name: Validate AI provider secret
         env:
           MOTIF_API_KEY: ${{ secrets.MOTIF_300B }}
-        run: test -n "$MOTIF_API_KEY"
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY || secrets.OPENROUTER }}
+        run: test -n "$MOTIF_API_KEY" || test -n "$OPENROUTER_API_KEY"
 
       - name: Validate Supabase access token
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_KHA_PROJECT }}
         run: test -n "$SUPABASE_ACCESS_TOKEN"
 
-      - name: Configure Motif3 API secret
+      - name: Configure AI provider secrets
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_KHA_PROJECT }}
           MOTIF_API_KEY: ${{ secrets.MOTIF_300B }}
-        run: supabase secrets set MOTIF_API_KEY="$MOTIF_API_KEY" --project-ref enpovkaknaxfgzanyghn
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY || secrets.OPENROUTER }}
+          OPENROUTER_ALLOW_INTERNAL_DATA: ${{ vars.OPENROUTER_ALLOW_INTERNAL_DATA || 'false' }}
+        run: |
+          if [ -n "$MOTIF_API_KEY" ]; then
+            supabase secrets set MOTIF_API_KEY="$MOTIF_API_KEY" --project-ref enpovkaknaxfgzanyghn
+          fi
+          if [ -n "$OPENROUTER_API_KEY" ]; then
+            supabase secrets set \
+              OPENROUTER_API_KEY="$OPENROUTER_API_KEY" \
+              OPENROUTER_ALLOW_INTERNAL_DATA="$OPENROUTER_ALLOW_INTERNAL_DATA" \
+              --project-ref enpovkaknaxfgzanyghn
+          fi
 
       - name: Deploy Motif3 API function
         env:

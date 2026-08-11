@@ -5,6 +5,8 @@ const corsHeaders = {
 };
 
 const upstreamUrl = 'https://chat-azure.motiftech.io/openapi/v1/chat/completions';
+const openRouterUpstreamUrl = 'https://openrouter.ai/api/v1/chat/completions';
+const openRouterFreeModel = 'openrouter/free';
 const allowedRoles = new Set(['system', 'user', 'assistant']);
 const optionalFields = [
   'max_tokens', 'temperature', 'top_p', 'frequency_penalty',
@@ -61,6 +63,10 @@ function shouldRetry(response: Response) {
   return response.status === 403 && contentType.includes('text/html');
 }
 
+function containsAttachedContent(messages: Array<{ role: string; content: string }>) {
+  return messages.some((message) => message.content.includes('[첨부파일:'));
+}
+
 function streamFromCompletion(data: Record<string, any>) {
   const message = data.choices?.[0]?.message;
   const content = typeof message?.content === 'string' ? message.content : '';
@@ -103,7 +109,9 @@ Deno.serve(async (request) => {
 
   try {
     const apiKey = Deno.env.get('MOTIF_API_KEY');
-    if (!apiKey) return json({ error: 'MOTIF_API_KEY is not configured' }, 500);
+    const openRouterApiKey = Deno.env.get('OPENROUTER_API_KEY');
+    const allowOpenRouterInternalData = Deno.env.get('OPENROUTER_ALLOW_INTERNAL_DATA') === 'true';
+    if (!apiKey && !openRouterApiKey) return json({ error: 'No AI provider API key is configured' }, 500);
 
     const body = await request.json();
     if (!validMessages(body?.messages)) {
@@ -134,28 +142,42 @@ Deno.serve(async (request) => {
     }
     if (body.stream === true) payload.stream_options = { include_usage: true };
 
-    const requestUpstream = (requestPayload: Record<string, unknown>) => fetch(upstreamUrl, {
+    const requestUpstream = (
+      url: string,
+      providerApiKey: string,
+      requestPayload: Record<string, unknown>,
+      extraHeaders: Record<string, string> = {},
+    ) => fetch(url, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${providerApiKey}`,
           'Content-Type': 'application/json',
+          ...extraHeaders,
         },
         body: JSON.stringify(requestPayload),
         signal: AbortSignal.timeout(600_000),
       });
 
-    let upstream = await requestUpstream(payload);
-    if (shouldRetry(upstream)) {
-      await upstream.body?.cancel();
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      upstream = await requestUpstream(payload);
+    let upstream: Response | undefined;
+    let provider = 'Motif3';
+    if (apiKey) {
+      try {
+        upstream = await requestUpstream(upstreamUrl, apiKey, payload);
+        if (shouldRetry(upstream)) {
+          await upstream.body?.cancel();
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          upstream = await requestUpstream(upstreamUrl, apiKey, payload);
+        }
+      } catch (error) {
+        console.error('Motif3 request failed:', error instanceof Error ? error.message : error);
+      }
     }
 
-    if (body.stream === true && shouldRetry(upstream)) {
+    if (body.stream === true && upstream && shouldRetry(upstream) && apiKey) {
       await upstream.body?.cancel();
       const fallbackPayload = { ...payload, stream: false };
       delete fallbackPayload.stream_options;
-      const fallback = await requestUpstream(fallbackPayload);
+      const fallback = await requestUpstream(upstreamUrl, apiKey, fallbackPayload);
       if (fallback.ok) {
         const completion = await fallback.json();
         return new Response(streamFromCompletion(completion), {
@@ -169,6 +191,32 @@ Deno.serve(async (request) => {
         });
       }
       upstream = fallback;
+    }
+
+    const blocksOpenRouter = containsAttachedContent(body.messages) && !allowOpenRouterInternalData;
+    if (!upstream?.ok && openRouterApiKey && !blocksOpenRouter) {
+      await upstream?.body?.cancel();
+      const openRouterPayload: Record<string, unknown> = {
+        ...payload,
+        model: openRouterFreeModel,
+        max_tokens: Math.min(Number(payload.max_tokens) || 4096, 4096),
+      };
+      upstream = await requestUpstream(
+        openRouterUpstreamUrl,
+        openRouterApiKey,
+        openRouterPayload,
+        {
+          'HTTP-Referer': 'https://icanjt7.github.io/herion/',
+          'X-OpenRouter-Title': 'Herian',
+        },
+      );
+      provider = 'OpenRouter Free';
+    }
+
+    if (!upstream) {
+      return json({ error: blocksOpenRouter
+        ? '첨부 문서는 승인되지 않은 무료 모델로 전송하지 않습니다.'
+        : 'AI provider connection failed' }, 503);
     }
 
     if (body.stream === true && upstream.ok && upstream.body) {
@@ -186,7 +234,7 @@ Deno.serve(async (request) => {
     const responseBody = await upstream.text();
     if (!upstream.ok && responseBody.trimStart().startsWith('<')) {
       return json({
-        error: 'Motif3 연결이 일시적으로 거부되었습니다. 잠시 후 다시 시도해 주세요.',
+        error: `${provider} 연결이 일시적으로 거부되었습니다. 잠시 후 다시 시도해 주세요.`,
         upstream_status: upstream.status,
       }, 503);
     }
